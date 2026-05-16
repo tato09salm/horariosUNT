@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   let idx = 1;
 
   if (buscar) {
-    sql += ` AND (d.nombre ILIKE $${idx} OR d.apellidos ILIKE $${idx} OR d.codigo ILIKE $${idx} OR d.dni ILIKE $${idx})`;
+    sql += ` AND (d.nombre ILIKE $${idx} OR d.apellidos ILIKE $${idx} OR d.dni ILIKE $${idx})`;
     params.push(`%${buscar}%`);
     idx++;
   }
@@ -53,12 +53,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { codigo, nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana } = body;
+    const { nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana } = body;
 
     const docente = await queryOne(
-      `INSERT INTO docentes (codigo, nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [codigo, nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana || 20]
+      `INSERT INTO docentes (nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana || 20]
     );
 
     await registrarAuditoria({

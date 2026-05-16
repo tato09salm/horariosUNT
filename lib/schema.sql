@@ -33,7 +33,6 @@ CREATE TYPE tipo_grado AS ENUM ('bachiller', 'licenciado', 'magister', 'doctor')
 CREATE TABLE docentes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   usuario_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
-  codigo VARCHAR(20) UNIQUE NOT NULL,
   nombre VARCHAR(100) NOT NULL,
   apellidos VARCHAR(150) NOT NULL,
   dni VARCHAR(8) UNIQUE NOT NULL,

@@ -12,6 +12,10 @@ export async function GET(req: NextRequest) {
   const categoria = searchParams.get('categoria');
   const condicion = searchParams.get('condicion');
   const activo = searchParams.get('activo');
+  const reporte = searchParams.get('reporte') === 'true';
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = parseInt(searchParams.get('limit') || '10');
+  const offset = (page - 1) * limit;
 
   let sql = `
     SELECT d.*, 
@@ -29,7 +33,7 @@ export async function GET(req: NextRequest) {
   let idx = 1;
 
   if (buscar) {
-    sql += ` AND (d.nombre ILIKE $${idx} OR d.apellidos ILIKE $${idx} OR d.codigo ILIKE $${idx} OR d.dni ILIKE $${idx})`;
+    sql += ` AND (d.nombre ILIKE $${idx} OR d.apellidos ILIKE $${idx} OR d.dni ILIKE $${idx})`;
     params.push(`%${buscar}%`);
     idx++;
   }
@@ -39,10 +43,20 @@ export async function GET(req: NextRequest) {
     sql += ` AND d.activo = $${idx++}`; params.push(activo === 'true');
   }
 
+  // Count total for pagination
+  const countSql = `SELECT COUNT(*) FROM (${sql}) as total`;
+  const totalRes = await queryOne(countSql, params);
+  const total = parseInt(totalRes?.count || '0');
+
   sql += ` ORDER BY condicion_orden, categoria_orden, d.fecha_ingreso ASC`;
+  
+  if (!reporte) {
+    sql += ` LIMIT $${idx++ } OFFSET $${idx++}`;
+    params.push(limit, offset);
+  }
 
   const docentes = await query(sql, params);
-  return NextResponse.json({ data: docentes });
+  return NextResponse.json({ data: docentes, total, page: reporte ? 1 : page, limit: reporte ? total : limit });
 }
 
 export async function POST(req: NextRequest) {
@@ -53,12 +67,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { codigo, nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana } = body;
+    const { nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana } = body;
 
     const docente = await queryOne(
-      `INSERT INTO docentes (codigo, nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [codigo, nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana || 20]
+      `INSERT INTO docentes (nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana || 20]
     );
 
     await registrarAuditoria({
