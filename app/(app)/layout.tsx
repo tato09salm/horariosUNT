@@ -23,6 +23,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -31,6 +32,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       .catch(() => router.push('/'))
       .finally(() => setLoading(false));
   }, []);
+
+  // Cerrar sidebar al cambiar de ruta en mobile
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -51,47 +57,99 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <UserContext.Provider value={user}>
       <div>
+        {/* Mobile Header */}
+        <header className="mobile-header">
+          <button 
+            onClick={() => setSidebarOpen(true)}
+            style={{background:'none',border:'none',color:'#475569',padding:'8px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
+          >
+            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <div style={{marginLeft:'12px',fontWeight:'700',fontSize:'16px',color:'#1e293b'}}>SiHorarios UNT</div>
+        </header>
+
+        {/* Overlay para mobile */}
+        <div 
+          className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`}
+          onClick={() => setSidebarOpen(false)}
+        />
+
         {/* Sidebar */}
-        <aside className="sidebar">
-          <div style={{padding:'20px 16px'}}>
-            {/* Logo */}
-            <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'28px',padding:'8px'}}>
-              <div style={{width:'36px',height:'36px',borderRadius:'10px',background:'rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                <svg width="20" height="20" fill="none" stroke="white" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+        <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+          {/* Header del Sidebar */}
+          <div style={{padding:'24px 20px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+              <div style={{width:'32px',height:'32px',borderRadius:'8px',background:'#3b82f6',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <svg width="18" height="18" fill="none" stroke="white" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
                 </svg>
               </div>
-              <div>
-                <p style={{color:'white',fontWeight:'700',fontSize:'14px',margin:0,lineHeight:'1.2'}}>SiHorarios</p>
-                <p style={{color:'rgba(147,197,253,0.8)',fontSize:'10px',margin:0,lineHeight:'1.2'}}>UNT - EIS</p>
-              </div>
+              <span style={{color:'white',fontWeight:'700',fontSize:'16px',letterSpacing:'-0.025em'}}>SiHorarios</span>
             </div>
+            {/* Botón cerrar solo visible en mobile */}
+            <button 
+              className="show-sm"
+              onClick={() => setSidebarOpen(false)}
+              style={{background:'rgba(255,255,255,0.1)',border:'none',color:'#94a3b8',padding:'6px',borderRadius:'6px',cursor:'pointer'}}
+            >
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
 
-            {/* Nav */}
+          {/* Nav con Scroll */}
+          <div className="sidebar-scroll">
             <nav>
               {visibleNav.map(item => (
                 <Link key={item.href} href={item.href} className={`nav-item${pathname.startsWith(item.href) ? ' active' : ''}`}>
-                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{flexShrink:0}}>
+                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{flexShrink:0}}>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} />
                   </svg>
-                  {item.label}
+                  <span>{item.label}</span>
                 </Link>
               ))}
             </nav>
           </div>
 
-          {/* User info */}
-          <div style={{position:'sticky',bottom:0,padding:'16px',borderTop:'1px solid rgba(255,255,255,0.1)',background:'rgba(0,0,0,0.2)'}}>
-            <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'10px'}}>
-              <div style={{width:'32px',height:'32px',borderRadius:'50%',background:'rgba(255,255,255,0.2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                <span style={{color:'white',fontSize:'12px',fontWeight:'600'}}>{user?.nombre?.[0]}{user?.apellidos?.[0]}</span>
+          {/* User info Compacto */}
+          <div className="user-footer">
+            <div style={{display:'flex',alignItems:'center',gap:'12px',marginBottom:'12px'}}>
+              <div style={{width:'38px',height:'36px',borderRadius:'8px',background:'#1e293b',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,border:'1px solid rgba(255,255,255,0.1)'}}>
+                <span style={{color:'white',fontSize:'13px',fontWeight:'700'}}>{user?.nombre?.[0]}{user?.apellidos?.[0]}</span>
               </div>
               <div style={{flex:1,minWidth:0}}>
-                <p style={{color:'white',fontSize:'13px',fontWeight:'500',margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user?.nombre} {user?.apellidos}</p>
-                <p style={{color:'rgba(147,197,253,0.8)',fontSize:'11px',margin:0,textTransform:'capitalize'}}>{user?.rol}</p>
+                <p style={{color:'white',fontSize:'13px',fontWeight:'600',margin:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  {user?.nombre} {user?.apellidos}
+                </p>
+                <p style={{color:'#94a3b8',fontSize:'11px',margin:0,textTransform:'lowercase',fontWeight:'500'}}>
+                  {user?.rol}
+                </p>
               </div>
             </div>
-            <button onClick={logout} style={{width:'100%',background:'rgba(255,255,255,0.1)',border:'none',color:'rgba(255,255,255,0.75)',borderRadius:'8px',padding:'7px',fontSize:'13px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px'}}>
+            <button 
+              onClick={logout} 
+              style={{
+                width:'100%',
+                background:'transparent',
+                border:'1px solid rgba(255,255,255,0.1)',
+                color:'#f1f5f9',
+                borderRadius:'8px',
+                padding:'8px',
+                fontSize:'12.5px',
+                cursor:'pointer',
+                display:'flex',
+                alignItems:'center',
+                justifyContent:'center',
+                gap:'8px',
+                transition:'all 0.2s',
+                fontWeight:'500'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+            >
               <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
