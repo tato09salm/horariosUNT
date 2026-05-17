@@ -9,7 +9,7 @@ import { registrarAuditoria } from '@/lib/auditoria';
  * 
  * Formato CSV esperado (sin encabezado o con encabezado ignorado):
  * curso_codigo,grupo_numero,docente_codigo,horas_teoria,horas_practica,horas_lab,horas_consejeria,seccion
- * IS-601,1,D053,1,2,0,0,A
+ * IS-601,1,28282828,1,2,0,1,A
  */
 export async function POST(
   req: NextRequest,
@@ -83,7 +83,7 @@ export async function POST(
       const horas_teoria = parseHora(ht, curso.horas_teoria);
       const horas_practica = parseHora(hp, curso.horas_practica);
       const horas_laboratorio = parseHora(hl, 0);
-      const horas_consejeria = parseHora(hc, 0);
+      const horas_consejeria = parseHora(hc, 1);
 
       try {
         await queryOne(`

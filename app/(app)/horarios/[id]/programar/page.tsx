@@ -1,9 +1,12 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
+import BloqueHorario from '@/components/horarios/BloqueHorario';
+import LeyendaHorarios from '@/components/horarios/LeyendaHorarios';
+import { DIAS_SEMANA, DIAS_LABEL } from '@/lib/horario-utils';
+import { fetchProgramacionCursos } from '@/lib/fetch-programacion-cursos';
 
-const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
-const DIAS_LABEL: Record<string, string> = { lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado' };
+const DIAS = [...DIAS_SEMANA];
 
 export default function ProgramarPage() {
   const pathname = usePathname();
@@ -16,20 +19,41 @@ export default function ProgramarPage() {
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState(false);
   const [msg, setMsg] = useState<any>(null);
+  const [cspStats, setCspStats] = useState<any>(null);
+  const [vista, setVista] = useState<'ciclo' | 'docente' | 'aula'>('aula');
+  const [aulaFiltro, setAulaFiltro] = useState<string>('');
+  const [docenteFiltro, setDocenteFiltro] = useState<string>('');
+  const [docentesConCarga, setDocentesConCarga] = useState<Set<string>>(new Set());
+  const [diaMobile, setDiaMobile] = useState<string>('lunes');
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const fn = () => setIsMobile(mq.matches);
+    fn();
+    mq.addEventListener('change', fn);
+    return () => mq.removeEventListener('change', fn);
+  }, []);
 
   const cargarDatos = useCallback(async () => {
     setLoading(true);
     try {
-      const [progRes, dashRes, confRes] = await Promise.all([
+      const [progRes, dashRes, confRes, cursosRes] = await Promise.all([
         fetch(`/api/horarios/programaciones/${progId}`).then(r => r.json()),
         fetch('/api/dashboard').then(r => r.json()),
-        fetch(`/api/horarios/resolver/conflictos?programacion_id=${progId}`).then(r => r.json()).catch(() => ({ data: [] }))
+        fetch(`/api/horarios/resolver/conflictos?programacion_id=${progId}`).then(r => r.json()).catch(() => ({ data: [] })),
+        fetchProgramacionCursos(progId),
       ]);
 
       const dataProg = progRes.data;
+      const ids = new Set<string>(
+        (cursosRes.cargaDocentes || []).map((d: { id: string }) => d.id)
+      );
+      setDocentesConCarga(ids);
       setProg(dataProg);
       setSlots(dashRes.slots || []);
       setAsignaciones(dataProg?.config?.asignaciones || []);
+      setCspStats(dataProg?.config?.csp_stats || null);
       setConflictos(confRes.data || []);
     } finally {
       setLoading(false);
@@ -43,7 +67,6 @@ export default function ProgramarPage() {
 
   const ejecutarMotor = async (force: boolean = false) => {
     if (!force) {
-      // Validar primero
       setResolving(true); setMsg(null);
       try {
         const res = await fetch('/api/horarios/resolver', {
@@ -76,9 +99,16 @@ export default function ProgramarPage() {
       });
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.error);
-      
-      setMsg({ type: 'success', text: `Asignación completada. Se generaron ${resData.data?.asignaciones?.length || 0} bloques.` });
-      cargarDatos(); // Recargar grilla
+
+      const st = resData.data?.csp_stats;
+      const labsPar = st?.franjas_labs_paralelos != null ? ` · Labs en paralelo: ${st.franjas_labs_paralelos} franjas` : '';
+      const reintento = st?.log?.some((l: string) => l.includes('Reintento flexible')) ? ' (incluye reintento flexible)' : '';
+      setMsg({
+        type: 'success',
+        text: `Asignación completada${reintento}. ${resData.data?.asignaciones?.length || 0} bloques.${labsPar}`,
+      });
+      if (resData.data?.csp_stats) setCspStats(resData.data.csp_stats);
+      cargarDatos();
     } catch (e: any) {
       setMsg({ type: 'error', text: e.message });
     } finally {
@@ -110,18 +140,108 @@ export default function ProgramarPage() {
       });
   }
 
-  // Generar color consistente por curso
-  function getColor(seed: string) {
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
-    const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-    return '#' + '00000'.substring(0, 6 - c.length) + c;
-  }
+  const asignacionesVisibles = useMemo(() => {
+    if (docentesConCarga.size === 0) return asignaciones;
+    return asignaciones.filter(
+      a => a.tipo === 'asesoria' || !a.docente_id || docentesConCarga.has(a.docente_id)
+    );
+  }, [asignaciones, docentesConCarga]);
 
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando datos...</div>;
   if (!prog) return <div style={{ padding: '40px', textAlign: 'center' }}>Programación no encontrada</div>;
 
-  const ciclos = Array.from(new Set(asignaciones.map(a => a.ciclo_plan || 0))).sort((a,b)=>a-b);
+  const docentesUnicos = Array.from(
+    new Map(
+      asignacionesVisibles
+        .filter(a => a.docente_id && docentesConCarga.has(a.docente_id))
+        .map(a => [a.docente_id, a.docente_nombre])
+    ).entries()
+  ).map(([id, nombre]) => ({ id, nombre: nombre as string }));
+
+  const asigFiltradas = vista === 'docente' && docenteFiltro
+    ? asignacionesVisibles.filter(a => a.docente_id === docenteFiltro)
+    : asignacionesVisibles;
+
+  const ciclosLista = Array.from(
+    new Set(asigFiltradas.map(a => a.ciclo_plan).filter((c): c is number => c != null && c > 0))
+  ).sort((a, b) => a - b);
+
+  const ambientesEnUso = Array.from(
+    new Map(
+      asigFiltradas
+        .filter(a => a.ambiente_codigo && a.tipo !== 'asesoria')
+        .map(a => [
+          a.ambiente_id || a.ambiente_codigo,
+          { id: a.ambiente_id, codigo: a.ambiente_codigo, nombre: a.ambiente_nombre, tipo: a.ambiente_tipo },
+        ])
+    ).values()
+  ).sort((a, b) => String(a.codigo).localeCompare(String(b.codigo)));
+
+  const asesoriasAsig = asigFiltradas.filter(a => a.tipo === 'asesoria');
+
+  const diasGrilla = isMobile ? [diaMobile] : [...DIAS];
+  const compactBlocks = isMobile || (typeof window !== 'undefined' && window.innerWidth < 1200);
+
+  function renderGrilla(
+    titulo: string,
+    asigGrilla: any[],
+    key: string
+  ) {
+    if (asigGrilla.length === 0) return null;
+    return (
+      <div key={key} style={{ marginBottom: '40px' }}>
+        <h4 style={{ fontSize: '15px', color: '#0f172a', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px', marginBottom: '16px' }}>
+          {titulo}
+        </h4>
+        <div className={`horario-grid horario-grid--responsive${isMobile ? ' horario-grid--mobile-one-day' : ''}`}>
+          <div className="horario-header horario-header--show">Hora</div>
+          {DIAS.map(d => (
+            <div
+              key={d}
+              className={`horario-header${diasGrilla.includes(d) ? ' horario-header--show' : ''}`}
+            >
+              {DIAS_LABEL[d]}
+            </div>
+          ))}
+          {slots.map((slot) => {
+            const isLunch = slot.hora_inicio === '13:00' || slot.hora_inicio === '13:00:00';
+            return (
+              <div key={slot.id} style={{ display: 'contents' }}>
+                <div
+                  className={`horario-time${isLunch || !isMobile ? ' horario-time--show' : ''}`}
+                  style={isLunch ? { background: '#f1f5f9' } : {}}
+                >
+                  {slot.hora_inicio}<br />{slot.hora_fin}
+                </div>
+                {isLunch ? (
+                  <div
+                    className="horario-cell horario-cell--show horario-cell--lunch"
+                    style={{ gridColumn: isMobile ? 'span 1' : `span ${DIAS.length}` }}
+                  >
+                    HORA LIBRE (REFRIGERIO)
+                  </div>
+                ) : (
+                  DIAS.map(dia => {
+                    const cells = getCell(dia, slot.id, asigGrilla);
+                    return (
+                      <div
+                        key={`${dia}-${slot.id}`}
+                        className={`horario-cell${diasGrilla.includes(dia) ? ' horario-cell--show' : ''}`}
+                      >
+                        {cells.map(c => (
+                          <BloqueHorario key={c.id} asignacion={c} compact={compactBlocks} />
+                        ))}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '32px' }}>
@@ -136,7 +256,7 @@ export default function ProgramarPage() {
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button className="btn-secondary" onClick={() => ejecutarMotor(false)} disabled={resolving || prog.fase !== 3}>
-            {resolving ? '⚙️ Resolviendo...' : asignaciones.length > 0 ? '🔄 Reejecutar CSP' : '⚙️ Ejecutar Auto-Asignación'}
+            {resolving ? '⚙️ Resolviendo...' : asignacionesVisibles.length > 0 ? '🔄 Reejecutar CSP' : '⚙️ Ejecutar Auto-Asignación'}
           </button>
           <button className="btn-primary" onClick={avanzarFase} disabled={prog.fase !== 3}>
             Avanzar a Fase 4 →
@@ -146,7 +266,50 @@ export default function ProgramarPage() {
 
       {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
 
-      {/* Tabla de conflictos si existen */}
+      {cspStats && (
+        <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid #6366f1' }}>
+          <h3 style={{ fontSize: '15px', margin: '0 0 12px' }}>Estadísticas CSP</h3>
+          <div style={{ fontSize: '13px', color: '#475569', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+            <span>Asignados: <b>{cspStats.asignados}/{cspStats.total_bloques}</b></span>
+            <span>P1 (preferida): <b style={{ color: '#059669' }}>{cspStats.prioridad_alta}</b></span>
+            <span>P2 (aceptable): <b style={{ color: '#ca8a04' }}>{cspStats.prioridad_baja}</b></span>
+            <span>Asesorías: <b>{cspStats.asesorias_asignadas}</b></span>
+            {cspStats.bloques_continuos != null && (
+              <span>Bloques continuos: <b>{cspStats.bloques_continuos}</b></span>
+            )}
+            {cspStats.franjas_labs_paralelos != null && (
+              <span>Labs en paralelo (franjas): <b>{cspStats.franjas_labs_paralelos}</b></span>
+            )}
+            {cspStats.lab_coexistencias != null && (
+              <span>Mismo lab, 2 cursos: <b>{cspStats.lab_coexistencias}</b></span>
+            )}
+          </div>
+        </div>
+      )}
+
+      <LeyendaHorarios ciclos={ciclosLista.filter(c => c > 0)} />
+
+      {asignacionesVisibles.length > 0 && (
+        <div className="card programar-toolbar">
+          <button className={vista === 'aula' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('aula')}>Por aula</button>
+          <button className={vista === 'ciclo' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('ciclo')}>Por ciclo</button>
+          <button className={vista === 'docente' ? 'btn-primary' : 'btn-secondary'} onClick={() => { setVista('docente'); if (!docenteFiltro && docentesUnicos[0]) setDocenteFiltro(docentesUnicos[0].id); }}>Por docente</button>
+          {vista === 'aula' && ambientesEnUso.length > 0 && (
+            <select className="form-input" style={{ maxWidth: 280 }} value={aulaFiltro} onChange={e => setAulaFiltro(e.target.value)}>
+              <option value="">Todas las aulas</option>
+              {ambientesEnUso.map(a => (
+                <option key={a.id || a.codigo} value={a.id || a.codigo}>{a.codigo} — {a.nombre}</option>
+              ))}
+            </select>
+          )}
+          {vista === 'docente' && docentesUnicos.length > 0 && (
+            <select className="form-input" style={{ maxWidth: 300 }} value={docenteFiltro} onChange={e => setDocenteFiltro(e.target.value)}>
+              {docentesUnicos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+            </select>
+          )}
+        </div>
+      )}
+
       {conflictos.length > 0 && (
         <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid #ef4444' }}>
           <h3 style={{ fontSize: '16px', color: '#b91c1c', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -155,8 +318,7 @@ export default function ProgramarPage() {
           <div style={{ margin: 0, paddingLeft: '20px', color: '#475569', fontSize: '13px', whiteSpace: 'pre-line' }}>
             {conflictos.map((c: any, i: number) => (
               <div key={i} style={{ marginBottom: '16px', background:'#fef2f2', padding:'12px', borderRadius:'6px', border:'1px solid #fca5a5' }}>
-                <strong>Conflicto detectado:</strong><br/>
-                {c.descripcion}
+                {typeof c === 'string' ? c : (c.descripcion || JSON.stringify(c))}
               </div>
             ))}
             <div style={{marginTop:'12px', borderTop:'1px solid #cbd5e1', paddingTop:'12px'}}>
@@ -170,12 +332,30 @@ export default function ProgramarPage() {
         </div>
       )}
 
-      {/* Grillas visuales tentativa */}
       <div className="card" style={{ overflowX: 'auto' }}>
         <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1e293b', margin: '0 0 16px' }}>
           Asignaciones Tentativas
         </h3>
-        {asignaciones.length === 0 ? (
+        {docentesConCarga.size > 0 && (
+          <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 12px' }}>
+            Solo docentes con carga en esta programación ({docentesConCarga.size}).
+          </p>
+        )}
+
+        <div className="programar-dia-tabs">
+          {DIAS.map(d => (
+            <button
+              key={d}
+              type="button"
+              className={diaMobile === d ? 'active' : ''}
+              onClick={() => setDiaMobile(d)}
+            >
+              {DIAS_LABEL[d]}
+            </button>
+          ))}
+        </div>
+
+        {asignacionesVisibles.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
             <p style={{ margin: '0 0 16px' }}>No hay asignaciones generadas aún.</p>
             <button className="btn-primary" onClick={() => ejecutarMotor(false)} disabled={resolving || prog.fase !== 3}>
@@ -184,64 +364,36 @@ export default function ProgramarPage() {
           </div>
         ) : (
           <div>
-            {ciclos.map(ciclo => {
-              const asigCiclo = asignaciones.filter(a => (a.ciclo_plan || 0) === ciclo);
-              return (
-                <div key={ciclo} style={{ marginBottom: '40px' }}>
-                  <h4 style={{ fontSize: '15px', color: '#0f172a', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px', marginBottom: '16px' }}>
-                    Grilla del Ciclo {ciclo === 0 ? 'Generales' : ciclo}
-                  </h4>
-                  <div className="horario-grid" style={{ minWidth: '1000px' }}>
-                    <div className="horario-header">Hora</div>
-                    {DIAS.map(d => <div key={d} className="horario-header">{DIAS_LABEL[d]}</div>)}
-                    
-                    {slots.map((slot) => {
-                      const isLunch = slot.hora_inicio === '13:00' || slot.hora_inicio === '13:00:00';
-                      
-                      return (
-                        <div key={slot.id} style={{ display: 'contents' }}>
-                          <div className="horario-time" style={isLunch ? {background:'#f1f5f9'} : {}}>
-                            {slot.hora_inicio}<br />{slot.hora_fin}
-                          </div>
-                          {isLunch ? (
-                            <div style={{ gridColumn: `span ${DIAS.length}`, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '13px', fontWeight: 'bold', letterSpacing: '2px', borderBottom: '1px solid #e2e8f0' }}>
-                              🍽️ HORA LIBRE (REFRIGERIO)
-                            </div>
-                          ) : (
-                            DIAS.map(dia => {
-                              const cells = getCell(dia, slot.id, asigCiclo);
-                              return (
-                                <div key={`${dia}-${slot.id}`} className="horario-cell" style={{display:'flex', flexDirection:'column', gap:'4px', padding:'4px', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>
-                                  {cells.map(c => {
-                                    const hexColor = getColor(c.curso_codigo);
-                                    return (
-                                      <div key={c.id} style={{ padding: '6px', borderRadius: '4px', background: `${hexColor}15`, borderLeft: `4px solid ${hexColor}`, cursor: 'pointer', fontSize:'11px' }} title={`${c.curso_nombre}\nG${c.numero_grupo}\n${c.docente_nombre}\n${c.ambiente_nombre}`}>
-                                        <div style={{ fontWeight: '700', color: '#1e293b' }}>
-                                          {c.curso_codigo} - G{c.numero_grupo}
-                                        </div>
-                                        <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: hexColor, marginTop: '2px', opacity: 0.8 }}>
-                                          {c.tipo}
-                                        </div>
-                                        <div style={{ color: '#475569', marginTop:'2px' }}>
-                                          Aula: {c.ambiente_codigo}
-                                        </div>
-                                        <div style={{ color: '#475569', marginTop:'2px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                                          Doc: {c.docente_nombre}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 16px' }}>
+              {vista === 'aula' && 'Una grilla por aula o laboratorio utilizado en esta programación.'}
+              {vista === 'ciclo' && 'Por ciclo del plan de estudios (I, III, V…). Las asesorías se muestran aparte.'}
+              {vista === 'docente' && 'Carga horaria del docente seleccionado (incluye asesoría si aplica).'}
+            </p>
+            {vista === 'aula' &&
+              (aulaFiltro
+                ? ambientesEnUso.filter(a => (a.id || a.codigo) === aulaFiltro)
+                : ambientesEnUso
+              ).map(amb =>
+                renderGrilla(
+                  `Aula / Lab: ${amb.codigo} — ${amb.nombre}`,
+                  asigFiltradas.filter(
+                    a => a.tipo !== 'asesoria' && (a.ambiente_id === amb.id || a.ambiente_codigo === amb.codigo)
+                  ),
+                  `amb-${amb.codigo}`
+                )
+              )}
+            {vista === 'ciclo' &&
+              ciclosLista.map(ciclo =>
+                renderGrilla(
+                  `Ciclo académico ${ciclo}`,
+                  asigFiltradas.filter(a => a.ciclo_plan === ciclo && a.tipo !== 'asesoria'),
+                  `ciclo-${ciclo}`
+                )
+              )}
+            {vista === 'ciclo' && asesoriasAsig.length > 0 &&
+              renderGrilla('Asesorías docentes', asesoriasAsig, 'asesorias')}
+            {vista === 'docente' &&
+              renderGrilla('Horario del docente', asigFiltradas, 'docente')}
           </div>
         )}
       </div>

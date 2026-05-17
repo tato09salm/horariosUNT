@@ -1,8 +1,8 @@
-import { query, queryOne } from './db';
+import { query } from './db';
 
 /**
  * Algoritmo Genético (GA) — Fallback cuando el CSP no encuentra solución completa.
- * Se ejecuta sobre los bloques que quedaron sin asignar del CSP.
+ * Respeta asignaciones CSP existentes, labs compartidos (máx. 2 cursos) y disponibilidad.
  */
 
 interface Bloque {
@@ -19,6 +19,7 @@ interface Bloque {
   condicion_orden?: number;
   categoria_orden?: number;
   fecha_ingreso?: Date;
+  cantidad_labs?: number;
 }
 
 interface Gen {
@@ -33,58 +34,151 @@ interface Individuo {
   fitness: number;
 }
 
+type LabUso = { codigo: string; grupo_id: string; cantidad_labs: number };
+
 const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 const POP_SIZE = 40;
 const MAX_GEN = 300;
 const MUTATION_RATE = 0.15;
 const TOURNAMENT_SIZE = 3;
 
-function calcularFitness(genes: Gen[], docAvail: Map<string, Set<string>>): number {
-  let penalizacion = 0;
-
+function seedOcupacion(
+  asignacionesExistentes: any[],
+  docenteCursos: Map<string, Set<string>>
+) {
   const docenteOcupado = new Set<string>();
   const ambienteOcupado = new Set<string>();
   const grupoOcupado = new Set<string>();
   const cicloOcupado = new Set<string>();
+  const labSlots = new Map<string, LabUso[]>();
+  const docenteCursoClase = new Set<string>();
+
+  for (const a of asignacionesExistentes) {
+    const timeKey = `${a.dia}-${a.slot_id}`;
+    if (a.docente_id) {
+      docenteOcupado.add(`${a.docente_id}-${timeKey}`);
+      if (a.curso_id && a.tipo !== 'asesoria') {
+        docenteCursoClase.add(`${a.docente_id}-${a.curso_id}-${timeKey}`);
+      }
+    }
+    if (a.grupo_id) grupoOcupado.add(`${a.grupo_id}-${timeKey}`);
+    if (a.ciclo_plan) cicloOcupado.add(`${a.ciclo_plan}-${timeKey}`);
+    if (a.ambiente_id) {
+      const ak = `${a.ambiente_id}-${timeKey}`;
+      if (a.tipo === 'laboratorio') {
+        const usos = labSlots.get(ak) || [];
+        usos.push({
+          codigo: a.curso_codigo || '',
+          grupo_id: a.grupo_id || '',
+          cantidad_labs: a.cantidad_labs || 1,
+        });
+        labSlots.set(ak, usos);
+      }
+      ambienteOcupado.add(ak);
+    }
+  }
+
+  return { docenteOcupado, ambienteOcupado, grupoOcupado, cicloOcupado, labSlots, docenteCursoClase, docenteCursos };
+}
+
+function puedeLabCompartir(
+  bloque: Bloque,
+  ak: string,
+  labSlots: Map<string, LabUso[]>
+): boolean {
+  if ((bloque.cantidad_labs || 1) < 2) return false;
+  const usos = labSlots.get(ak);
+  if (!usos?.length) return true;
+  if (usos.length >= 2) return false;
+  if (usos.some(u => u.grupo_id === bloque.grupo_id)) return false;
+  if (usos.some(u => u.codigo === bloque.curso_codigo)) return false;
+  return usos.every(u => u.cantidad_labs >= 2);
+}
+
+function calcularFitness(
+  genes: Gen[],
+  docAvail: Map<string, Map<string, number>>,
+  base: ReturnType<typeof seedOcupacion>,
+  ambAvail: Map<string, Set<string>>,
+  ambTipo: Map<string, string>
+): number {
+  let penalizacion = 0;
+
+  const docenteOcupado = new Set(base.docenteOcupado);
+  const ambienteOcupado = new Set(base.ambienteOcupado);
+  const grupoOcupado = new Set(base.grupoOcupado);
+  const cicloOcupado = new Set(base.cicloOcupado);
+  const labSlots = new Map(base.labSlots);
+  const docenteCursoClase = new Set(base.docenteCursoClase);
 
   for (const gen of genes) {
     const timeKey = `${gen.dia}-${gen.slot_id}`;
+    const ak = `${gen.ambiente_id}-${timeKey}`;
+    const esLab = gen.bloque.tipo_sesion === 'laboratorio';
 
-    // R1: Docente en dos lugares
     if (gen.bloque.docente_id) {
       const dk = `${gen.bloque.docente_id}-${timeKey}`;
       if (docenteOcupado.has(dk)) penalizacion += 10;
       else docenteOcupado.add(dk);
 
-      // R4: Docente disponible
-      if (!docAvail.get(gen.bloque.docente_id)?.has(timeKey)) {
+      const docMap = docAvail.get(gen.bloque.docente_id);
+      if (!docMap || !docMap.has(timeKey)) {
         let penalty = 5;
-        // Si es nombrado, penaliza mucho más
         if (gen.bloque.condicion_orden === 0) penalty += 5;
-        // Si es principal, asociado, auxiliar, penaliza más
         if (gen.bloque.categoria_orden !== undefined && gen.bloque.categoria_orden < 3) {
-          penalty += (3 - gen.bloque.categoria_orden) * 2; // principal +6, asociado +4, auxiliar +2
+          penalty += (3 - gen.bloque.categoria_orden) * 2;
         }
         penalizacion += penalty;
+      } else if (docMap.get(timeKey) === 2) {
+        penalizacion += 1;
+      }
+
+      const cursosDoc = base.docenteCursos.get(gen.bloque.docente_id);
+      if (cursosDoc?.has(gen.bloque.curso_id)) {
+        if (docenteCursoClase.has(`${gen.bloque.docente_id}-${gen.bloque.curso_id}-${timeKey}`)) {
+          penalizacion += 8;
+        }
       }
     }
 
-    // R2: Ambiente ocupado
-    const ak = `${gen.ambiente_id}-${timeKey}`;
-    if (ambienteOcupado.has(ak)) penalizacion += 10;
-    else ambienteOcupado.add(ak);
+    if (ambienteOcupado.has(ak)) {
+      if (esLab && puedeLabCompartir(gen.bloque, ak, labSlots)) {
+        const usos = labSlots.get(ak) || [];
+        usos.push({
+          codigo: gen.bloque.curso_codigo,
+          grupo_id: gen.bloque.grupo_id,
+          cantidad_labs: gen.bloque.cantidad_labs || 1,
+        });
+        labSlots.set(ak, usos);
+      } else {
+        penalizacion += 10;
+      }
+    } else {
+      ambienteOcupado.add(ak);
+      if (esLab) {
+        labSlots.set(ak, [{
+          codigo: gen.bloque.curso_codigo,
+          grupo_id: gen.bloque.grupo_id,
+          cantidad_labs: gen.bloque.cantidad_labs || 1,
+        }]);
+      }
+    }
 
-    // R3: Grupo ocupado
+    const tipoAmb = ambTipo.get(gen.ambiente_id);
+    if (ambAvail.has(gen.ambiente_id)) {
+      const disp = ambAvail.get(gen.ambiente_id)!.has(timeKey);
+      if (!disp) penalizacion += esLab ? 3 : 8;
+    }
+
     if (gen.bloque.grupo_id) {
       const gk = `${gen.bloque.grupo_id}-${timeKey}`;
       if (grupoOcupado.has(gk)) penalizacion += 10;
       else grupoOcupado.add(gk);
     }
-    
-    // R5: Ciclo ocupado (evitar superposición de cursos del mismo ciclo_plan)
+
     if (gen.bloque.ciclo_plan !== undefined) {
       const ck = `${gen.bloque.ciclo_plan}-${timeKey}`;
-      if (cicloOcupado.has(ck)) penalizacion += 20; // Alta penalidad porque es REGLA FUNDAMENTAL
+      if (cicloOcupado.has(ck)) penalizacion += 20;
       else cicloOcupado.add(ck);
     }
   }
@@ -100,7 +194,6 @@ function crearIndividuoAleatorio(
   const genes: Gen[] = bloques.map(b => {
     const dia = DIAS[Math.floor(Math.random() * DIAS.length)];
     const slot = slots[Math.floor(Math.random() * slots.length)];
-    // Filtrar ambiente válido
     const ambientesValidos = ambientes.filter(a => {
       if (b.num_alumnos > a.capacidad) return false;
       if (b.tipo_sesion === 'laboratorio' && a.tipo !== 'laboratorio') return false;
@@ -141,6 +234,7 @@ function mutar(individuo: Individuo, slots: any[], ambientes: any[]): Individuo 
       const ambientesValidos = ambientes.filter(a => {
         if (g.bloque.num_alumnos > a.capacidad) return false;
         if (g.bloque.tipo_sesion === 'laboratorio' && a.tipo !== 'laboratorio') return false;
+        if (g.bloque.tipo_sesion === 'teoria' && a.tipo === 'laboratorio') return false;
         return true;
       });
       const amb = ambientesValidos.length > 0
@@ -155,53 +249,87 @@ function mutar(individuo: Individuo, slots: any[], ambientes: any[]): Individuo 
 
 export async function ejecutarAlgoritmoGenetico(
   bloquesSinAsignar: Bloque[],
-  programacion_id: string
+  programacion_id: string,
+  asignacionesExistentes: any[] = []
 ) {
   if (bloquesSinAsignar.length === 0) return [];
 
   const allSlots = await query(`SELECT * FROM slots_tiempo ORDER BY orden`);
-  // HORA LIBRE PARA COMER: Excluir slot 13:00
   const slots = allSlots.filter((s: any) => s.hora_inicio !== '13:00' && s.hora_inicio !== '13:00:00');
-  
+
   const ambientes = await query(`SELECT * FROM ambientes WHERE disponible = true`);
   const disponibilidad = await query(`
-    SELECT * FROM disponibilidad_docente WHERE programacion_id = $1 AND disponible = true
+    SELECT * FROM disponibilidad_docente WHERE programacion_id = $1 AND disponible = true AND prioridad IN (1, 2)
   `, [programacion_id]);
 
-  const docAvail = new Map<string, Set<string>>();
-  for (const d of disponibilidad) {
-    if (!docAvail.has(d.docente_id)) docAvail.set(d.docente_id, new Set());
-    docAvail.get(d.docente_id)!.add(`${d.dia}-${d.slot_id}`);
+  let dispAmbiente: { ambiente_id: string; slot_id: string; dia: string; estado: string }[] = [];
+  try {
+    dispAmbiente = await query(`SELECT ambiente_id, slot_id, dia, estado FROM disponibilidad_ambiente`);
+  } catch {
+    dispAmbiente = [];
   }
 
-  // Crear población inicial
+  const docAvail = new Map<string, Map<string, number>>();
+  for (const d of disponibilidad) {
+    if (!docAvail.has(d.docente_id)) docAvail.set(d.docente_id, new Map());
+    docAvail.get(d.docente_id)!.set(`${d.dia}-${d.slot_id}`, d.prioridad);
+  }
+
+  const ambAvail = new Map<string, Set<string>>();
+  const ambTipo = new Map<string, string>();
+  for (const a of ambientes) {
+    ambTipo.set(a.id, a.tipo);
+    ambAvail.set(a.id, new Set());
+  }
+  for (const r of dispAmbiente) {
+    if (r.estado === 'disponible' && ambAvail.has(r.ambiente_id)) {
+      ambAvail.get(r.ambiente_id)!.add(`${r.dia}-${r.slot_id}`);
+    }
+  }
+  for (const a of ambientes) {
+    if (a.tipo === 'laboratorio' && ambAvail.get(a.id)!.size === 0) {
+      for (const dia of DIAS) {
+        for (const s of slots) {
+          ambAvail.get(a.id)!.add(`${dia}-${s.id}`);
+        }
+      }
+    }
+  }
+
+  const cursosDoc = await query(`
+    SELECT docente_id, curso_id FROM programacion_cursos
+    WHERE programacion_id = $1 AND docente_id IS NOT NULL
+  `, [programacion_id]);
+  const docenteCursos = new Map<string, Set<string>>();
+  for (const r of cursosDoc) {
+    if (!docenteCursos.has(r.docente_id)) docenteCursos.set(r.docente_id, new Set());
+    docenteCursos.get(r.docente_id)!.add(r.curso_id);
+  }
+
+  const baseOcc = seedOcupacion(asignacionesExistentes, docenteCursos);
+
   let poblacion: Individuo[] = Array.from({ length: POP_SIZE }, () =>
     crearIndividuoAleatorio(bloquesSinAsignar, slots, ambientes)
   );
 
-  // Evaluar fitness inicial
   poblacion = poblacion.map(ind => ({
     ...ind,
-    fitness: calcularFitness(ind.genes, docAvail)
+    fitness: calcularFitness(ind.genes, docAvail, baseOcc, ambAvail, ambTipo),
   }));
 
   let mejorIndividuo = poblacion.reduce((a, b) => a.fitness < b.fitness ? a : b);
 
-  // Evolución
   for (let gen = 0; gen < MAX_GEN; gen++) {
-    if (mejorIndividuo.fitness === 0) break; // Solución perfecta
+    if (mejorIndividuo.fitness === 0) break;
 
-    const nuevaPoblacion: Individuo[] = [];
-
-    // Elitismo — conservar el mejor
-    nuevaPoblacion.push({ ...mejorIndividuo });
+    const nuevaPoblacion: Individuo[] = [{ ...mejorIndividuo }];
 
     while (nuevaPoblacion.length < POP_SIZE) {
       const padre1 = seleccionTorneo(poblacion);
       const padre2 = seleccionTorneo(poblacion);
       let hijo = crossover(padre1, padre2);
       hijo = mutar(hijo, slots, ambientes);
-      hijo.fitness = calcularFitness(hijo.genes, docAvail);
+      hijo.fitness = calcularFitness(hijo.genes, docAvail, baseOcc, ambAvail, ambTipo);
       nuevaPoblacion.push(hijo);
     }
 
@@ -210,7 +338,6 @@ export async function ejecutarAlgoritmoGenetico(
     if (candidato.fitness < mejorIndividuo.fitness) mejorIndividuo = candidato;
   }
 
-  // Convertir genes en formato de asignaciones
   const ambienteMap = new Map(ambientes.map((a: any) => [a.id, a]));
   return mejorIndividuo.genes.map(g => {
     const amb = ambienteMap.get(g.ambiente_id) as any;
@@ -229,7 +356,8 @@ export async function ejecutarAlgoritmoGenetico(
       numero_grupo: g.bloque.numero_grupo,
       ambiente_codigo: amb?.codigo || '?',
       ambiente_nombre: amb?.nombre || '?',
-      fuente: 'GA', // Marcar que vino del GA, no del CSP
+      cantidad_labs: g.bloque.cantidad_labs || 1,
+      fuente: 'GA',
     };
   });
 }

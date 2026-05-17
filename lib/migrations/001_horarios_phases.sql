@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS disponibilidad_docente (
   slot_id UUID REFERENCES slots_tiempo(id),
   dia dia_semana NOT NULL,
   disponible BOOLEAN DEFAULT true,
+  prioridad INTEGER CHECK (prioridad IN (1, 2)),
   registrado_por UUID REFERENCES usuarios(id),
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),

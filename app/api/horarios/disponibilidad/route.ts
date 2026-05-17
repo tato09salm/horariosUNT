@@ -54,14 +54,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'La programación ya está publicada o cancelada, no se puede modificar la disponibilidad' }, { status: 400 });
     }
 
-    // Upsert batch
     for (const d of disponibilidades) {
+      const prioridad = d.prioridad === 1 || d.prioridad === 2 ? d.prioridad : null;
+      const disponible = prioridad !== null;
+
+      if (!disponible) {
+        await queryOne(`
+          DELETE FROM disponibilidad_docente
+          WHERE programacion_id = $1 AND docente_id = $2 AND slot_id = $3 AND dia = $4
+        `, [programacion_id, docente_id, d.slot_id, d.dia]);
+        continue;
+      }
+
       await queryOne(`
-        INSERT INTO disponibilidad_docente (programacion_id, docente_id, slot_id, dia, disponible, registrado_por, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        INSERT INTO disponibilidad_docente (programacion_id, docente_id, slot_id, dia, disponible, prioridad, registrado_por, updated_at)
+        VALUES ($1, $2, $3, $4, true, $5, $6, NOW())
         ON CONFLICT (programacion_id, docente_id, slot_id, dia)
-        DO UPDATE SET disponible = EXCLUDED.disponible, registrado_por = EXCLUDED.registrado_por, updated_at = NOW()
-      `, [programacion_id, docente_id, d.slot_id, d.dia, d.disponible, session.id]);
+        DO UPDATE SET disponible = true, prioridad = EXCLUDED.prioridad, registrado_por = EXCLUDED.registrado_por, updated_at = NOW()
+      `, [programacion_id, docente_id, d.slot_id, d.dia, prioridad, session.id]);
     }
 
     await registrarAuditoria({
@@ -70,7 +80,7 @@ export async function POST(req: NextRequest) {
       accion: 'UPDATE',
       tabla_afectada: 'disponibilidad_docente',
       registro_id: programacion_id,
-      descripcion: `Disponibilidad actualizada para docente_id: ${docente_id}`,
+      descripcion: `Disponibilidad (prioridades) actualizada para docente_id: ${docente_id}`,
     });
 
     return NextResponse.json({ success: true });

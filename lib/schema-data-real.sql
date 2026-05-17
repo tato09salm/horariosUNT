@@ -107,6 +107,9 @@ CREATE TABLE IF NOT EXISTS cursos (
   creditos INTEGER NOT NULL DEFAULT 3,
   horas_teoria INTEGER NOT NULL DEFAULT 3,
   horas_practica INTEGER NOT NULL DEFAULT 0,
+  horas_laboratorio INTEGER NOT NULL DEFAULT 0,
+  bloque_indivisible BOOLEAN DEFAULT true,
+  cantidad_labs INTEGER DEFAULT 1,
   ciclo_plan INTEGER,
   semestre INTEGER,
   prerequisitos UUID[],
@@ -642,6 +645,7 @@ CREATE TABLE IF NOT EXISTS disponibilidad_docente (
   slot_id UUID REFERENCES slots_tiempo(id),
   dia dia_semana NOT NULL,
   disponible BOOLEAN DEFAULT true,
+  prioridad INTEGER CHECK (prioridad IN (1, 2)),
   registrado_por UUID REFERENCES usuarios(id),
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
@@ -763,40 +767,193 @@ BEGIN
     RAISE NOTICE 'Cuentas de usuario creadas para todos los docentes con contraseña: password';
 END $$;
 
--- 2. Trigger para generar disponibilidad variada automática cuando se crea una programación
-CREATE OR REPLACE FUNCTION generar_disponibilidad_automatica()
-RETURNS TRIGGER AS $$
-DECLARE
-    doc RECORD;
-    st RECORD;
-    dia_val dia_semana;
-    dias_array dia_semana[] := ARRAY['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']::dia_semana[];
-    is_available BOOLEAN;
-    hash_val INTEGER;
-BEGIN
-    FOR doc IN SELECT id, dni FROM docentes WHERE activo = true LOOP
-        FOR dia_val IN SELECT unnest(dias_array) LOOP
-            FOR st IN SELECT id, orden FROM slots_tiempo LOOP
-                -- Generamos un hash pseudo-aleatorio basado en el DNI del docente, el día y el orden del slot
-                hash_val := abs(hashtext(doc.dni || dia_val::text || st.orden::text));
-                
-                -- Hacemos que cada docente esté disponible aproximadamente el 75% del tiempo
-                -- Pero variando según el día y el slot para evitar colisiones idénticas
-                is_available := (hash_val % 4) > 0;
-                
-                -- Excluir sábados en la tarde (orden > 6) para hacerlo más realista
-                IF dia_val = 'sabado' AND st.orden > 6 THEN
-                    is_available := false;
-                END IF;
+-- 2. Disponibilidad de ambientes (base global, no por programación)
+CREATE TABLE IF NOT EXISTS disponibilidad_ambiente (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  ambiente_id UUID NOT NULL REFERENCES ambientes(id) ON DELETE CASCADE,
+  slot_id UUID NOT NULL REFERENCES slots_tiempo(id),
+  dia dia_semana NOT NULL,
+  estado VARCHAR(20) NOT NULL DEFAULT 'disponible'
+    CHECK (estado IN ('disponible', 'mantenimiento', 'reservado', 'bloqueado')),
+  motivo VARCHAR(200),
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(ambiente_id, slot_id, dia)
+);
 
-                IF is_available THEN
-                    INSERT INTO disponibilidad_docente (programacion_id, docente_id, slot_id, dia, disponible)
-                    VALUES (NEW.id, doc.id, st.id, dia_val, true)
-                    ON CONFLICT (programacion_id, docente_id, slot_id, dia) DO NOTHING;
+CREATE INDEX IF NOT EXISTS idx_disp_ambiente_dia ON disponibilidad_ambiente(ambiente_id, dia);
+
+CREATE OR REPLACE FUNCTION insert_disp_docente_rango(
+  p_programacion_id UUID,
+  p_docente_id UUID,
+  p_dia dia_semana,
+  p_orden_ini INTEGER,
+  p_orden_fin INTEGER,
+  p_prioridad INTEGER
+) RETURNS INTEGER AS $$
+DECLARE
+  n INTEGER;
+BEGIN
+  INSERT INTO disponibilidad_docente (programacion_id, docente_id, slot_id, dia, disponible, prioridad)
+  SELECT p_programacion_id, p_docente_id, st.id, p_dia, true, p_prioridad
+  FROM slots_tiempo st
+  WHERE st.orden BETWEEN p_orden_ini AND p_orden_fin
+    AND st.hora_inicio <> '13:00'::time
+  ON CONFLICT (programacion_id, docente_id, slot_id, dia) DO UPDATE
+    SET disponible = true, prioridad = EXCLUDED.prioridad, updated_at = NOW();
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION insert_disp_ambiente_rango(
+  p_ambiente_id UUID,
+  p_dia dia_semana,
+  p_orden_ini INTEGER,
+  p_orden_fin INTEGER,
+  p_estado VARCHAR DEFAULT 'disponible',
+  p_motivo VARCHAR DEFAULT NULL
+) RETURNS INTEGER AS $$
+DECLARE
+  n INTEGER;
+BEGIN
+  INSERT INTO disponibilidad_ambiente (ambiente_id, slot_id, dia, estado, motivo)
+  SELECT p_ambiente_id, st.id, p_dia, p_estado, p_motivo
+  FROM slots_tiempo st
+  WHERE st.orden BETWEEN p_orden_ini AND p_orden_fin
+    AND st.hora_inicio <> '13:00'::time
+  ON CONFLICT (ambiente_id, slot_id, dia) DO UPDATE
+    SET estado = EXCLUDED.estado, motivo = EXCLUDED.motivo;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Poblar ambientes: aulas lun-sáb casi completas; labs con mantenimiento sáb tarde
+CREATE OR REPLACE FUNCTION poblar_disponibilidad_ambientes()
+RETURNS INTEGER AS $$
+DECLARE
+    amb RECORD;
+    dia_val dia_semana;
+    dias_lab dia_semana[] := ARRAY['lunes','martes','miercoles','jueves','viernes','sabado']::dia_semana[];
+    dias_aula dia_semana[] := ARRAY['lunes','martes','miercoles','jueves','viernes','sabado']::dia_semana[];
+    total INTEGER := 0;
+    n INTEGER;
+    hash_v INTEGER;
+BEGIN
+    DELETE FROM disponibilidad_ambiente;
+
+    FOR amb IN SELECT id, codigo, tipo FROM ambientes WHERE disponible = true LOOP
+        IF amb.tipo = 'auditorio' THEN
+            CONTINUE;
+        END IF;
+
+        IF amb.tipo = 'laboratorio' THEN
+            FOREACH dia_val IN ARRAY dias_lab LOOP
+                n := insert_disp_ambiente_rango(amb.id, dia_val, 1, 14, 'disponible', NULL);
+                total := total + n;
+            END LOOP;
+        ELSE
+            FOREACH dia_val IN ARRAY dias_aula LOOP
+                n := insert_disp_ambiente_rango(amb.id, dia_val, 1, 14, 'disponible', NULL);
+                total := total + n;
+                hash_v := abs(hashtext(amb.codigo || dia_val::text));
+                IF (hash_v % 12) = 0 THEN
+                    PERFORM insert_disp_ambiente_rango(amb.id, dia_val, 10, 11, 'mantenimiento', 'Mantenimiento semanal');
                 END IF;
             END LOOP;
-        END LOOP;
+        END IF;
     END LOOP;
+
+    RETURN total;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Disponibilidad docente con bloques CONTIGUOS (≥85% con ventana 4h+)
+-- Perfil por DNI % 10: 0-2 muy flexible (30%), 3-6 flexible (40%), 7-8 moderada (20%), 9 restringida (10%)
+CREATE OR REPLACE FUNCTION poblar_disponibilidad_programacion(p_programacion_id UUID)
+RETURNS INTEGER AS $$
+DECLARE
+    doc RECORD;
+    perfil INTEGER;
+    insertados INTEGER := 0;
+    n INTEGER;
+    horas_req INTEGER;
+    horas_disp INTEGER;
+BEGIN
+    DELETE FROM disponibilidad_docente WHERE programacion_id = p_programacion_id;
+
+    FOR doc IN SELECT id, dni FROM docentes WHERE activo = true LOOP
+        perfil := abs(hashtext(COALESCE(doc.dni, doc.id::text))) % 10;
+
+        IF perfil <= 2 THEN
+            -- Muy flexible: mañanas 6h lun-vie + tardes mar/jue/vie + sáb mañana
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes', 1, 6, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes', 1, 6, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 1, 6, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves', 1, 6, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes', 1, 6, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes', 8, 13, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves', 8, 13, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes', 8, 12, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'sabado', 1, 4, 2);
+        ELSIF perfil <= 6 THEN
+            -- Flexible: 4 días con bloque 5h + tarde miércoles
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes', 1, 5, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes', 1, 5, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves', 1, 5, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes', 1, 5, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 8, 12, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 2, 5, 2);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'sabado', 1, 3, 2);
+        ELSIF perfil <= 8 THEN
+            -- Moderada: 3 días, bloques 4h
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes', 2, 5, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 2, 5, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes', 2, 5, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes', 8, 11, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves', 9, 12, 2);
+        ELSE
+            -- Restringida (testing): fragmentado, sin ventana 4h
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes', 2, 3, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes', 9, 10, 2);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 4, 5, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes', 8, 9, 2);
+        END IF;
+    END LOOP;
+
+    -- Refuerzo: docentes con carga en esta programación deben cubrir horas + asesoría
+    FOR doc IN
+        SELECT d.id,
+               COALESCE(SUM(pc.horas_teoria + pc.horas_practica + pc.horas_laboratorio), 0) + 1 AS requeridas
+        FROM docentes d
+        LEFT JOIN programacion_cursos pc
+          ON pc.docente_id = d.id AND pc.programacion_id = p_programacion_id
+        WHERE d.activo = true
+        GROUP BY d.id
+        HAVING COALESCE(SUM(pc.horas_teoria + pc.horas_practica + pc.horas_laboratorio), 0) > 0
+    LOOP
+        SELECT COUNT(*) INTO horas_disp
+        FROM disponibilidad_docente
+        WHERE programacion_id = p_programacion_id AND docente_id = doc.id;
+
+        horas_req := doc.requeridas;
+        IF horas_disp < horas_req THEN
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes', 8, 13, 2);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes', 8, 13, 2);
+        END IF;
+        IF horas_disp < GREATEST(horas_req, 12) THEN
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves', 1, 6, 1);
+        END IF;
+    END LOOP;
+
+    RETURN insertados;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION generar_disponibilidad_automatica()
+RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM poblar_disponibilidad_programacion(NEW.id);
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -807,36 +964,225 @@ AFTER INSERT ON programaciones
 FOR EACH ROW
 EXECUTE FUNCTION generar_disponibilidad_automatica();
 
--- 3. Generar disponibilidad para cualquier programación que ya exista en la base de datos
+-- 3. Programación demo 2026-I + cursos con docentes (necesaria para ver disponibilidad en Fase 2)
+DO $$
+DECLARE
+    c_26_i UUID;
+    admin_id UUID;
+    prog_id UUID;
+    g RECORD;
+    docentes_arr UUID[];
+    doc_idx INTEGER := 0;
+    doc_id UUID;
+    n_cursos INTEGER := 0;
+BEGIN
+    SELECT id INTO c_26_i FROM ciclos WHERE nombre = '2026-I';
+    SELECT id INTO admin_id FROM usuarios WHERE email = 'admin@unt.edu.pe' LIMIT 1;
+
+    IF c_26_i IS NULL THEN
+        RAISE EXCEPTION 'Ciclo 2026-I no encontrado en seed';
+    END IF;
+
+    SELECT id INTO prog_id FROM programaciones WHERE ciclo_id = c_26_i AND nombre = 'HORARIO 2026-I' LIMIT 1;
+
+    IF prog_id IS NULL THEN
+        INSERT INTO programaciones (ciclo_id, nombre, fase, estado, created_by)
+        VALUES (c_26_i, 'HORARIO 2026-I', 2, 'en_disponibilidad', admin_id)
+        RETURNING id INTO prog_id;
+    ELSE
+        UPDATE programaciones SET fase = 2, estado = 'en_disponibilidad', updated_at = NOW()
+        WHERE id = prog_id;
+    END IF;
+
+    SELECT ARRAY_AGG(id ORDER BY
+        CASE categoria WHEN 'principal' THEN 0 WHEN 'asociado' THEN 1 WHEN 'auxiliar' THEN 2 ELSE 3 END,
+        fecha_ingreso
+    ) INTO docentes_arr
+    FROM docentes WHERE activo = true;
+
+    IF docentes_arr IS NULL OR array_length(docentes_arr, 1) = 0 THEN
+        RAISE EXCEPTION 'No hay docentes activos en seed';
+    END IF;
+
+    FOR g IN
+        SELECT gr.id AS grupo_id, cu.id AS curso_id,
+               cu.horas_teoria,
+               COALESCE(cu.horas_practica, 0) AS horas_practica,
+               COALESCE(cu.horas_laboratorio, 0) AS horas_laboratorio
+        FROM grupos gr
+        JOIN cursos cu ON cu.id = gr.curso_id
+        WHERE gr.ciclo_id = c_26_i
+        ORDER BY cu.ciclo_plan, cu.codigo
+    LOOP
+        doc_id := docentes_arr[1 + (doc_idx % array_length(docentes_arr, 1))];
+        doc_idx := doc_idx + 1;
+
+        INSERT INTO programacion_cursos (
+            programacion_id, curso_id, grupo_id, docente_id,
+            horas_teoria, horas_practica, horas_laboratorio, horas_consejeria
+        ) VALUES (
+            prog_id, g.curso_id, g.grupo_id, doc_id,
+            g.horas_teoria, g.horas_practica, g.horas_laboratorio, 1
+        )
+        ON CONFLICT (programacion_id, grupo_id) DO UPDATE SET
+            docente_id = EXCLUDED.docente_id,
+            horas_teoria = EXCLUDED.horas_teoria,
+            horas_practica = EXCLUDED.horas_practica,
+            horas_laboratorio = EXCLUDED.horas_laboratorio,
+            horas_consejeria = EXCLUDED.horas_consejeria;
+
+        UPDATE grupos SET num_alumnos = GREATEST(COALESCE(num_alumnos, 0), 35)
+        WHERE id = g.grupo_id AND COALESCE(num_alumnos, 0) < 25;
+
+        n_cursos := n_cursos + 1;
+    END LOOP;
+
+    RAISE NOTICE 'Programacion demo: HORARIO 2026-I (% cursos, fase 2)', n_cursos;
+END $$;
+
+-- 4. Disponibilidad de ambientes (global)
+DO $$
+DECLARE
+    n_amb INTEGER;
+BEGIN
+    n_amb := poblar_disponibilidad_ambientes();
+    RAISE NOTICE 'Disponibilidad ambientes: % celdas', n_amb;
+END $$;
+
+-- 5. Regenerar disponibilidad docente (bloques contiguos) para TODAS las programaciones
 DO $$
 DECLARE
     prog RECORD;
-    doc RECORD;
-    st RECORD;
-    dia_val dia_semana;
-    dias_array dia_semana[] := ARRAY['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']::dia_semana[];
-    is_available BOOLEAN;
-    hash_val INTEGER;
+    total_celdas INTEGER := 0;
+    filas INTEGER;
 BEGIN
-    FOR prog IN SELECT id FROM programaciones LOOP
-        FOR doc IN SELECT id, dni FROM docentes WHERE activo = true LOOP
-            FOR dia_val IN SELECT unnest(dias_array) LOOP
-                FOR st IN SELECT id, orden FROM slots_tiempo LOOP
-                    hash_val := abs(hashtext(doc.dni || dia_val::text || st.orden::text));
-                    is_available := (hash_val % 4) > 0;
-                    
-                    IF dia_val = 'sabado' AND st.orden > 6 THEN
-                        is_available := false;
-                    END IF;
+    FOR prog IN SELECT id, nombre FROM programaciones ORDER BY nombre LOOP
+        filas := poblar_disponibilidad_programacion(prog.id);
+        total_celdas := total_celdas + filas;
+        RAISE NOTICE 'Disponibilidad docente: % (% celdas)', prog.nombre, filas;
+    END LOOP;
 
-                    IF is_available THEN
-                        INSERT INTO disponibilidad_docente (programacion_id, docente_id, slot_id, dia, disponible)
-                        VALUES (prog.id, doc.id, st.id, dia_val, true)
-                        ON CONFLICT (programacion_id, docente_id, slot_id, dia) DO NOTHING;
-                    END IF;
-                END LOOP;
-            END LOOP;
-        END LOOP;
+    IF total_celdas = 0 THEN
+        RAISE WARNING 'No se genero disponibilidad: no hay programaciones en la BD';
+    ELSE
+        RAISE NOTICE 'TOTAL disponibilidad docente: % celdas (P1 preferida + P2 aceptable)', total_celdas;
+    END IF;
+END $$;
+
+-- 6. Vistas de pre-validación CSP
+CREATE OR REPLACE VIEW v_docente_bloques_contiguos AS
+WITH ordenado AS (
+  SELECT
+    dd.programacion_id, dd.docente_id, dd.dia, st.orden,
+    LAG(st.orden) OVER (PARTITION BY dd.programacion_id, dd.docente_id, dd.dia ORDER BY st.orden) AS orden_prev
+  FROM disponibilidad_docente dd
+  JOIN slots_tiempo st ON st.id = dd.slot_id
+  WHERE dd.disponible = true AND st.hora_inicio <> '13:00'::time
+),
+grupos AS (
+  SELECT *,
+    SUM(CASE WHEN orden_prev IS NULL OR orden = orden_prev + 1 THEN 0 ELSE 1 END)
+      OVER (PARTITION BY programacion_id, docente_id, dia ORDER BY orden) AS grp
+  FROM ordenado
+)
+SELECT programacion_id, docente_id, dia, grp,
+       COUNT(*) AS horas_consecutivas, MIN(orden) AS orden_inicio, MAX(orden) AS orden_fin
+FROM grupos
+GROUP BY programacion_id, docente_id, dia, grp;
+
+CREATE OR REPLACE VIEW v_docente_resumen_disponibilidad AS
+SELECT
+  dd.programacion_id, d.id AS docente_id,
+  d.nombre || ' ' || d.apellidos AS docente_nombre, d.categoria,
+  COUNT(dd.id) AS total_horas_disponibles,
+  COUNT(DISTINCT dd.dia) AS dias_disponibles,
+  COALESCE(MAX(bc.horas_consecutivas), 0) AS max_bloque_continuo,
+  COUNT(*) FILTER (WHERE bc.horas_consecutivas >= 4) AS ventanas_4h,
+  COUNT(*) FILTER (WHERE bc.horas_consecutivas >= 2) AS ventanas_2h
+FROM docentes d
+JOIN disponibilidad_docente dd ON dd.docente_id = d.id
+LEFT JOIN v_docente_bloques_contiguos bc
+  ON bc.docente_id = d.id AND bc.programacion_id = dd.programacion_id
+WHERE d.activo = true
+GROUP BY dd.programacion_id, d.id, d.nombre, d.apellidos, d.categoria;
+
+DROP VIEW IF EXISTS v_pre_validacion_csp CASCADE;
+
+CREATE VIEW v_pre_validacion_csp AS
+SELECT
+  pc.programacion_id, d.id AS docente_id,
+  d.nombre || ' ' || d.apellidos AS docente_nombre,
+  SUM(pc.horas_teoria + pc.horas_practica
+      + pc.horas_laboratorio * GREATEST(COALESCE(cu.cantidad_labs, 1), 1)) AS horas_cursos,
+  SUM(pc.horas_teoria + pc.horas_practica
+      + pc.horas_laboratorio * GREATEST(COALESCE(cu.cantidad_labs, 1), 1)) + 1 AS horas_requeridas,
+  COALESCE(r.total_horas_disponibles, 0) AS horas_disponibles,
+  COALESCE(r.max_bloque_continuo, 0) AS max_bloque_continuo,
+  COALESCE(r.dias_disponibles, 0) AS dias_disponibles,
+  MAX(GREATEST(pc.horas_teoria, pc.horas_practica, pc.horas_laboratorio)) AS max_bloque_curso,
+  CASE
+    WHEN COALESCE(r.total_horas_disponibles, 0) <
+      SUM(pc.horas_teoria + pc.horas_practica
+          + pc.horas_laboratorio * GREATEST(COALESCE(cu.cantidad_labs, 1), 1)) + 1
+      THEN 'horas_insuficientes'
+    WHEN COALESCE(r.max_bloque_continuo, 0) < MAX(GREATEST(pc.horas_teoria, pc.horas_practica))
+      THEN 'sin_bloque_continuo'
+    WHEN COALESCE(r.dias_disponibles, 0) < 3 THEN 'pocos_dias'
+    ELSE 'ok'
+  END AS estado,
+  CASE
+    WHEN COALESCE(r.total_horas_disponibles, 0) <
+      SUM(pc.horas_teoria + pc.horas_practica
+          + pc.horas_laboratorio * GREATEST(COALESCE(cu.cantidad_labs, 1), 1)) + 1
+      THEN 'Ampliar disponibilidad docente'
+    WHEN COALESCE(r.max_bloque_continuo, 0) < MAX(GREATEST(pc.horas_teoria, pc.horas_practica))
+      THEN 'Marcar bloques continuos para teoría (lab no requiere contigüidad)'
+  END AS mensaje
+FROM programacion_cursos pc
+JOIN docentes d ON d.id = pc.docente_id
+JOIN cursos cu ON cu.id = pc.curso_id
+LEFT JOIN v_docente_resumen_disponibilidad r
+  ON r.docente_id = d.id AND r.programacion_id = pc.programacion_id
+WHERE pc.docente_id IS NOT NULL
+GROUP BY pc.programacion_id, d.id, d.nombre, d.apellidos,
+         r.total_horas_disponibles, r.max_bloque_continuo, r.dias_disponibles;
+
+-- Catálogo: turnos de laboratorio (horas por turno × cantidad_labs)
+UPDATE cursos SET horas_teoria = 2, horas_practica = 0, horas_laboratorio = 4, cantidad_labs = 3, bloque_indivisible = true WHERE codigo = 'IS-201';
+UPDATE cursos SET horas_teoria = 1, horas_practica = 0, horas_laboratorio = 3, cantidad_labs = 2, bloque_indivisible = true WHERE codigo = 'IS-401';
+UPDATE cursos SET horas_teoria = 2, horas_practica = 0, horas_laboratorio = 2, cantidad_labs = 3, bloque_indivisible = true WHERE codigo = 'FIS-1001';
+
+-- 7. Verificación del seed (≥85% docentes con ventana 4h+)
+DO $$
+DECLARE
+    r RECORD;
+    pct_4h NUMERIC;
+    problemas INTEGER;
+BEGIN
+    FOR r IN
+        SELECT p.nombre AS prog,
+               COUNT(DISTINCT dd.docente_id) AS docentes,
+               COUNT(dd.id) AS celdas,
+               COUNT(dd.id) FILTER (WHERE dd.prioridad = 1) AS p1
+        FROM programaciones p
+        LEFT JOIN disponibilidad_docente dd ON dd.programacion_id = p.id
+        GROUP BY p.id, p.nombre
+    LOOP
+        RAISE NOTICE 'CHECK %: % docentes, % celdas (P1=%)', r.prog, r.docentes, r.celdas, r.p1;
+    END LOOP;
+
+    FOR r IN SELECT id, nombre FROM programaciones LOOP
+        SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE max_bloque_continuo >= 4) / NULLIF(COUNT(*), 0), 1)
+        INTO pct_4h
+        FROM v_docente_resumen_disponibilidad
+        WHERE programacion_id = r.id;
+
+        SELECT COUNT(*) INTO problemas
+        FROM v_pre_validacion_csp
+        WHERE programacion_id = r.id AND estado <> 'ok';
+
+        RAISE NOTICE 'VALIDACION %: %.1f%% docentes con bloque 4h+ | docentes con alerta CSP: %',
+            r.nombre, pct_4h, problemas;
     END LOOP;
 END $$;
 

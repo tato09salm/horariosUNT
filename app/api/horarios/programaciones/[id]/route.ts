@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
 import { registrarAuditoria } from '@/lib/auditoria';
+import { getProgramacionCursosData } from '@/lib/programacion-cursos';
 
 // GET — Obtener programación por ID con detalle
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -25,23 +26,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (!prog) return NextResponse.json({ error: 'Programación no encontrada' }, { status: 404 });
 
-  // Obtener cursos de la programación
-  const cursos = await query(`
-    SELECT 
-      pc.*,
-      cu.codigo as curso_codigo, cu.nombre as curso_nombre, cu.creditos,
-      cu.horas_teoria as horas_teoria_catalogo, cu.horas_practica as horas_practica_catalogo,
-      g.numero_grupo, g.max_alumnos, g.num_alumnos,
-      d.nombre || ' ' || d.apellidos as docente_nombre, d.dni as docente_dni,
-      d.categoria as docente_categoria, d.condicion as docente_condicion,
-      d.horas_max_semana as docente_horas_max
-    FROM programacion_cursos pc
-    JOIN cursos cu ON cu.id = pc.curso_id
-    LEFT JOIN grupos g ON g.id = pc.grupo_id
-    LEFT JOIN docentes d ON d.id = pc.docente_id
-    WHERE pc.programacion_id = $1
-    ORDER BY cu.ciclo_plan, cu.codigo
-  `, [id]);
+  const pcData = await getProgramacionCursosData(id);
+  const cursos = pcData?.cursos ?? [];
+  const cargaDocentes = pcData?.cargaDocentes ?? [];
 
   // Stats rápidos
   const stats = await queryOne(`
@@ -54,7 +41,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     WHERE pc.programacion_id = $1
   `, [id]);
 
-  return NextResponse.json({ data: { ...prog, cursos, stats } });
+  return NextResponse.json({ data: { ...prog, cursos, cargaDocentes, stats } });
 }
 
 // PUT — Actualizar programación (config, avanzar/retroceder fase)

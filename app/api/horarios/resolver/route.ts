@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { generarHorarioCSP } from '@/lib/horarios-csp';
+import { generarHorarioCSP, obtenerPreValidacionCSP } from '@/lib/horarios-csp';
 import { ejecutarAlgoritmoGenetico } from '@/lib/horarios-ga';
 import { registrarAuditoria } from '@/lib/auditoria';
 import { query, queryOne } from '@/lib/db';
@@ -23,8 +23,11 @@ export async function POST(req: NextRequest) {
     // ── VALIDACIÓN PREVIA: disponibilidad mínima ─────────────────────────────
     const cursosAsignados = await query(`
       SELECT pc.docente_id, pc.horas_teoria, pc.horas_practica, pc.horas_laboratorio,
-             pc.horas_consejeria, d.nombre || ' ' || d.apellidos as docente_nombre
+             pc.horas_consejeria,
+             GREATEST(COALESCE(cu.cantidad_labs, 1), 1) AS cantidad_labs,
+             d.nombre || ' ' || d.apellidos as docente_nombre
       FROM programacion_cursos pc
+      JOIN cursos cu ON cu.id = pc.curso_id
       JOIN docentes d ON d.id = pc.docente_id
       WHERE pc.programacion_id = $1 AND pc.docente_id IS NOT NULL
     `, [programacion_id]);
@@ -32,33 +35,52 @@ export async function POST(req: NextRequest) {
     const horasPorDocente = new Map<string, { nombre: string; horas: number }>();
     for (const c of cursosAsignados) {
       const prev = horasPorDocente.get(c.docente_id) || { nombre: c.docente_nombre, horas: 0 };
+      const horasLab = (c.horas_laboratorio || 0) * (c.cantidad_labs || 1);
       horasPorDocente.set(c.docente_id, {
         nombre: c.docente_nombre,
-        horas: prev.horas + c.horas_teoria + c.horas_practica + c.horas_laboratorio + c.horas_consejeria,
+        horas: prev.horas + c.horas_teoria + c.horas_practica + horasLab + c.horas_consejeria,
       });
+    }
+
+    const docentesConDisp = await query(`
+      SELECT DISTINCT docente_id FROM disponibilidad_docente
+      WHERE programacion_id = $1 AND disponible = true
+    `, [programacion_id]);
+    for (const row of docentesConDisp) {
+      if (!horasPorDocente.has(row.docente_id)) {
+        const d = await queryOne(`SELECT nombre || ' ' || apellidos as nombre FROM docentes WHERE id = $1`, [row.docente_id]);
+        horasPorDocente.set(row.docente_id, { nombre: d?.nombre || 'Docente', horas: 0 });
+      }
     }
 
     const advertencias: string[] = [];
     for (const [docente_id, info] of horasPorDocente) {
+      const horasRequeridas = info.horas + 1;
       const slotsDisponibles = await queryOne(`
         SELECT COUNT(*) as total FROM disponibilidad_docente
         WHERE programacion_id = $1 AND docente_id = $2 AND disponible = true
       `, [programacion_id, docente_id]);
 
       const totalSlots = parseInt(slotsDisponibles?.total || '0');
-      if (totalSlots < info.horas) {
+      if (totalSlots < horasRequeridas) {
         advertencias.push(
-          `⚠️ Alerta: ${info.nombre} tiene ${info.horas} horas asignadas pero solo ${totalSlots} horas de disponibilidad marcadas. Faltan ${info.horas - totalSlots} horas.`
+          `⚠️ Alerta: ${info.nombre} requiere ${horasRequeridas}h (${info.horas} cursos + 1 asesoría) pero solo tiene ${totalSlots}h disponibles. Faltan ${horasRequeridas - totalSlots}h.`
         );
       }
     }
 
     if (dry_run) {
-      return NextResponse.json({ success: true, advertencias });
+      let preValidacion = null;
+      try {
+        preValidacion = await obtenerPreValidacionCSP(programacion_id);
+      } catch {
+        preValidacion = null;
+      }
+      return NextResponse.json({ success: true, advertencias, pre_validacion: preValidacion });
     }
 
     // ── FASE 1: MOTOR CSP ────────────────────────────────────────────────────
-    const { asignaciones: asignacionesCSP, conflictos } = await generarHorarioCSP(programacion_id);
+    const { asignaciones: asignacionesCSP, conflictos, stats } = await generarHorarioCSP(programacion_id);
 
     let asignacionesFinales = [...asignacionesCSP];
     let usóGA = false;
@@ -67,7 +89,9 @@ export async function POST(req: NextRequest) {
     if (conflictos.length > 0) {
       // Reconstruir bloques sin asignar desde los conflictos
       const cursosFaltantes = await query(`
-        SELECT pc.*, cu.codigo, cu.nombre as curso_nombre, cu.ciclo_plan, g.numero_grupo, g.num_alumnos,
+        SELECT pc.*, cu.codigo, cu.nombre as curso_nombre, cu.ciclo_plan,
+               GREATEST(COALESCE(cu.cantidad_labs, 1), 1) AS cantidad_labs,
+               g.numero_grupo, g.num_alumnos,
                CASE d.condicion WHEN 'nombrado' THEN 0 ELSE 1 END as condicion_orden,
                CASE d.categoria 
                  WHEN 'principal' THEN 0 
@@ -92,12 +116,15 @@ export async function POST(req: NextRequest) {
 
       const bloquesFaltantes: any[] = [];
       for (const c of cursosFaltantes) {
-        const totalHoras = c.horas_teoria + c.horas_practica + c.horas_laboratorio;
+        const totalHoras =
+          c.horas_teoria + c.horas_practica + (c.horas_laboratorio || 0) * (c.cantidad_labs || 1);
         const asignadas = asignadasPorPC.get(c.id) || 0;
         const faltan = totalHoras - asignadas;
 
         for (let i = 0; i < faltan; i++) {
-          const tipo = i < c.horas_teoria ? 'teoria' : i < c.horas_teoria + c.horas_practica ? 'practica' : 'laboratorio';
+          let tipo: 'teoria' | 'practica' | 'laboratorio' = 'laboratorio';
+          if (i < c.horas_teoria) tipo = 'teoria';
+          else if (i < c.horas_teoria + c.horas_practica) tipo = 'practica';
           bloquesFaltantes.push({
             pc_id: c.id,
             curso_id: c.curso_id,
@@ -112,12 +139,17 @@ export async function POST(req: NextRequest) {
             condicion_orden: c.condicion_orden,
             categoria_orden: c.categoria_orden,
             fecha_ingreso: c.fecha_ingreso,
+            cantidad_labs: c.cantidad_labs || 1,
           });
         }
       }
 
       if (bloquesFaltantes.length > 0) {
-        const asignacionesGA = await ejecutarAlgoritmoGenetico(bloquesFaltantes, programacion_id);
+        const asignacionesGA = await ejecutarAlgoritmoGenetico(
+          bloquesFaltantes,
+          programacion_id,
+          asignacionesCSP
+        );
         asignacionesFinales = [...asignacionesCSP, ...asignacionesGA];
         usóGA = asignacionesGA.length > 0;
       }
@@ -143,6 +175,7 @@ export async function POST(req: NextRequest) {
         asignaciones: asignacionesFinales,
         conflictos,
         advertencias,
+        csp_stats: stats,
         fuentes: {
           csp: asignacionesCSP.length,
           ga: usóGA ? asignacionesFinales.length - asignacionesCSP.length : 0,

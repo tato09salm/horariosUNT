@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { fetchProgramacionCursos, programacionCursosApiUrl } from '@/lib/fetch-programacion-cursos';
 
 const FASE_INFO: Record<number, { label: string; icon: string }> = {
   1: { label: 'Carga de Información', icon: '📋' },
@@ -36,7 +37,7 @@ export default function CrearHorarioPage() {
     try {
       const [progRes, cursosRes, catRes, docRes] = await Promise.all([
         fetch(`/api/horarios/programaciones/${progId}`).then(r => r.json()),
-        fetch(`/api/horarios/programaciones/${progId}/cursos`).then(r => r.json()),
+        fetchProgramacionCursos(progId),
         fetch('/api/cursos?limit=1000').then(r => r.json()),
         fetch('/api/docentes?limit=1000').then(r => r.json()),
       ]);
@@ -81,13 +82,14 @@ export default function CrearHorarioPage() {
 
   // Agregar curso
   async function agregarCurso() {
+    if (!progId) return;
     if (!addForm.curso_id || !addForm.grupo_id) {
       setMsg({ type: 'error', text: 'Selecciona un curso y un grupo' });
       return;
     }
     setSaving(true); setMsg(null);
     try {
-      const res = await fetch(`/api/horarios/programaciones/${progId}/cursos`, {
+      const res = await fetch(programacionCursosApiUrl(progId), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(addForm),
@@ -104,8 +106,9 @@ export default function CrearHorarioPage() {
 
   // Eliminar curso
   async function eliminarCurso(pcId: string) {
+    if (!progId) return;
     try {
-      const res = await fetch(`/api/horarios/programaciones/${progId}/cursos?pc_id=${pcId}`, { method: 'DELETE' });
+      const res = await fetch(`${programacionCursosApiUrl(progId)}?pc_id=${pcId}`, { method: 'DELETE' });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
       setMsg({ type: 'success', text: 'Curso removido' });
       cargarDatos();
@@ -114,11 +117,12 @@ export default function CrearHorarioPage() {
 
   // Vaciar todos los cursos
   async function vaciarCursos() {
+    if (!progId) return;
     if (!confirm('¿Estás seguro de que deseas eliminar TODOS los cursos programados? Esta acción no se puede deshacer.')) return;
     setSaving(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/horarios/programaciones/${progId}/cursos?pc_id=all`, { method: 'DELETE' });
+      const res = await fetch(`${programacionCursosApiUrl(progId)}?pc_id=all`, { method: 'DELETE' });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
       setMsg({ type: 'success', text: 'Se han eliminado todos los cursos correctamente' });
       cargarDatos();
