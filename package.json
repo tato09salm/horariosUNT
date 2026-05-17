@@ -17,6 +17,7 @@
     "@types/pg": "^8.20.0",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.4.2",
     "html2canvas": "^1.4.1",
     "jose": "^6.2.3",
     "jsonwebtoken": "^9.0.3",
@@ -26,17 +27,21 @@
     "next": "16.2.6",
     "next-auth": "^4.24.14",
     "pg": "^8.20.0",
+    "pg-hstore": "^2.3.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "sequelize": "^6.37.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sequelize": "^6.12.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "sequelize-cli": "^6.6.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
