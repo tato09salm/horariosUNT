@@ -29,7 +29,7 @@ export default function HorariosPage() {
   const [docentes, setDocentes] = useState<any[]>([]);
   const [ambientes, setAmbientes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [vista, setVista] = useState<'programaciones'|'horario'>('programaciones');
+  const [vista, setVista] = useState<'programaciones'|'horario'|'mi-horario'>('programaciones');
   const [filtroDocente, setFiltroDocente] = useState('');
   const [filtroAmbiente, setFiltroAmbiente] = useState('');
   const [msg, setMsg] = useState<any>(null);
@@ -39,6 +39,9 @@ export default function HorariosPage() {
 
   const user = useUser();
   const isAdminOrSec = user?.rol === 'admin' || user?.rol === 'secretaria';
+  const isDocente = user?.rol === 'docente';
+  const [miHorario, setMiHorario] = useState<any[]>([]);
+  const [loadingMiHorario, setLoadingMiHorario] = useState(false);
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -77,6 +80,17 @@ export default function HorariosPage() {
   }, [cicloId, filtroDocente, filtroAmbiente]);
 
   useEffect(() => { if (vista === 'horario') cargarHorario(); }, [vista, cargarHorario]);
+
+  // Cargar horario personal del docente si está logueado como docente
+  useEffect(() => {
+    if (!isDocente || !cicloId) return;
+    setLoadingMiHorario(true);
+    fetch(`/api/horarios?ciclo_id=${cicloId}&docente_id=${user?.id}`)
+      .then(r => r.json())
+      .then(d => setMiHorario(d.data || []))
+      .finally(() => setLoadingMiHorario(false));
+  }, [isDocente, cicloId, user?.id]);
+
 
   // Crear programación
   async function crearProgramacion() {
@@ -142,14 +156,28 @@ export default function HorariosPage() {
         </div>
         <div style={{display:'flex',gap:'10px'}}>
           <div style={{display:'flex',borderRadius:'8px',overflow:'hidden',border:'1px solid #e2e8f0'}}>
-            <button
-              style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',background:vista==='programaciones'?'#1a3a5c':'white',color:vista==='programaciones'?'white':'#475569'}}
-              onClick={() => setVista('programaciones')}
-            >📋 Programaciones</button>
+            {!isDocente && (
+              <button
+                style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',background:vista==='programaciones'?'#1a3a5c':'white',color:vista==='programaciones'?'white':'#475569'}}
+                onClick={() => setVista('programaciones')}
+              >📋 Programaciones</button>
+            )}
+            {isDocente && (
+              <>
+                <button
+                  style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',background:vista==='programaciones'?'#1a3a5c':'white',color:vista==='programaciones'?'white':'#475569'}}
+                  onClick={() => setVista('programaciones')}
+                >📋 Disponibilidad</button>
+                <button
+                  style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderLeft:'1px solid #e2e8f0',background:vista==='mi-horario'?'#1a3a5c':'white',color:vista==='mi-horario'?'white':'#475569'}}
+                  onClick={() => setVista('mi-horario')}
+                >👤 Mi Horario</button>
+              </>
+            )}
             <button
               style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderLeft:'1px solid #e2e8f0',background:vista==='horario'?'#1a3a5c':'white',color:vista==='horario'?'white':'#475569'}}
               onClick={() => setVista('horario')}
-            >📅 Horario Publicado</button>
+            >📅 Horario General</button>
           </div>
           {vista === 'programaciones' && isAdminOrSec && (
             <button className="btn-primary" onClick={() => setShowCrear(true)}>
@@ -322,6 +350,47 @@ export default function HorariosPage() {
           </div>
           {asignaciones.length === 0 && (
             <p style={{textAlign:'center',padding:'40px',color:'#94a3b8',fontSize:'14px'}}>No hay asignaciones publicadas para este ciclo. Completa el flujo de programación primero.</p>
+          )}
+        </div>
+      )}
+
+      {/* ===== VISTA: MI HORARIO (solo docentes) ===== */}
+      {vista === 'mi-horario' && isDocente && (
+        <div className="card" style={{padding:'16px',overflowX:'auto'}}>
+          <div style={{marginBottom:'16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <h3 style={{fontSize:'18px',fontWeight:'600',color:'#1e293b',margin:0}}>Mi Horario Asignado</h3>
+            <span style={{background:'#dcfce7',color:'#166534',padding:'4px 12px',borderRadius:'9999px',fontSize:'12px',fontWeight:'600'}}>
+              Total: {miHorario.length} horas
+            </span>
+          </div>
+          {loadingMiHorario ? (
+            <p style={{textAlign:'center',padding:'40px',color:'#64748b'}}>Cargando mi horario...</p>
+          ) : (
+            <div className="horario-grid" style={{minWidth:'900px'}}>
+              <div className="horario-header">Hora</div>
+              {DIAS.map(d => <div key={d} className="horario-header">{DIAS_LABEL[d]}</div>)}
+              {slots.map((slot: any) => (
+                <div key={slot.id} style={{display:'contents'}}>
+                  <div className="horario-time">{slot.hora_inicio}<br/>{slot.hora_fin}</div>
+                  {DIAS.map(dia => {
+                    const cells = miHorario.filter((a: any) => a.dia === dia && a.slot_id === slot.id);
+                    return (
+                      <div key={`${dia}-${slot.id}`} className="horario-cell">
+                        {cells.map(c => (
+                          <div key={c.id} className={`block-${c.tipo}`} style={{marginBottom:'2px',cursor:'pointer'}} title={`${c.curso_nombre}\nG${c.numero_grupo}\n${c.ambiente_nombre}`}>
+                            <div style={{fontWeight:'600',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:'11px'}}>{c.curso_codigo} - G{c.numero_grupo}</div>
+                            <div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:'10px'}}>{c.ambiente_codigo} ({c.tipo.substring(0,3).toUpperCase()})</div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+          {!loadingMiHorario && miHorario.length === 0 && (
+            <p style={{textAlign:'center',padding:'40px',color:'#94a3b8',fontSize:'14px'}}>No tienes clases asignadas en el horario publicado de este ciclo.</p>
           )}
         </div>
       )}

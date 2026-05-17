@@ -103,6 +103,34 @@ export default function CrearHorarioPage() {
     } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
   }
 
+  // Importar CSV
+  async function handleImportCSV(e: any) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSaving(true);
+    setMsg(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`/api/horarios/programaciones/${progId}/csv`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setMsg({ type: 'success', text: `Importación CSV: ${data.importados} cursos importados. ${data.errores.length > 0 ? `Se encontraron ${data.errores.length} errores (ver consola).` : ''}` });
+      if (data.errores.length > 0) {
+        console.warn('Errores de importación CSV:', data.errores);
+      }
+      cargarDatos();
+    } catch (error: any) {
+      setMsg({ type: 'error', text: error.message });
+    } finally {
+      setSaving(false);
+      e.target.value = null;
+    }
+  }
+
   // Avanzar a Fase 2
   async function avanzarFase() {
     if (cursos.length === 0) {
@@ -212,9 +240,15 @@ export default function CrearHorarioPage() {
         <div>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
             <h3 style={{fontSize:'16px',fontWeight:'600',color:'#1e293b',margin:0}}>Cursos en la programación</h3>
-            <button className="btn-primary" style={{padding:'6px 14px',fontSize:'13px'}} onClick={() => { setAddForm({}); setShowAddModal(true); setMsg(null); }}>
-              + Agregar curso
-            </button>
+            <div style={{display:'flex',gap:'10px'}}>
+              <label className="btn-secondary" style={{padding:'6px 14px',fontSize:'13px',cursor:'pointer'}}>
+                📥 Importar CSV
+                <input type="file" accept=".csv" style={{display:'none'}} onChange={handleImportCSV} disabled={saving} />
+              </label>
+              <button className="btn-primary" style={{padding:'6px 14px',fontSize:'13px'}} onClick={() => { setAddForm({}); setShowAddModal(true); setMsg(null); }} disabled={saving}>
+                + Agregar curso
+              </button>
+            </div>
           </div>
           <div className="card" style={{padding:0}}>
             <div className="table-container">

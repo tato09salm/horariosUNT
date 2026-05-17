@@ -23,8 +23,7 @@ export default function ProgramarPage() {
       const [progRes, dashRes, confRes] = await Promise.all([
         fetch(`/api/horarios/programaciones/${progId}`).then(r => r.json()),
         fetch('/api/dashboard').then(r => r.json()),
-        // Vamos a extraer los conflictos directamente desde un endpoint o temporalmente del objeto prog si no existe la api
-        fetch(`/api/horarios/programaciones/${progId}/conflictos`).then(r => r.json()).catch(() => ({ data: [] }))
+        fetch(`/api/horarios/resolver/conflictos?programacion_id=${progId}`).then(r => r.json()).catch(() => ({ data: [] }))
       ]);
 
       const dataProg = progRes.data;
@@ -94,7 +93,7 @@ export default function ProgramarPage() {
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button className="btn-secondary" onClick={ejecutarMotor} disabled={resolving || prog.fase !== 3}>
-            {resolving ? '⚙️ Resolviendo...' : '⚙️ Ejecutar Auto-Asignación'}
+            {resolving ? '⚙️ Resolviendo...' : asignaciones.length > 0 ? '🔄 Reejecutar CSP' : '⚙️ Ejecutar Auto-Asignación'}
           </button>
           <button className="btn-primary" onClick={avanzarFase} disabled={prog.fase !== 3}>
             Avanzar a Fase 4 →

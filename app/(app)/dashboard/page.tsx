@@ -8,12 +8,14 @@ export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [cicloId, setCicloId] = useState('');
+  const [programaciones, setProgramaciones] = useState<any[]>([]);
 
   useEffect(() => {
     fetch('/api/dashboard').then(r => r.json()).then(d => {
       setData(d);
       setCicloId(d.ciclo?.id || '');
     }).finally(() => setLoading(false));
+    fetch('/api/horarios/programaciones').then(r => r.json()).then(d => setProgramaciones(d.data || []));
   }, []);
 
   function recargar(id: string) {
@@ -87,6 +89,41 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* Widget de Fases Activas */}
+      {programaciones.filter((p: any) => p.estado !== 'cancelado').length > 0 && (
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1e293b', margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>📋</span> Programaciones Activas
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {programaciones.filter((p: any) => p.estado !== 'cancelado').map((p: any) => {
+              const faseBadge: Record<number, { label: string; color: string; bg: string; url: string }> = {
+                1: { label: 'Fase 1 · Carga', color: '#1d4ed8', bg: '#dbeafe', url: `/horarios/crear` },
+                2: { label: 'Fase 2 · Disponibilidad', color: '#7c3aed', bg: '#ede9fe', url: `/horarios/${p.id}/disponibilidad` },
+                3: { label: 'Fase 3 · Programación CSP', color: '#b45309', bg: '#fef3c7', url: `/horarios/${p.id}/programar` },
+                4: { label: 'Fase 4 · Publicación', color: '#065f46', bg: '#d1fae5', url: `/horarios/${p.id}/publicar` },
+              };
+              const badge = faseBadge[p.fase];
+              return (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ background: badge?.bg, color: badge?.color, padding: '3px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: '600' }}>
+                      {p.estado === 'publicado' ? '✅ Publicado' : badge?.label}
+                    </span>
+                    <span style={{ fontWeight: '500', color: '#1e293b', fontSize: '14px' }}>{p.nombre}</span>
+                  </div>
+                  {p.estado !== 'publicado' && badge && (
+                    <a href={badge.url} style={{ textDecoration: 'none' }}>
+                      <button className="btn-primary" style={{ padding: '4px 14px', fontSize: '12px' }}>Continuar →</button>
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Charts Row 1 */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'16px',marginBottom:'16px'}}>
