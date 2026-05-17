@@ -1,0 +1,138 @@
+import { query, queryOne } from './db';
+
+/**
+ * Motor de asignación de horarios utilizando restricciones (CSP simplificado)
+ * Fase 3: Toma los cursos, la disponibilidad docente y genera una asignación tentativa.
+ * El resultado se guarda en el campo `config` de la tabla `programaciones` en formato JSON,
+ * para no alterar las asignaciones oficiales (tabla asignaciones) hasta la Fase 4.
+ */
+export async function generarHorarioCSP(programacion_id: string) {
+  // 1. Obtener datos
+  const cursos = await query(`
+    SELECT pc.*, g.num_alumnos, g.numero_grupo, cu.codigo, cu.nombre as curso_nombre
+    FROM programacion_cursos pc
+    LEFT JOIN grupos g ON g.id = pc.grupo_id
+    JOIN cursos cu ON cu.id = pc.curso_id
+    WHERE pc.programacion_id = $1
+  `, [programacion_id]);
+
+  const disponibilidad = await query(`
+    SELECT * FROM disponibilidad_docente 
+    WHERE programacion_id = $1 AND disponible = true
+  `, [programacion_id]);
+
+  const ambientes = await query(`SELECT * FROM ambientes`);
+  const slots = await query(`SELECT * FROM slots_tiempo ORDER BY orden`);
+  
+  // Transformar disponibilidad en un mapa O(1)
+  const docAvail = new Map<string, Set<string>>(); // docente_id -> Set("dia-slot_id")
+  for (const d of disponibilidad) {
+    if (!docAvail.has(d.docente_id)) docAvail.set(d.docente_id, new Set());
+    docAvail.get(d.docente_id)!.add(`${d.dia}-${d.slot_id}`);
+  }
+
+  // 2. Expandir bloques a asignar (1 bloque = 1 hora)
+  const blocksToAssign: any[] = [];
+  for (const c of cursos) {
+    for (let i=0; i<c.horas_teoria; i++) blocksToAssign.push({ ...c, tipo_sesion: 'teoria' });
+    for (let i=0; i<c.horas_practica; i++) blocksToAssign.push({ ...c, tipo_sesion: 'practica' });
+    for (let i=0; i<c.horas_laboratorio; i++) blocksToAssign.push({ ...c, tipo_sesion: 'laboratorio' });
+  }
+
+  const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+  const asignaciones: any[] = [];
+  const conflictos: string[] = [];
+
+  // Trackers de estado para evitar colisiones
+  const docenteOcupado = new Set<string>(); // "docente_id-dia-slot_id"
+  const ambienteOcupado = new Set<string>(); // "ambiente_id-dia-slot_id"
+  const grupoOcupado = new Set<string>(); // "grupo_id-dia-slot_id"
+
+  // 3. CSP Algoritmo Greedy Backtracking Simplificado
+  // Primero asignamos los bloques más restrictivos (Laboratorios)
+  blocksToAssign.sort((a, b) => {
+    if (a.tipo_sesion === 'laboratorio' && b.tipo_sesion !== 'laboratorio') return -1;
+    if (a.tipo_sesion !== 'laboratorio' && b.tipo_sesion === 'laboratorio') return 1;
+    return 0;
+  });
+
+  for (const block of blocksToAssign) {
+    let assigned = false;
+    
+    // Filtros de ambiente válidos
+    const validAmbientes = ambientes.filter(a => {
+      if ((block.num_alumnos || 0) > a.capacidad) return false;
+      if (block.tipo_sesion === 'laboratorio' && a.tipo !== 'laboratorio') return false;
+      if (block.tipo_sesion === 'teoria' && a.tipo === 'laboratorio') return false; // Teoría no va en lab
+      return true;
+    });
+
+    outer: for (const dia of DIAS) {
+      for (const slot of slots) {
+        const timeKey = `${dia}-${slot.id}`;
+        
+        // Hard constraint: ¿El docente está disponible y no ocupado?
+        if (block.docente_id) {
+          if (!docAvail.get(block.docente_id)?.has(timeKey)) continue;
+          if (docenteOcupado.has(`${block.docente_id}-${timeKey}`)) continue;
+        }
+        
+        // Hard constraint: ¿El grupo ya tiene clase?
+        if (block.grupo_id && grupoOcupado.has(`${block.grupo_id}-${timeKey}`)) continue;
+
+        // Hard constraint: ¿Hay ambiente libre?
+        for (const amb of validAmbientes) {
+          if (!ambienteOcupado.has(`${amb.id}-${timeKey}`)) {
+            // ¡Asignación válida encontrada!
+            asignaciones.push({
+              id: require('crypto').randomUUID(), // ID temporal
+              pc_id: block.id,
+              curso_id: block.curso_id,
+              grupo_id: block.grupo_id,
+              docente_id: block.docente_id,
+              ambiente_id: amb.id,
+              slot_id: slot.id,
+              dia: dia,
+              tipo: block.tipo_sesion,
+              
+              // Metadata para UI
+              curso_codigo: block.codigo,
+              curso_nombre: block.curso_nombre,
+              numero_grupo: block.numero_grupo,
+              ambiente_codigo: amb.codigo,
+              ambiente_nombre: amb.nombre,
+              docente_nombre: block.docente_id ? 'Asignado' : 'Sin asignar' // Simplificado para la vista
+            });
+
+            if (block.docente_id) docenteOcupado.add(`${block.docente_id}-${timeKey}`);
+            if (block.grupo_id) grupoOcupado.add(`${block.grupo_id}-${timeKey}`);
+            ambienteOcupado.add(`${amb.id}-${timeKey}`);
+            
+            assigned = true;
+            break outer;
+          }
+        }
+      }
+    }
+
+    if (!assigned) {
+      conflictos.push(`No se pudo asignar 1h de ${block.tipo_sesion} para ${block.codigo} (G${block.numero_grupo}). Revisa disponibilidad del docente o capacidad de ambientes.`);
+    }
+  }
+
+  // 4. Guardar resultados en la DB
+  const prog = await queryOne(`SELECT config FROM programaciones WHERE id = $1`, [programacion_id]);
+  const newConfig = { ...(prog?.config || {}), asignaciones };
+  await queryOne(`UPDATE programaciones SET config = $1, updated_at = NOW() WHERE id = $2`, [JSON.stringify(newConfig), programacion_id]);
+
+  // Guardar conflictos
+  await query(`DELETE FROM conflictos_horario WHERE programacion_id = $1`, [programacion_id]);
+  for (const c of conflictos) {
+    await query(`
+      INSERT INTO conflictos_horario (programacion_id, tipo, severidad, descripcion)
+      VALUES ($1, 'UNASSIGNED', 'error', $2)
+    `, [programacion_id, c]);
+  }
+
+  return { asignaciones, conflictos };
+}

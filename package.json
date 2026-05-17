@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:reset": "powershell -ExecutionPolicy Bypass -File reset-db.ps1"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
