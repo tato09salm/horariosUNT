@@ -50,8 +50,8 @@ export async function POST(req: NextRequest) {
     if (!docente_id) return NextResponse.json({ error: 'docente_id requerido' }, { status: 400 });
 
     const prog = await queryOne(`SELECT * FROM programaciones WHERE id = $1`, [programacion_id]);
-    if (!prog || prog.fase !== 2) {
-      return NextResponse.json({ error: 'La programación no está en fase de disponibilidad (Fase 2)' }, { status: 400 });
+    if (!prog || prog.estado === 'publicado' || prog.estado === 'cancelado') {
+      return NextResponse.json({ error: 'La programación ya está publicada o cancelada, no se puede modificar la disponibilidad' }, { status: 400 });
     }
 
     // Upsert batch

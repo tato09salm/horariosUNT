@@ -26,6 +26,8 @@ export default function CrearHorarioPage() {
   const [addForm, setAddForm] = useState<any>({});
   const [lastSaved, setLastSaved] = useState<Date|null>(null);
   const autoSaveRef = useRef<NodeJS.Timeout|null>(null);
+  const [sortCursosBy, setSortCursosBy] = useState<string>('ciclo');
+  const [sortCargaDocenteBy, setSortCargaDocenteBy] = useState<string>('apellidos');
 
   // Cargar datos
   const cargarDatos = useCallback(async () => {
@@ -110,6 +112,20 @@ export default function CrearHorarioPage() {
     } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
   }
 
+  // Vaciar todos los cursos
+  async function vaciarCursos() {
+    if (!confirm('¿Estás seguro de que deseas eliminar TODOS los cursos programados? Esta acción no se puede deshacer.')) return;
+    setSaving(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}/cursos?pc_id=all`, { method: 'DELETE' });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      setMsg({ type: 'success', text: 'Se han eliminado todos los cursos correctamente' });
+      cargarDatos();
+    } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
+    finally { setSaving(false); }
+  }
+
   // Importar CSV
   async function handleImportCSV(e: any) {
     const file = e.target.files?.[0];
@@ -189,6 +205,49 @@ export default function CrearHorarioPage() {
   const totalHoras = cursos.reduce((s, c) => s + (c.horas_teoria||0) + (c.horas_practica||0) + (c.horas_laboratorio||0), 0);
   const totalConsejeria = cursos.reduce((s, c) => s + (c.horas_consejeria||0), 0);
 
+  // Helper to convert arabic numbers to Roman numerals
+  const toRoman = (num: number) => {
+    const map = ['I','II','III','IV','V','VI','VII','VIII','IX','X'];
+    return map[num - 1] || num.toString();
+  };
+
+  // Helper to extract last names for sorting
+  const getLastName = (fullName: string) => {
+    const parts = fullName.trim().split(/\s+/);
+    // If the name has more than one word, slice off the first one as name
+    return parts.slice(1).join(' ') || fullName;
+  };
+
+  // Sort courses
+  const sortedCursos = [...cursos].sort((a, b) => {
+    if (sortCursosBy === 'ciclo') {
+      return (a.ciclo_plan || 0) - (b.ciclo_plan || 0) || a.curso_codigo.localeCompare(b.curso_codigo);
+    }
+    if (sortCursosBy === 'codigo') {
+      return a.curso_codigo.localeCompare(b.curso_codigo);
+    }
+    if (sortCursosBy === 'nombre') {
+      return a.curso_nombre.localeCompare(b.curso_nombre);
+    }
+    if (sortCursosBy === 'docente') {
+      const docA = a.docente_nombre || '';
+      const docB = b.docente_nombre || '';
+      return docA.localeCompare(docB) || a.curso_codigo.localeCompare(b.curso_codigo);
+    }
+    return 0;
+  });
+
+  // Sort teacher loads
+  const sortedCargaDocentes = [...cargaDocentes].sort((a, b) => {
+    if (sortCargaDocenteBy === 'apellidos') {
+      return getLastName(a.nombre).localeCompare(getLastName(b.nombre));
+    }
+    if (sortCargaDocenteBy === 'horas') {
+      return parseInt(b.horas_asignadas) - parseInt(a.horas_asignadas);
+    }
+    return 0;
+  });
+
   return (
     <div style={{padding:'32px'}}>
       {/* Header con breadcrumb */}
@@ -248,6 +307,16 @@ export default function CrearHorarioPage() {
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
             <h3 style={{fontSize:'16px',fontWeight:'600',color:'#1e293b',margin:0}}>Cursos en la programación</h3>
             <div style={{display:'flex',gap:'10px'}}>
+              {cursos.length > 0 && (
+                <button 
+                  className="btn-danger" 
+                  style={{padding:'6px 14px',fontSize:'13px',background:'#ef4444',color:'#ffffff',borderRadius:'6px',border:'none',fontWeight:'500',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px'}} 
+                  onClick={vaciarCursos}
+                  disabled={saving}
+                >
+                  🗑 Vaciar todo
+                </button>
+              )}
               <label className="btn-secondary" style={{padding:'6px 14px',fontSize:'13px',cursor:'pointer'}}>
                 📥 Importar CSV
                 <input type="file" accept=".csv" style={{display:'none'}} onChange={handleImportCSV} disabled={saving} />
@@ -261,15 +330,27 @@ export default function CrearHorarioPage() {
             <div className="table-container">
               <table>
                 <thead>
-                  <tr><th>Código</th><th>Curso</th><th>Grupo</th><th>Docente</th><th>T</th><th>P</th><th>L</th><th>C</th><th></th></tr>
+                  <tr>
+                    <th onClick={() => setSortCursosBy('codigo')} style={{cursor:'pointer',userSelect:'none',background:sortCursosBy==='codigo'?'#f1f5f9':'none'}}>Código {sortCursosBy==='codigo'?'⬇️':''}</th>
+                    <th onClick={() => setSortCursosBy('nombre')} style={{cursor:'pointer',userSelect:'none',background:sortCursosBy==='nombre'?'#f1f5f9':'none'}}>Curso {sortCursosBy==='nombre'?'⬇️':''}</th>
+                    <th onClick={() => setSortCursosBy('ciclo')} style={{cursor:'pointer',userSelect:'none',textAlign:'center',background:sortCursosBy==='ciclo'?'#f1f5f9':'none'}}>Ciclo {sortCursosBy==='ciclo'?'⬇️':''}</th>
+                    <th style={{textAlign:'center'}}>Grupo</th>
+                    <th onClick={() => setSortCursosBy('docente')} style={{cursor:'pointer',userSelect:'none',background:sortCursosBy==='docente'?'#f1f5f9':'none'}}>Docente {sortCursosBy==='docente'?'⬇️':''}</th>
+                    <th style={{textAlign:'center'}}>T</th>
+                    <th style={{textAlign:'center'}}>P</th>
+                    <th style={{textAlign:'center'}}>L</th>
+                    <th style={{textAlign:'center'}}>C</th>
+                    <th></th>
+                  </tr>
                 </thead>
                 <tbody>
-                  {cursos.length === 0 ? (
-                    <tr><td colSpan={9} style={{textAlign:'center',padding:'40px',color:'#94a3b8'}}>No hay cursos. Agrega cursos del catálogo o importa desde CSV.</td></tr>
-                  ) : cursos.map(c => (
+                  {sortedCursos.length === 0 ? (
+                    <tr><td colSpan={10} style={{textAlign:'center',padding:'40px',color:'#94a3b8'}}>No hay cursos. Agrega cursos del catálogo o importa desde CSV.</td></tr>
+                  ) : sortedCursos.map(c => (
                     <tr key={c.id}>
                       <td style={{fontWeight:'600',color:'#475569',fontFamily:'monospace',fontSize:'12px'}}>{c.curso_codigo}</td>
                       <td style={{fontWeight:'500',fontSize:'13px'}}>{c.curso_nombre}</td>
+                      <td style={{textAlign:'center'}}><span style={{background:'#eff6ff',color:'#1e40af',padding:'2px 8px',borderRadius:'6px',fontSize:'12px',fontWeight:'600'}}>{toRoman(c.ciclo_plan)}</span></td>
                       <td style={{textAlign:'center'}}><span style={{background:'#f1f5f9',padding:'2px 8px',borderRadius:'6px',fontSize:'12px',fontWeight:'600'}}>G{c.numero_grupo}</span></td>
                       <td>
                         {c.docente_nombre ? (
@@ -296,11 +377,46 @@ export default function CrearHorarioPage() {
 
         {/* Panel lateral: Carga docente */}
         <div>
-          <h3 style={{fontSize:'16px',fontWeight:'600',color:'#1e293b',margin:'0 0 12px'}}>Carga docente</h3>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
+            <h3 style={{fontSize:'16px',fontWeight:'600',color:'#1e293b',margin:0}}>Carga docente</h3>
+            <div style={{display:'flex',gap:'6px',alignItems:'center'}}>
+              <span style={{fontSize:'11px',color:'#64748b'}}>Orden:</span>
+              <button 
+                onClick={() => setSortCargaDocenteBy('apellidos')}
+                style={{
+                  padding:'3px 8px',
+                  fontSize:'11px',
+                  borderRadius:'4px',
+                  border:'none',
+                  background:sortCargaDocenteBy==='apellidos'?'#1a3a5c':'#f1f5f9',
+                  color:sortCargaDocenteBy==='apellidos'?'#ffffff':'#64748b',
+                  fontWeight:'600',
+                  cursor:'pointer'
+                }}
+              >
+                Apellidos
+              </button>
+              <button 
+                onClick={() => setSortCargaDocenteBy('horas')}
+                style={{
+                  padding:'3px 8px',
+                  fontSize:'11px',
+                  borderRadius:'4px',
+                  border:'none',
+                  background:sortCargaDocenteBy==='horas'?'#1a3a5c':'#f1f5f9',
+                  color:sortCargaDocenteBy==='horas'?'#ffffff':'#64748b',
+                  fontWeight:'600',
+                  cursor:'pointer'
+                }}
+              >
+                Horas
+              </button>
+            </div>
+          </div>
           <div className="card" style={{padding:'16px'}}>
-            {cargaDocentes.length === 0 ? (
+            {sortedCargaDocentes.length === 0 ? (
               <p style={{color:'#94a3b8',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Asigna docentes a los cursos para ver la carga</p>
-            ) : cargaDocentes.map((d, i) => {
+            ) : sortedCargaDocentes.map((d, i) => {
               const porcentaje = d.horas_max_semana > 0 ? (parseInt(d.horas_asignadas) / d.horas_max_semana * 100) : 0;
               const excede = porcentaje > 100;
               return (

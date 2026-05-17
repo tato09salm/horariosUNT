@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       cu.codigo as curso_codigo, cu.nombre as curso_nombre, cu.creditos, cu.ciclo_plan,
       cu.horas_teoria as horas_teoria_catalogo, cu.horas_practica as horas_practica_catalogo,
       g.numero_grupo, g.max_alumnos, g.num_alumnos,
-      d.nombre || ' ' || d.apellidos as docente_nombre, d.codigo as docente_codigo,
+      d.nombre || ' ' || d.apellidos as docente_nombre, d.dni as docente_dni,
       d.categoria as docente_categoria, d.condicion as docente_condicion,
       d.horas_max_semana as docente_horas_max
     FROM programacion_cursos pc
@@ -145,6 +145,23 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const prog = await queryOne(`SELECT * FROM programaciones WHERE id = $1`, [id]);
   if (!prog || prog.fase !== 1) {
     return NextResponse.json({ error: 'Solo se pueden eliminar cursos en la Fase 1' }, { status: 400 });
+  }
+
+  if (pc_id === 'all') {
+    const todosCursos = await query(`SELECT * FROM programacion_cursos WHERE programacion_id = $1`, [id]);
+    await queryOne(`DELETE FROM programacion_cursos WHERE programacion_id = $1`, [id]);
+
+    await registrarAuditoria({
+      usuario_id: session.id,
+      usuario_nombre: `${session.nombre} ${session.apellidos}`,
+      accion: 'DELETE',
+      tabla_afectada: 'programacion_cursos',
+      registro_id: id,
+      datos_anteriores: { count: todosCursos.length },
+      descripcion: `Removidos todos los cursos (${todosCursos.length}) de la programación`,
+    });
+
+    return NextResponse.json({ success: true });
   }
 
   const anterior = await queryOne(`SELECT * FROM programacion_cursos WHERE id = $1 AND programacion_id = $2`, [pc_id, id]);

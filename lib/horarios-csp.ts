@@ -7,12 +7,22 @@ import { query, queryOne } from './db';
  * para no alterar las asignaciones oficiales (tabla asignaciones) hasta la Fase 4.
  */
 export async function generarHorarioCSP(programacion_id: string) {
-  // 1. Obtener datos
+  // 1. Obtener datos con jerarquía de docentes
   const cursos = await query(`
-    SELECT pc.*, g.num_alumnos, g.numero_grupo, cu.codigo, cu.nombre as curso_nombre
+    SELECT pc.*, g.num_alumnos, g.numero_grupo, cu.codigo, cu.nombre as curso_nombre,
+           d.condicion, d.categoria, d.fecha_ingreso,
+           CASE d.condicion WHEN 'nombrado' THEN 0 ELSE 1 END as condicion_orden,
+           CASE d.categoria 
+             WHEN 'principal' THEN 0 
+             WHEN 'asociado' THEN 1 
+             WHEN 'auxiliar' THEN 2 
+             WHEN 'jefe_practica' THEN 3 
+             ELSE 4
+           END as categoria_orden
     FROM programacion_cursos pc
     LEFT JOIN grupos g ON g.id = pc.grupo_id
     JOIN cursos cu ON cu.id = pc.curso_id
+    LEFT JOIN docentes d ON d.id = pc.docente_id
     WHERE pc.programacion_id = $1
   `, [programacion_id]);
 
@@ -49,10 +59,34 @@ export async function generarHorarioCSP(programacion_id: string) {
   const grupoOcupado = new Set<string>(); // "grupo_id-dia-slot_id"
 
   // 3. CSP Algoritmo Greedy Backtracking Simplificado
-  // Primero asignamos los bloques más restrictivos (Laboratorios)
+  // ORDEN DE ASIGNACIÓN: 
+  // 1. Laboratorios primero (más restrictivos de ambiente)
+  // 2. Por jerarquía docente (nombrados > contratados, principal > asociado > auxiliar, antigüedad)
   blocksToAssign.sort((a, b) => {
+    // 1. Priorizar laboratorios
     if (a.tipo_sesion === 'laboratorio' && b.tipo_sesion !== 'laboratorio') return -1;
     if (a.tipo_sesion !== 'laboratorio' && b.tipo_sesion === 'laboratorio') return 1;
+    
+    // Si no tienen docente asignado, mandarlos al final de su respectivo tipo de sesión
+    if (!a.docente_id && b.docente_id) return 1;
+    if (a.docente_id && !b.docente_id) return -1;
+    if (!a.docente_id && !b.docente_id) return 0;
+
+    // 2. Condición (nombrado antes que contratado)
+    if (a.condicion_orden !== b.condicion_orden) {
+      return a.condicion_orden - b.condicion_orden;
+    }
+    
+    // 3. Categoría (principal > asociado > auxiliar > jefe_practica)
+    if (a.categoria_orden !== b.categoria_orden) {
+      return a.categoria_orden - b.categoria_orden;
+    }
+    
+    // 4. Antigüedad (fecha de ingreso más antigua = mayor prioridad)
+    if (a.fecha_ingreso && b.fecha_ingreso) {
+      return new Date(a.fecha_ingreso).getTime() - new Date(b.fecha_ingreso).getTime();
+    }
+    
     return 0;
   });
 

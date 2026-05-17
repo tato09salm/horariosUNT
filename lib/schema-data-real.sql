@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS docentes (
 -- Ciclos académicos
 CREATE TABLE IF NOT EXISTS ciclos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  nombre VARCHAR(50) NOT NULL,
+  nombre VARCHAR(50) UNIQUE NOT NULL,
   año INTEGER NOT NULL,
   semestre VARCHAR(2) NOT NULL CHECK (semestre IN ('I', 'II')),
   fecha_inicio DATE,
@@ -733,6 +733,110 @@ BEGIN
             DELETE FROM docentes WHERE id = remove_id;
             RAISE NOTICE 'Consolidado docente DNI % en DNI %', consolidations.remove_dni, consolidations.keep_dni;
         END IF;
+    END LOOP;
+END $$;
+
+-- ========================================
+-- CREACIÓN DE CUENTAS DE USUARIO Y DISPONIBILIDAD PARA DOCENTES
+-- ========================================
+
+-- 1. Crear cuentas de usuario para todos los docentes activos que no las tengan
+DO $$
+DECLARE
+    doc RECORD;
+    new_user_id UUID;
+BEGIN
+    FOR doc IN 
+        SELECT * FROM docentes WHERE usuario_id IS NULL AND email IS NOT NULL
+    LOOP
+        -- Verificar si ya existe un usuario con ese email
+        SELECT id INTO new_user_id FROM usuarios WHERE email = doc.email;
+        
+        IF new_user_id IS NULL THEN
+            INSERT INTO usuarios (nombre, apellidos, email, password_hash, rol)
+            VALUES (doc.nombre, doc.apellidos, doc.email, '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'docente')
+            RETURNING id INTO new_user_id;
+        END IF;
+
+        UPDATE docentes SET usuario_id = new_user_id WHERE id = doc.id;
+    END LOOP;
+    RAISE NOTICE 'Cuentas de usuario creadas para todos los docentes con contraseña: password';
+END $$;
+
+-- 2. Trigger para generar disponibilidad variada automática cuando se crea una programación
+CREATE OR REPLACE FUNCTION generar_disponibilidad_automatica()
+RETURNS TRIGGER AS $$
+DECLARE
+    doc RECORD;
+    st RECORD;
+    dia_val dia_semana;
+    dias_array dia_semana[] := ARRAY['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']::dia_semana[];
+    is_available BOOLEAN;
+    hash_val INTEGER;
+BEGIN
+    FOR doc IN SELECT id, dni FROM docentes WHERE activo = true LOOP
+        FOR dia_val IN SELECT unnest(dias_array) LOOP
+            FOR st IN SELECT id, orden FROM slots_tiempo LOOP
+                -- Generamos un hash pseudo-aleatorio basado en el DNI del docente, el día y el orden del slot
+                hash_val := abs(hashtext(doc.dni || dia_val::text || st.orden::text));
+                
+                -- Hacemos que cada docente esté disponible aproximadamente el 75% del tiempo
+                -- Pero variando según el día y el slot para evitar colisiones idénticas
+                is_available := (hash_val % 4) > 0;
+                
+                -- Excluir sábados en la tarde (orden > 6) para hacerlo más realista
+                IF dia_val = 'sabado' AND st.orden > 6 THEN
+                    is_available := false;
+                END IF;
+
+                IF is_available THEN
+                    INSERT INTO disponibilidad_docente (programacion_id, docente_id, slot_id, dia, disponible)
+                    VALUES (NEW.id, doc.id, st.id, dia_val, true)
+                    ON CONFLICT (programacion_id, docente_id, slot_id, dia) DO NOTHING;
+                END IF;
+            END LOOP;
+        END LOOP;
+    END LOOP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_generar_disponibilidad ON programaciones;
+CREATE TRIGGER trg_generar_disponibilidad
+AFTER INSERT ON programaciones
+FOR EACH ROW
+EXECUTE FUNCTION generar_disponibilidad_automatica();
+
+-- 3. Generar disponibilidad para cualquier programación que ya exista en la base de datos
+DO $$
+DECLARE
+    prog RECORD;
+    doc RECORD;
+    st RECORD;
+    dia_val dia_semana;
+    dias_array dia_semana[] := ARRAY['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']::dia_semana[];
+    is_available BOOLEAN;
+    hash_val INTEGER;
+BEGIN
+    FOR prog IN SELECT id FROM programaciones LOOP
+        FOR doc IN SELECT id, dni FROM docentes WHERE activo = true LOOP
+            FOR dia_val IN SELECT unnest(dias_array) LOOP
+                FOR st IN SELECT id, orden FROM slots_tiempo LOOP
+                    hash_val := abs(hashtext(doc.dni || dia_val::text || st.orden::text));
+                    is_available := (hash_val % 4) > 0;
+                    
+                    IF dia_val = 'sabado' AND st.orden > 6 THEN
+                        is_available := false;
+                    END IF;
+
+                    IF is_available THEN
+                        INSERT INTO disponibilidad_docente (programacion_id, docente_id, slot_id, dia, disponible)
+                        VALUES (prog.id, doc.id, st.id, dia_val, true)
+                        ON CONFLICT (programacion_id, docente_id, slot_id, dia) DO NOTHING;
+                    END IF;
+                END LOOP;
+            END LOOP;
+        END LOOP;
     END LOOP;
 END $$;
 

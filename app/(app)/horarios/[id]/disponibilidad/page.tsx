@@ -64,7 +64,7 @@ export default function DisponibilidadPage() {
   };
 
   const toggleSlot = (dia: string, slotId: string) => {
-    if (prog?.estado === 'publicado' || prog?.fase !== 2) return;
+    if (prog?.estado === 'publicado' || prog?.estado === 'cancelado') return;
     const key = `${dia}-${slotId}`;
     setDisponibilidad(prev => ({ ...prev, [key]: !prev[key] }));
   };
@@ -170,7 +170,7 @@ export default function DisponibilidadPage() {
             </div>
           )}
 
-          <button className="btn-primary" onClick={guardarDisponibilidad} disabled={saving || prog.fase !== 2}>
+          <button className="btn-primary" onClick={guardarDisponibilidad} disabled={saving || prog?.estado === 'publicado' || prog?.estado === 'cancelado'}>
             {saving ? 'Guardando...' : '💾 Guardar Disponibilidad'}
           </button>
         </div>
@@ -194,7 +194,7 @@ export default function DisponibilidadPage() {
                       borderRight: '1px solid #e2e8f0',
                       borderBottom: '1px solid #e2e8f0',
                       background: isSelected ? '#10b981' : '#f8fafc',
-                      cursor: prog.fase === 2 ? 'pointer' : 'not-allowed',
+                      cursor: (prog?.estado === 'publicado' || prog?.estado === 'cancelado') ? 'not-allowed' : 'pointer',
                       transition: 'background 0.2s'
                     }}
                   />

@@ -15,6 +15,9 @@ interface Bloque {
   docente_id: string | null;
   tipo_sesion: 'teoria' | 'practica' | 'laboratorio';
   num_alumnos: number;
+  condicion_orden?: number;
+  categoria_orden?: number;
+  fecha_ingreso?: Date;
 }
 
 interface Gen {
@@ -52,7 +55,16 @@ function calcularFitness(genes: Gen[], docAvail: Map<string, Set<string>>): numb
       else docenteOcupado.add(dk);
 
       // R4: Docente disponible
-      if (!docAvail.get(gen.bloque.docente_id)?.has(timeKey)) penalizacion += 5;
+      if (!docAvail.get(gen.bloque.docente_id)?.has(timeKey)) {
+        let penalty = 5;
+        // Si es nombrado, penaliza mucho más
+        if (gen.bloque.condicion_orden === 0) penalty += 5;
+        // Si es principal, asociado, auxiliar, penaliza más
+        if (gen.bloque.categoria_orden !== undefined && gen.bloque.categoria_orden < 3) {
+          penalty += (3 - gen.bloque.categoria_orden) * 2; // principal +6, asociado +4, auxiliar +2
+        }
+        penalizacion += penalty;
+      }
     }
 
     // R2: Ambiente ocupado

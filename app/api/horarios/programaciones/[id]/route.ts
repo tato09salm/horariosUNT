@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       cu.codigo as curso_codigo, cu.nombre as curso_nombre, cu.creditos,
       cu.horas_teoria as horas_teoria_catalogo, cu.horas_practica as horas_practica_catalogo,
       g.numero_grupo, g.max_alumnos, g.num_alumnos,
-      d.nombre || ' ' || d.apellidos as docente_nombre, d.codigo as docente_codigo,
+      d.nombre || ' ' || d.apellidos as docente_nombre, d.dni as docente_dni,
       d.categoria as docente_categoria, d.condicion as docente_condicion,
       d.horas_max_semana as docente_horas_max
     FROM programacion_cursos pc

@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useUser } from '../layout';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 const COLORS = ['#1a3a5c', '#2563a8', '#3b82f6', '#60a5fa', '#93c5fd', '#c8102e'];
@@ -9,6 +10,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [cicloId, setCicloId] = useState('');
   const [programaciones, setProgramaciones] = useState<any[]>([]);
+
+  const user = useUser();
+  const isDocente = user?.rol === 'docente';
 
   useEffect(() => {
     fetch('/api/dashboard').then(r => r.json()).then(d => {
@@ -47,6 +51,87 @@ export default function DashboardPage() {
     porcentaje: parseFloat(a.porcentaje),
     tipo: a.tipo,
   })) || [];
+
+  if (isDocente) {
+    const miCarga = data?.cargaDocentes?.find((d: any) => d.nombre.toLowerCase().includes(user?.nombre?.toLowerCase()) || d.nombre.toLowerCase().includes(user?.apellidos?.toLowerCase()));
+    const programacionesActivas = programaciones.filter((p: any) => p.estado !== 'publicado' && p.estado !== 'cancelado');
+
+    return (
+      <div style={{padding:'32px'}}>
+        <div style={{marginBottom:'28px'}}>
+          <h1 style={{fontSize:'24px',fontWeight:'700',color:'#1e293b',margin:'0 0 4px'}}>Bienvenido, {user?.nombre}</h1>
+          <p style={{color:'#64748b',fontSize:'14px',margin:0}}>Panel de control — Perfil docente</p>
+        </div>
+
+        {/* Stats Row */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3, 1fr)',gap:'16px',marginBottom:'24px'}}>
+          <div className="stat-card">
+            <div className="stat-icon" style={{background:'#dbeafe'}}>
+              <svg width="22" height="22" fill="none" stroke="#1a3a5c" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
+            <div>
+              <p style={{fontSize:'28px',fontWeight:'700',color:'#1a3a5c',margin:'0 0 2px'}}>{miCarga ? `${miCarga.horas_asignadas}h` : '0h'}</p>
+              <p style={{fontSize:'13px',color:'#64748b',margin:0}}>Horas asignadas ({data?.ciclo?.nombre || 'Ciclo actual'})</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon" style={{background:'#d1fae5'}}>
+              <svg width="22" height="22" fill="none" stroke="#065f46" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
+            <div>
+              <p style={{fontSize:'28px',fontWeight:'700',color:'#065f46',margin:'0 0 2px'}}>{miCarga ? `${miCarga.horas_max_semana}h` : '—'}</p>
+              <p style={{fontSize:'13px',color:'#64748b',margin:0}}>Límite de horas semanales</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon" style={{background:'#fef3c7'}}>
+              <svg width="22" height="22" fill="none" stroke="#92400e" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </div>
+            <div>
+              <p style={{fontSize:'28px',fontWeight:'700',color:'#92400e',margin:'0 0 2px'}}>{programacionesActivas.length}</p>
+              <p style={{fontSize:'13px',color:'#64748b',margin:0}}>Programaciones activas</p>
+            </div>
+          </div>
+        </div>
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'24px'}}>
+          <div className="card" style={{padding:'32px',textAlign:'center'}}>
+            <div style={{fontSize:'48px',marginBottom:'16px'}}>🎓</div>
+            <h2 style={{fontSize:'20px',fontWeight:'600',color:'#1e293b',margin:'0 0 8px'}}>Tu portal académico</h2>
+            <p style={{color:'#64748b',fontSize:'14px',margin:'0 auto 24px'}}>Desde aquí podrás ver tu horario publicado final y consultar tus asignaciones de clase.</p>
+            <div style={{display:'flex',justifyContent:'center',gap:'16px'}}>
+              <a href="/horarios" className="btn-primary" style={{textDecoration:'none',padding:'8px 24px'}}>Ver mi horario general</a>
+            </div>
+          </div>
+
+          <div className="card" style={{padding:'24px'}}>
+            <h3 style={{fontSize:'16px',fontWeight:'600',color:'#1e293b',margin:'0 0 16px',display:'flex',alignItems:'center',gap:'8px'}}>
+              <span>⏳</span> Disponibilidad Pendiente
+            </h3>
+            {programacionesActivas.length > 0 ? (
+              <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
+                {programacionesActivas.map((p: any) => (
+                  <div key={p.id} style={{padding:'12px',background:'#f8fafc',borderRadius:'8px',border:'1px solid #e2e8f0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <div>
+                      <h4 style={{margin:'0 0 4px',fontSize:'14px',fontWeight:'600',color:'#0f172a'}}>{p.nombre}</h4>
+                      <p style={{margin:0,fontSize:'12px',color:'#64748b'}}>Fase actual: {p.fase}</p>
+                    </div>
+                    <a href={`/horarios/${p.id}/disponibilidad`} style={{textDecoration:'none'}}>
+                      <button className="btn-primary" style={{padding:'6px 12px',fontSize:'12px'}}>Marcar disponibilidad</button>
+                    </a>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{padding:'24px',textAlign:'center',background:'#f8fafc',borderRadius:'8px',border:'1px dashed #cbd5e1'}}>
+                <p style={{margin:0,fontSize:'13px',color:'#64748b'}}>No hay programaciones activas en este momento.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{padding:'32px'}}>

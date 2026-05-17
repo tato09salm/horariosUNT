@@ -63,10 +63,20 @@ export async function POST(req: NextRequest) {
     if (conflictos.length > 0) {
       // Reconstruir bloques sin asignar desde los conflictos
       const cursosFaltantes = await query(`
-        SELECT pc.*, cu.codigo, cu.nombre as curso_nombre, g.numero_grupo, g.num_alumnos
+        SELECT pc.*, cu.codigo, cu.nombre as curso_nombre, g.numero_grupo, g.num_alumnos,
+               CASE d.condicion WHEN 'nombrado' THEN 0 ELSE 1 END as condicion_orden,
+               CASE d.categoria 
+                 WHEN 'principal' THEN 0 
+                 WHEN 'asociado' THEN 1 
+                 WHEN 'auxiliar' THEN 2 
+                 WHEN 'jefe_practica' THEN 3 
+                 ELSE 4
+               END as categoria_orden,
+               d.fecha_ingreso
         FROM programacion_cursos pc
         JOIN cursos cu ON cu.id = pc.curso_id
         LEFT JOIN grupos g ON g.id = pc.grupo_id
+        LEFT JOIN docentes d ON d.id = pc.docente_id
         WHERE pc.programacion_id = $1
       `, [programacion_id]);
 
@@ -94,6 +104,9 @@ export async function POST(req: NextRequest) {
             docente_id: c.docente_id,
             tipo_sesion: tipo,
             num_alumnos: c.num_alumnos || 25,
+            condicion_orden: c.condicion_orden,
+            categoria_orden: c.categoria_orden,
+            fecha_ingreso: c.fecha_ingreso,
           });
         }
       }

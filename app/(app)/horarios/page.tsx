@@ -167,7 +167,7 @@ export default function HorariosPage() {
                 <button
                   style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',background:vista==='programaciones'?'#1a3a5c':'white',color:vista==='programaciones'?'white':'#475569'}}
                   onClick={() => setVista('programaciones')}
-                >📋 Disponibilidad</button>
+                >📋 Mis Programaciones (Disponibilidad)</button>
                 <button
                   style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderLeft:'1px solid #e2e8f0',background:vista==='mi-horario'?'#1a3a5c':'white',color:vista==='mi-horario'?'white':'#475569'}}
                   onClick={() => setVista('mi-horario')}
@@ -308,9 +308,9 @@ export default function HorariosPage() {
                             Cancelar
                           </button>
                         )}
-                        <a href={getFaseUrl(prog)} style={{textDecoration:'none'}}>
+                        <a href={isDocente ? `/horarios/${prog.id}/disponibilidad` : getFaseUrl(prog)} style={{textDecoration:'none'}}>
                           <button className="btn-primary" style={{padding:'6px 14px',fontSize:'13px'}}>
-                            {prog.estado === 'publicado' ? 'Ver horario' : `Continuar Fase ${prog.fase}`} →
+                            {isDocente ? 'Marcar Disponibilidad' : (prog.estado === 'publicado' ? 'Ver horario' : `Continuar Fase ${prog.fase}`)} →
                           </button>
                         </a>
                       </div>
