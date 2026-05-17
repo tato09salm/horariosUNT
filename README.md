@@ -3,12 +3,15 @@
 
 ## INSTALACIÓN RÁPIDA
 
-### 1. Crear base de datos PostgreSQL
-psql -U postgres -c 'CREATE DATABASE "horariosUNT";'
-psql -U postgres -d horariosUNT -f lib/schema.sql
-
-### 2. Instalar y ejecutar
+### 1. Instalar y ejecutar
 npm install
+
+### 2. Crear, migrar y poblar base de datos PostgreSQL
+npx sequelize-cli db:create
+npx sequelize-cli db:migrate
+npx sequelize-cli db:seed:all
+
+### 3. Iniciar servidor
 npm run dev   →   http://localhost:3000
 
 ## CREDENCIALES
