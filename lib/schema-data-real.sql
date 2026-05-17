@@ -283,75 +283,84 @@ ON CONFLICT (email) DO NOTHING;
 
 -- ========================================
 -- DOCENTES (UNIFICADOS 2026-I y 2025-II)
+-- DNIs canónicos tomados de cursos.csv
+-- Profesores que enseñan en ambos semestres aparecen UNA sola vez.
 -- ========================================
 INSERT INTO docentes (nombre, apellidos, dni, email, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana)
 VALUES
--- --- DOCENTES 2026-I ---
+-- --- DOCENTES SOLO 2026-I (sin asignación en CSV 2025-II) ---
 -- Ciclo I
 ('Marcelino', 'Torres Villanueva', '11111111', 'mtorres@unt.edu.pe', 'principal', 'nombrado', '2000-03-01', 'doctor', 20),
-('Alberto', 'Mendoza de los Santos', '22222222', 'amendoza@unt.edu.pe', 'asociado', 'nombrado', '2005-08-01', 'magister', 20),
-('Paul', 'Cotrina Castellanos', '33333333', 'pcotrina@unt.edu.pe', 'auxiliar', 'contratado', '2018-03-01', 'licenciado', 16),
 ('Bertha', 'Urtecho Zavaleta', '44444444', 'burtecho@unt.edu.pe', 'principal', 'nombrado', '1998-03-01', 'doctor', 20),
 ('Jose Luis', 'Ponte Bejarano', '55555555', 'jponte@unt.edu.pe', 'asociado', 'nombrado', '2010-03-01', 'magister', 20),
 ('Jorge Luis', 'Rios Gonzales', '66666666', 'jrios@unt.edu.pe', 'auxiliar', 'contratado', '2015-08-01', 'licenciado', 16),
 ('Segundo', 'Guibar Obeso', '77777777', 'sguibar@unt.edu.pe', 'principal', 'nombrado', '2002-03-01', 'doctor', 20),
 ('Miquel', 'Ipanaque Zapata', '88888888', 'mipanaque@unt.edu.pe', 'asociado', 'nombrado', '2008-03-01', 'magister', 20),
 ('Martha', 'Cardoso', '99999999', 'mcardoso@unt.edu.pe', 'auxiliar', 'contratado', '2020-08-01', 'bachiller', 16),
--- Ciclo III
-('Zoraida', 'Vidal Melgarejo', '20202020', 'zvidal@unt.edu.pe', 'principal', 'nombrado', '2001-03-01', 'doctor', 20),
-('Everson David', 'Agreda Gamboa', '21212121', 'eagreda@unt.edu.pe', 'asociado', 'nombrado', '2006-08-01', 'magister', 20),
-('Juan Carlos', 'Obando Roldán', '22222223', 'jobando@unt.edu.pe', 'auxiliar', 'contratado', '2019-03-01', 'licenciado', 16),
+-- Ciclo III (solo 2026-I)
 ('Marcos', 'Ferrer Reyna', '23232323', 'mferrer@unt.edu.pe', 'principal', 'nombrado', '1999-03-01', 'doctor', 20),
 ('Teresita', 'Rojas García', '24242424', 'trojas@unt.edu.pe', 'asociado', 'nombrado', '2011-03-01', 'magister', 20),
 ('Juan', 'Carrascal Cabanillas', '25252525', 'jcarrascal@unt.edu.pe', 'auxiliar', 'contratado', '2016-08-01', 'licenciado', 16),
 ('Wilma', 'Mendez Gil', '26262626', 'wmendez@unt.edu.pe', 'principal', 'nombrado', '2003-03-01', 'doctor', 20),
 ('Sheyla Laura', 'Escobedo Rodriguez', '27272727', 'sescobedo@unt.edu.pe', 'asociado', 'nombrado', '2009-03-01', 'magister', 20),
--- Ciclo V
-('Luis', 'Boy Chavil', '28282828', 'lboy@unt.edu.pe', 'principal', 'nombrado', '2004-03-01', 'doctor', 20),
-('Robert Jerry', 'Sánchez Ticona', '29292929', 'rsanchez@unt.edu.pe', 'asociado', 'nombrado', '2012-03-01', 'magister', 20),
+-- Ciclo V (solo 2026-I)
 ('Cesar', 'Arellano Salazar', '30303030', 'carellano@unt.edu.pe', 'auxiliar', 'contratado', '2017-08-01', 'licenciado', 16),
-('Camilo', 'Suárez Rebaza', '31313131', 'csuarez@unt.edu.pe', 'principal', 'nombrado', '2007-03-01', 'doctor', 20),
 ('Marcos', 'Baca Lopez', '32323232', 'mbaca@unt.edu.pe', 'asociado', 'nombrado', '2013-03-01', 'magister', 20),
 ('Ana', 'Cuadra Mituzgaray', '33333334', 'acuadra@unt.edu.pe', 'auxiliar', 'contratado', '2019-08-01', 'licenciado', 16),
--- Ciclo VII
-('Juan Pedro', 'Santos Fernández', '34343434', 'jsantos@unt.edu.pe', 'principal', 'nombrado', '2005-03-01', 'doctor', 20),
-('Ricardo', 'Mendoza Rivera', '35353535', 'rmendoza@unt.edu.pe', 'asociado', 'nombrado', '2010-03-01', 'magister', 20),
-('Oscar Romel', 'Alcántara Moreno', '36363636', 'oalcantara@unt.edu.pe', 'auxiliar', 'contratado', '2018-08-01', 'licenciado', 16),
-('Jhoe', 'Gonzalez Vasquez', '37373737', 'jgonzalez@unt.edu.pe', 'principal', 'nombrado', '2008-03-01', 'doctor', 20),
--- Ciclo IX
-('José', 'Gómez Ávila', '38383838', 'jgomez@unt.edu.pe', 'asociado', 'nombrado', '2011-03-01', 'magister', 20),
 
--- --- DOCENTES 2025-II ---
--- Ciclo II
-('Zoraida Yanet', 'Vidal Melgarejo', '39393939', 'zvidal2@unt.edu.pe', 'principal', 'nombrado', '2001-03-01', 'doctor', 20),
+-- --- DOCENTES CON DNI DEL CSV (aparecen en 2025-II, algunos también en 2026-I) ---
+-- CSV DNI: 20202020 → IS-201 (Ciclo II 2025-II) + Ciclo III 2026-I
+('Zoraida', 'Vidal Melgarejo', '20202020', 'zvidal@unt.edu.pe', 'principal', 'nombrado', '2001-03-01', 'doctor', 20),
+-- CSV DNI: 21212121 → IS-803, IS-1001 (2025-II) + Ciclo III 2026-I
+('Everson David', 'Agreda Gamboa', '21212121', 'eagreda@unt.edu.pe', 'asociado', 'nombrado', '2006-08-01', 'magister', 20),
+-- CSV DNI: 22222222 → IS-804, IS-1004 (2025-II) + Ciclo I 2026-I
+('Alberto', 'Mendoza de los Santos', '22222222', 'amendoza@unt.edu.pe', 'asociado', 'nombrado', '2005-08-01', 'magister', 20),
+-- CSV DNI: 22222223 → IS-401, IS-801 (2025-II) + Ciclo III 2026-I
+('Juan Carlos', 'Obando Roldán', '22222223', 'jobando@unt.edu.pe', 'auxiliar', 'contratado', '2019-03-01', 'licenciado', 16),
+-- CSV DNI: 28282828 → IS-603 (2025-II) + Ciclo V 2026-I
+('Luis', 'Boy Chavil', '28282828', 'lboy@unt.edu.pe', 'principal', 'nombrado', '2004-03-01', 'doctor', 20),
+-- CSV DNI: 29292929 → IS-402, IS-601, IS-1002 (2025-II) + Ciclo V 2026-I
+('Robert Jerry', 'Sánchez Ticona', '29292929', 'rsanchez@unt.edu.pe', 'asociado', 'nombrado', '2012-03-01', 'magister', 20),
+-- CSV DNI: 31313131 → IS-405, IS-406 (2025-II) + Ciclo V 2026-I
+('Camilo', 'Suárez Rebaza', '31313131', 'csuarez@unt.edu.pe', 'principal', 'nombrado', '2007-03-01', 'doctor', 20),
+-- CSV DNI: 33333333 → FIS-1001 (2025-II) + Ciclo I 2026-I
+('Paul', 'Cotrina Castellanos', '33333333', 'pcotrina@unt.edu.pe', 'auxiliar', 'contratado', '2018-03-01', 'licenciado', 16),
+-- CSV DNI: 34343434 → IS-802, IS-1003 (2025-II) + Ciclo VII 2026-I
+('Juan Pedro', 'Santos Fernández', '34343434', 'jsantos@unt.edu.pe', 'principal', 'nombrado', '2005-03-01', 'doctor', 20),
+-- CSV DNI: 35353535 → IS-805, IS-1005 (2025-II) + Ciclo VII 2026-I
+('Ricardo', 'Mendoza Rivera', '35353535', 'rmendoza@unt.edu.pe', 'asociado', 'nombrado', '2010-03-01', 'magister', 20),
+-- CSV DNI: 36363636 → FIS-801, IS-1006 (2025-II) + Ciclo VII 2026-I
+('Oscar Romel', 'Alcántara Moreno', '36363636', 'oalcantara@unt.edu.pe', 'auxiliar', 'contratado', '2018-08-01', 'licenciado', 16),
+-- CSV DNI: 37373737 → IND-601, IND-1001 (2025-II) + Ciclo VII 2026-I
+('Jhoe', 'Gonzalez Vasquez', '37373737', 'jgonzalez@unt.edu.pe', 'principal', 'nombrado', '2008-03-01', 'doctor', 20),
+-- CSV DNI: 38383838 → FIS-401, IS-806 (2025-II) + Ciclo IX 2026-I
+('José', 'Gómez Ávila', '38383838', 'jgomez@unt.edu.pe', 'asociado', 'nombrado', '2011-03-01', 'magister', 20),
+-- CSV DNI: 40404040 → SOC-201 (Ciclo II 2025-II, solo 2025-II)
 ('Edgard', 'Pelaez Vinces', '40404040', 'epelaez@unt.edu.pe', 'asociado', 'nombrado', '2007-03-01', 'magister', 20),
+-- CSV DNI: 41414141 → EDU-201 (Ciclo II 2025-II, solo 2025-II)
 ('Diego', 'Llaro Cruz', '41414141', 'dllaro@unt.edu.pe', 'auxiliar', 'contratado', '2018-08-01', 'licenciado', 16),
+-- CSV DNI: 42424242 → FIL-201 (Ciclo II 2025-II, solo 2025-II)
 ('Alex', 'Herradas', '42424242', 'aherradas@unt.edu.pe', 'principal', 'nombrado', '2003-03-01', 'doctor', 20),
+-- CSV DNI: 43434343 → MAT-201 (Ciclo II 2025-II, solo 2025-II)
 ('Milton', 'Cortez', '43434343', 'mcortez@unt.edu.pe', 'asociado', 'nombrado', '2010-03-01', 'magister', 20),
+-- CSV DNI: 44444445 → FIS-201 (Ciclo II 2025-II, solo 2025-II)
 ('Arístides', 'Tavara Aponte', '44444445', 'atavara@unt.edu.pe', 'auxiliar', 'contratado', '2016-08-01', 'licenciado', 16),
+-- CSV DNI: 45454545 → FIS-202 (Ciclo II 2025-II, solo 2025-II)
 ('Segundo Roseli', 'Jauregui Rosas', '45454545', 'sjauregui@unt.edu.pe', 'principal', 'nombrado', '2005-03-01', 'doctor', 20),
--- Ciclo IV
-('Juan Carlos', 'Obando Roldán', '46464646', 'jobando2@unt.edu.pe', 'asociado', 'nombrado', '2012-03-01', 'magister', 20),
-('Robert Jerry', 'Sanchez Ticona', '47474747', 'rsanchez2@unt.edu.pe', 'auxiliar', 'contratado', '2019-08-01', 'licenciado', 16),
+-- CSV DNI: 48484848 → IS-403, IS-602 (Ciclo IV/VI 2025-II, solo 2025-II)
 ('Cesar', 'Arellano Salazar', '48484848', 'carellano2@unt.edu.pe', 'principal', 'nombrado', '2006-03-01', 'doctor', 20),
+-- CSV DNI: 49494949 → IS-404, IS-604 (Ciclo IV/VI 2025-II, solo 2025-II)
 ('Marcelino', 'Torres Villanueva', '49494949', 'mtorres2@unt.edu.pe', 'asociado', 'nombrado', '2011-03-01', 'magister', 20),
-('Camilo', 'Suárez Rebaza', '50505050', 'csuarez2@unt.edu.pe', 'auxiliar', 'contratado', '2017-08-01', 'licenciado', 16),
-('José Alberto', 'Gomez Avila', '51515151', 'jgomez2@unt.edu.pe', 'principal', 'nombrado', '2008-03-01', 'doctor', 20),
+-- CSV DNI: 52525252 → ECO-401 (Ciclo IV 2025-II, solo 2025-II)
 ('Alberto', 'Asmat Alva', '52525252', 'aasmat@unt.edu.pe', 'asociado', 'nombrado', '2013-03-01', 'magister', 20),
--- Ciclo VI
-('Luis Enrique', 'Boy Chavil', '53535353', 'lboy2@unt.edu.pe', 'principal', 'nombrado', '2004-03-01', 'doctor', 20),
+-- CSV DNI: 54545454 → CF-601 (Ciclo VI 2025-II, solo 2025-II)
 ('Juan Manuel', 'Granda Fernández', '54545454', 'jgranda@unt.edu.pe', 'asociado', 'nombrado', '2014-03-01', 'magister', 20),
-('Joe Alexis', 'Gonzalez Vasquez', '55555556', 'jgonzalez2@unt.edu.pe', 'auxiliar', 'contratado', '2018-08-01', 'licenciado', 16),
+-- CSV DNI: 56565656 → FIS-601 (Ciclo VI 2025-II, solo 2025-II)
 ('Juan', 'Cabanillas', '56565656', 'jcabanillas@unt.edu.pe', 'principal', 'nombrado', '2009-03-01', 'doctor', 20),
+-- CSV DNI: 57575757 → AMB-601 (Ciclo VI 2025-II, solo 2025-II)
 ('Luis', 'Moncada Albites', '57575757', 'lmoncada@unt.edu.pe', 'asociado', 'nombrado', '2015-03-01', 'magister', 20),
--- Ciclo VIII
-('Juan Pedro', 'Santos Fernández', '58585858', 'jsantos2@unt.edu.pe', 'principal', 'nombrado', '2005-03-01', 'doctor', 20),
-('Everton David', 'Agreda Gamboa', '59595959', 'eagreda2@unt.edu.pe', 'asociado', 'nombrado', '2010-03-01', 'magister', 20),
-('Alberto Carlos', 'Mendoza de los Santos', '60606060', 'amendoza2@unt.edu.pe', 'auxiliar', 'contratado', '2016-08-01', 'licenciado', 16),
-('Ricardo Dario', 'Mendoza Rivera', '61616161', 'rmendoza2@unt.edu.pe', 'principal', 'nombrado', '2007-03-01', 'doctor', 20),
-('Marco Celi', 'Arevalo', '62626262', 'marevalo@unt.edu.pe', 'asociado', 'nombrado', '2012-03-01', 'magister', 20),
--- Ciclo X
-('Jorge Paul', 'Cotrina Castellanos', '63636363', 'jcotrina@unt.edu.pe', 'auxiliar', 'contratado', '2019-08-01', 'licenciado', 16);
+-- CSV DNI: 62626262 → DER-801 (Ciclo VIII 2025-II, solo 2025-II)
+('Marco Celi', 'Arevalo', '62626262', 'marevalo@unt.edu.pe', 'asociado', 'nombrado', '2012-03-01', 'magister', 20);
 
 
 -- ========================================
@@ -670,7 +679,8 @@ CREATE TABLE IF NOT EXISTS conflictos_horario (
 CREATE INDEX IF NOT EXISTS idx_conf_prog ON conflictos_horario(programacion_id);
 
 -- ========================================
--- SANEAMIENTO Y CONSOLIDACIÓN DE DOCENTES DUPLICADOS
+-- SANEAMIENTO: Consolidación preventiva de duplicados
+-- (No debería encontrar duplicados con el seed actual, pero se mantiene como safety-net)
 -- ========================================
 
 -- 1. Consolidación de duplicados exactos (nombre + apellidos idénticos)
@@ -704,39 +714,6 @@ BEGIN
         END LOOP;
         
         RAISE NOTICE 'Consolidadas duplicidades para: % %', r.nombre, r.apellidos;
-    END LOOP;
-END $$;
-
--- 2. Consolidación de duplicados similares/parciales por DNI (segundo nombre, acentos, etc.)
-DO $$
-DECLARE
-    consolidations RECORD;
-    keep_id UUID;
-    remove_id UUID;
-BEGIN
-    FOR consolidations IN 
-        SELECT * FROM (VALUES
-            ('21212121', '59595959'), -- Agreda Gamboa
-            ('28282828', '53535353'), -- Boy Chavil
-            ('33333333', '63636363'), -- Cotrina Castellanos
-            ('38383838', '51515151'), -- Gómez Ávila
-            ('37373737', '55555556'), -- Gonzalez Vasquez
-            ('22222222', '60606060'), -- Mendoza de los Santos
-            ('35353535', '61616161'), -- Mendoza Rivera
-            ('29292929', '47474747'), -- Sanchez Ticona
-            ('20202020', '39393939')  -- Vidal Melgarejo
-        ) AS t(keep_dni, remove_dni)
-    LOOP
-        SELECT id INTO keep_id FROM docentes WHERE dni = consolidations.keep_dni;
-        SELECT id INTO remove_id FROM docentes WHERE dni = consolidations.remove_dni;
-
-        IF keep_id IS NOT NULL AND remove_id IS NOT NULL THEN
-            UPDATE programacion_cursos SET docente_id = keep_id WHERE docente_id = remove_id;
-            UPDATE asignaciones SET docente_id = keep_id WHERE docente_id = remove_id;
-            UPDATE disponibilidad_docente SET docente_id = keep_id WHERE docente_id = remove_id;
-            DELETE FROM docentes WHERE id = remove_id;
-            RAISE NOTICE 'Consolidado docente DNI % en DNI %', consolidations.remove_dni, consolidations.keep_dni;
-        END IF;
     END LOOP;
 END $$;
 
@@ -868,8 +845,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Disponibilidad docente con bloques CONTIGUOS (≥85% con ventana 4h+)
--- Perfil por DNI % 10: 0-2 muy flexible (30%), 3-6 flexible (40%), 7-8 moderada (20%), 9 restringida (10%)
+-- Disponibilidad docente — ALTA FLEXIBILIDAD (mínimo 20h por docente)
+-- Todos los perfiles garantizan bloques amplios lun-sáb para que el CSP tenga espacio suficiente
 CREATE OR REPLACE FUNCTION poblar_disponibilidad_programacion(p_programacion_id UUID)
 RETURNS INTEGER AS $$
 DECLARE
@@ -883,48 +860,55 @@ BEGIN
     DELETE FROM disponibilidad_docente WHERE programacion_id = p_programacion_id;
 
     FOR doc IN SELECT id, dni FROM docentes WHERE activo = true LOOP
-        perfil := abs(hashtext(COALESCE(doc.dni, doc.id::text))) % 10;
+        perfil := abs(hashtext(COALESCE(doc.dni, doc.id::text))) % 3;
 
-        IF perfil <= 2 THEN
-            -- Muy flexible: mañanas 6h lun-vie + tardes mar/jue/vie + sáb mañana
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes', 1, 6, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes', 1, 6, 1);
+        IF perfil = 0 THEN
+            -- PERFIL A (muy flexible): lun-vie mañana + tarde completa + sáb
+            -- ~48h disponibles (P1) + sáb (P2)
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes',     1, 8, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes',    1, 8, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 1, 8, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves',    1, 8, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes',   1, 8, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes',    9, 14, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves',    9, 14, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes',   9, 14, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'sabado',    1, 6, 2);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'sabado',    7, 11, 2);
+
+        ELSIF perfil = 1 THEN
+            -- PERFIL B (flexible): 5 días mañana + tardes lun/mié/vie + sáb
+            -- ~38h disponibles (P1) + extras (P2)
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes',     1, 6, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes',    1, 6, 1);
             insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 1, 6, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves', 1, 6, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes', 1, 6, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes', 8, 13, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves', 8, 13, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes', 8, 12, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'sabado', 1, 4, 2);
-        ELSIF perfil <= 6 THEN
-            -- Flexible: 4 días con bloque 5h + tarde miércoles
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes', 1, 5, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes', 1, 5, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves', 1, 5, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes', 1, 5, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 8, 12, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 2, 5, 2);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'sabado', 1, 3, 2);
-        ELSIF perfil <= 8 THEN
-            -- Moderada: 3 días, bloques 4h
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes', 2, 5, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 2, 5, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes', 2, 5, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes', 8, 11, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves', 9, 12, 2);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves',    1, 6, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes',   1, 6, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes',     8, 13, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 8, 13, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes',   8, 13, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'sabado',    1, 5, 2);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'sabado',    6, 10, 2);
+
         ELSE
-            -- Restringida (testing): fragmentado, sin ventana 4h
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes', 2, 3, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes', 9, 10, 2);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 4, 5, 1);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes', 8, 9, 2);
+            -- PERFIL C (amplio): 5 días mañana + tardes mar/jue + sáb
+            -- ~28h disponibles (P1) + extras (P2) — mínimo garantizado
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes',     1, 5, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes',    1, 5, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 1, 5, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves',    1, 5, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes',   1, 5, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes',    8, 13, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves',    8, 13, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'sabado',    1, 5, 2);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'sabado',    6, 9, 2);
         END IF;
     END LOOP;
 
-    -- Refuerzo: docentes con carga en esta programación deben cubrir horas + asesoría
+    -- Refuerzo GARANTIZADO: cualquier docente con carga asignada tiene mínimo 20h
     FOR doc IN
         SELECT d.id,
-               COALESCE(SUM(pc.horas_teoria + pc.horas_practica + pc.horas_laboratorio), 0) + 1 AS requeridas
+               COALESCE(SUM(pc.horas_teoria + pc.horas_practica + pc.horas_laboratorio), 0) + 2 AS requeridas
         FROM docentes d
         LEFT JOIN programacion_cursos pc
           ON pc.docente_id = d.id AND pc.programacion_id = p_programacion_id
@@ -936,13 +920,26 @@ BEGIN
         FROM disponibilidad_docente
         WHERE programacion_id = p_programacion_id AND docente_id = doc.id;
 
-        horas_req := doc.requeridas;
-        IF horas_disp < horas_req THEN
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes', 8, 13, 2);
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes', 8, 13, 2);
+        -- Garantizar mínimo 20h: rellenar lun-vie completo si hace falta
+        IF horas_disp < 20 THEN
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes',     1, 14, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'martes',    1, 14, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 1, 14, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves',    1, 14, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'viernes',   1, 14, 1);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'sabado',    1, 8, 2);
         END IF;
-        IF horas_disp < GREATEST(horas_req, 12) THEN
-            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'jueves', 1, 6, 1);
+
+        -- Si la carga supera las 20h, agregar más franjas P2
+        horas_req := GREATEST(doc.requeridas, 20);
+        SELECT COUNT(*) INTO horas_disp
+        FROM disponibilidad_docente
+        WHERE programacion_id = p_programacion_id AND docente_id = doc.id;
+
+        IF horas_disp < horas_req THEN
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'lunes',     9, 14, 2);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'miercoles', 9, 14, 2);
+            insertados := insertados + insert_disp_docente_rango(p_programacion_id, doc.id, 'sabado',    1, 14, 2);
         END IF;
     END LOOP;
 

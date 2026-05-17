@@ -24,7 +24,7 @@ $user_db  = $config["DB_USER"]
 
 Write-Host "Conectando a $name_db..." -ForegroundColor Cyan
 
-Write-Host "`n[1/7] Migraciones (002-007)..." -ForegroundColor Yellow
+Write-Host "`n[1/8] Migraciones (002-008)..." -ForegroundColor Yellow
 psql -U $user_db -h $host_db -p $port_db -d $name_db --set=client_encoding=UTF8 -f lib/migrations/002_disponibilidad_prioridad.sql
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 psql -U $user_db -h $host_db -p $port_db -d $name_db --set=client_encoding=UTF8 -f lib/migrations/003_cursos_bloques_docentes.sql
@@ -37,8 +37,10 @@ psql -U $user_db -h $host_db -p $port_db -d $name_db --set=client_encoding=UTF8 
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 psql -U $user_db -h $host_db -p $port_db -d $name_db --set=client_encoding=UTF8 -f lib/migrations/007_flex_conflictivos_csp.sql
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+psql -U $user_db -h $host_db -p $port_db -d $name_db --set=client_encoding=UTF8 -f lib/migrations/008_flex_paralelismo_csp.sql
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-Write-Host "`n[2/3] Regenerando disponibilidad restrictiva..." -ForegroundColor Yellow
+Write-Host "`n[2/3] Regenerando disponibilidad (008 ya aplicó poblar)..." -ForegroundColor Yellow
 psql -U $user_db -h $host_db -p $port_db -d $name_db --set=client_encoding=UTF8 -f lib/seed-disponibilidad.sql
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

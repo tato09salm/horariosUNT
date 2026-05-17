@@ -79,14 +79,26 @@ function analizarBloqueosFranja(
   const timeKey = `${dia}-${slot.id}`;
   const bloqueos: string[] = [];
 
-  if (meta.ciclo_plan && occ.cicloOcupado.has(`${meta.ciclo_plan}-${timeKey}`)) {
+  const labsFranja = occ?.labEnFranja?.get(timeKey) || [];
+  const modo = occ?.franjaModo?.get(timeKey);
+  if (meta.tipo_sesion === 'laboratorio' && modo === 'exclusivo') {
+    bloqueos.push('VIOLACIÓN: franja con teoría/práctica; no se puede agregar laboratorio');
+  }
+  if (meta.tipo_sesion !== 'laboratorio' && (labsFranja.length > 0 || modo === 'solo_lab' || modo === 'lleno')) {
+    bloqueos.push('VIOLACIÓN: solo Lab+Lab en paralelo; esta franja ya tiene laboratorio(s)');
+  }
+  if (meta.tipo_sesion === 'laboratorio' && labsFranja.length >= 2) {
+    bloqueos.push('Máximo 2 laboratorios en paralelo por franja');
+  }
+
+  if (meta.grupo_id && occ.grupoOcupado.has(`${meta.grupo_id}-${timeKey}`)) {
     const otra = asignaciones.find(
-      a => a.ciclo_plan === meta.ciclo_plan && a.dia === dia && a.slot_id === slot.id
+      a => a.grupo_id === meta.grupo_id && a.dia === dia && a.slot_id === slot.id
     );
     bloqueos.push(
       otra
-        ? `Ciclo ${meta.ciclo_plan} ocupado por ${otra.curso_codigo} G${otra.numero_grupo}`
-        : `Ciclo ${meta.ciclo_plan} ya tiene clase en esta franja`
+        ? `Grupo G${meta.numero_grupo ?? '?'} ocupado: ${otra.curso_codigo} (${otra.tipo})`
+        : `Grupo G${meta.numero_grupo ?? '?'} ya tiene clase en esta franja`
     );
   }
 
@@ -99,10 +111,6 @@ function analizarBloqueosFranja(
         ? `Docente ocupado: ${otra.curso_codigo} (${otra.tipo})`
         : 'Docente ya asignado en esta franja'
     );
-  }
-
-  if (meta.grupo_id && occ.grupoOcupado.has(`${meta.grupo_id}-${timeKey}`)) {
-    bloqueos.push('El grupo de estudiantes ya tiene otra clase en esta franja');
   }
 
   return bloqueos;

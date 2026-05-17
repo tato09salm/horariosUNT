@@ -34,7 +34,13 @@ interface Individuo {
   fitness: number;
 }
 
-type LabUso = { codigo: string; grupo_id: string; cantidad_labs: number };
+type LabUso = {
+  codigo: string;
+  grupo_id: string;
+  curso_id: string;
+  ambiente_id: string;
+  docente_id: string;
+};
 
 const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 const POP_SIZE = 40;
@@ -49,8 +55,8 @@ function seedOcupacion(
   const docenteOcupado = new Set<string>();
   const ambienteOcupado = new Set<string>();
   const grupoOcupado = new Set<string>();
-  const cicloOcupado = new Set<string>();
-  const labSlots = new Map<string, LabUso[]>();
+  const labEnFranja = new Map<string, LabUso[]>();
+  const franjaExclusiva = new Set<string>();
   const docenteCursoClase = new Set<string>();
 
   for (const a of asignacionesExistentes) {
@@ -62,37 +68,53 @@ function seedOcupacion(
       }
     }
     if (a.grupo_id) grupoOcupado.add(`${a.grupo_id}-${timeKey}`);
-    if (a.ciclo_plan) cicloOcupado.add(`${a.ciclo_plan}-${timeKey}`);
     if (a.ambiente_id) {
-      const ak = `${a.ambiente_id}-${timeKey}`;
-      if (a.tipo === 'laboratorio') {
-        const usos = labSlots.get(ak) || [];
+      ambienteOcupado.add(`${a.ambiente_id}-${timeKey}`);
+      if (a.tipo === 'laboratorio' && a.curso_id) {
+        const fk = timeKey;
+        const usos = labEnFranja.get(fk) || [];
         usos.push({
           codigo: a.curso_codigo || '',
           grupo_id: a.grupo_id || '',
-          cantidad_labs: a.cantidad_labs || 1,
+          curso_id: a.curso_id,
+          ambiente_id: a.ambiente_id,
+          docente_id: a.docente_id || '',
         });
-        labSlots.set(ak, usos);
+        labEnFranja.set(fk, usos);
+      } else if (a.tipo && a.tipo !== 'laboratorio') {
+        franjaExclusiva.add(timeKey);
       }
-      ambienteOcupado.add(ak);
+    } else if (a.tipo === 'asesoria') {
+      franjaExclusiva.add(timeKey);
     }
   }
 
-  return { docenteOcupado, ambienteOcupado, grupoOcupado, cicloOcupado, labSlots, docenteCursoClase, docenteCursos };
+  return {
+    docenteOcupado,
+    ambienteOcupado,
+    grupoOcupado,
+    labEnFranja,
+    franjaExclusiva,
+    docenteCursoClase,
+    docenteCursos,
+  };
 }
 
-function puedeLabCompartir(
+function puedeLabParaleloGA(
   bloque: Bloque,
-  ak: string,
-  labSlots: Map<string, LabUso[]>
+  dia: string,
+  slotId: string,
+  ambienteId: string,
+  labEnFranja: Map<string, LabUso[]>
 ): boolean {
-  if ((bloque.cantidad_labs || 1) < 2) return false;
-  const usos = labSlots.get(ak);
-  if (!usos?.length) return true;
+  const usos = labEnFranja.get(`${dia}-${slotId}`) || [];
   if (usos.length >= 2) return false;
-  if (usos.some(u => u.grupo_id === bloque.grupo_id)) return false;
-  if (usos.some(u => u.codigo === bloque.curso_codigo)) return false;
-  return usos.every(u => u.cantidad_labs >= 2);
+  for (const u of usos) {
+    if (u.curso_id === bloque.curso_id) return false;
+    if (u.docente_id === bloque.docente_id) return false;
+    if (u.ambiente_id === ambienteId) return false;
+  }
+  return true;
 }
 
 function calcularFitness(
@@ -107,8 +129,8 @@ function calcularFitness(
   const docenteOcupado = new Set(base.docenteOcupado);
   const ambienteOcupado = new Set(base.ambienteOcupado);
   const grupoOcupado = new Set(base.grupoOcupado);
-  const cicloOcupado = new Set(base.cicloOcupado);
-  const labSlots = new Map(base.labSlots);
+  const labEnFranja = new Map(base.labEnFranja);
+  const franjaExclusiva = new Set(base.franjaExclusiva);
   const docenteCursoClase = new Set(base.docenteCursoClase);
 
   for (const gen of genes) {
@@ -141,26 +163,29 @@ function calcularFitness(
       }
     }
 
+    const labsEnFranja = labEnFranja.get(timeKey) || [];
+    const esExclusiva = franjaExclusiva.has(timeKey);
+
     if (ambienteOcupado.has(ak)) {
-      if (esLab && puedeLabCompartir(gen.bloque, ak, labSlots)) {
-        const usos = labSlots.get(ak) || [];
-        usos.push({
-          codigo: gen.bloque.curso_codigo,
-          grupo_id: gen.bloque.grupo_id,
-          cantidad_labs: gen.bloque.cantidad_labs || 1,
-        });
-        labSlots.set(ak, usos);
-      } else {
-        penalizacion += 10;
-      }
+      penalizacion += 10;
+    } else if (esLab && (esExclusiva || !puedeLabParaleloGA(gen.bloque, gen.dia, gen.slot_id, gen.ambiente_id, labEnFranja))) {
+      penalizacion += 15;
+    } else if (!esLab && (labsEnFranja.length > 0 || esExclusiva)) {
+      penalizacion += 20;
     } else {
       ambienteOcupado.add(ak);
       if (esLab) {
-        labSlots.set(ak, [{
+        const usos = labEnFranja.get(timeKey) || [];
+        usos.push({
           codigo: gen.bloque.curso_codigo,
           grupo_id: gen.bloque.grupo_id,
-          cantidad_labs: gen.bloque.cantidad_labs || 1,
-        }]);
+          curso_id: gen.bloque.curso_id,
+          ambiente_id: gen.ambiente_id,
+          docente_id: gen.bloque.docente_id || '',
+        });
+        labEnFranja.set(timeKey, usos);
+      } else {
+        franjaExclusiva.add(timeKey);
       }
     }
 
@@ -174,12 +199,6 @@ function calcularFitness(
       const gk = `${gen.bloque.grupo_id}-${timeKey}`;
       if (grupoOcupado.has(gk)) penalizacion += 10;
       else grupoOcupado.add(gk);
-    }
-
-    if (gen.bloque.ciclo_plan !== undefined) {
-      const ck = `${gen.bloque.ciclo_plan}-${timeKey}`;
-      if (cicloOcupado.has(ck)) penalizacion += 20;
-      else cicloOcupado.add(ck);
     }
   }
 

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
-import BloqueHorario from '@/components/horarios/BloqueHorario';
+import CeldaHorario from '@/components/horarios/CeldaHorario';
 import LeyendaHorarios from '@/components/horarios/LeyendaHorarios';
 import { DIAS_SEMANA, DIAS_LABEL } from '@/lib/horario-utils';
 import { fetchProgramacionCursos } from '@/lib/fetch-programacion-cursos';
@@ -20,7 +20,7 @@ export default function ProgramarPage() {
   const [resolving, setResolving] = useState(false);
   const [msg, setMsg] = useState<any>(null);
   const [cspStats, setCspStats] = useState<any>(null);
-  const [vista, setVista] = useState<'ciclo' | 'docente' | 'aula'>('aula');
+  const [vista, setVista] = useState<'ciclo' | 'docente' | 'aula' | 'general'>('aula');
   const [aulaFiltro, setAulaFiltro] = useState<string>('');
   const [docenteFiltro, setDocenteFiltro] = useState<string>('');
   const [docentesConCarga, setDocentesConCarga] = useState<Set<string>>(new Set());
@@ -228,9 +228,7 @@ export default function ProgramarPage() {
                         key={`${dia}-${slot.id}`}
                         className={`horario-cell${diasGrilla.includes(dia) ? ' horario-cell--show' : ''}`}
                       >
-                        {cells.map(c => (
-                          <BloqueHorario key={c.id} asignacion={c} compact={compactBlocks} />
-                        ))}
+                        <CeldaHorario asignaciones={cells} compact={compactBlocks} />
                       </div>
                     );
                   })
@@ -292,6 +290,7 @@ export default function ProgramarPage() {
       {asignacionesVisibles.length > 0 && (
         <div className="card programar-toolbar">
           <button className={vista === 'aula' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('aula')}>Por aula</button>
+          <button className={vista === 'general' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('general')}>General</button>
           <button className={vista === 'ciclo' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('ciclo')}>Por ciclo</button>
           <button className={vista === 'docente' ? 'btn-primary' : 'btn-secondary'} onClick={() => { setVista('docente'); if (!docenteFiltro && docentesUnicos[0]) setDocenteFiltro(docentesUnicos[0].id); }}>Por docente</button>
           {vista === 'aula' && ambientesEnUso.length > 0 && (
@@ -366,7 +365,8 @@ export default function ProgramarPage() {
           <div>
             <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 16px' }}>
               {vista === 'aula' && 'Una grilla por aula o laboratorio utilizado en esta programación.'}
-              {vista === 'ciclo' && 'Por ciclo del plan de estudios (I, III, V…). Las asesorías se muestran aparte.'}
+              {vista === 'general' && 'Todas las asignaciones por franja horaria. Labs en paralelo (distintos ambientes) aparecen en la misma celda.'}
+              {vista === 'ciclo' && 'Por ciclo del plan de estudios (IV, VI…). Distintas secciones (G1, G7…) pueden coincidir en horario.'}
               {vista === 'docente' && 'Carga horaria del docente seleccionado (incluye asesoría si aplica).'}
             </p>
             {vista === 'aula' &&
@@ -392,6 +392,12 @@ export default function ProgramarPage() {
               )}
             {vista === 'ciclo' && asesoriasAsig.length > 0 &&
               renderGrilla('Asesorías docentes', asesoriasAsig, 'asesorias')}
+            {vista === 'general' &&
+              renderGrilla(
+                'Vista general — paralelismo por franja',
+                asigFiltradas.filter(a => a.tipo !== 'asesoria'),
+                'general'
+              )}
             {vista === 'docente' &&
               renderGrilla('Horario del docente', asigFiltradas, 'docente')}
           </div>

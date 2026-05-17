@@ -1,8 +1,11 @@
 import { query, queryOne } from './db';
 import {
   construirGruposBloques,
+  asignarBloqueEstudiante,
   asignarGrupoContinuo,
   asignarUnidad,
+  asignarAsesoria,
+  auditarViolacionesParalelismo,
   contarFranjasLabsParalelos,
   slotsUtiles,
   type BlockUnit,
@@ -56,6 +59,7 @@ function puntuacionDificultad(
   if (g.indivisible && g.units.length > 1) score += g.units.length * 150;
   else score += 15;
 
+  if (g.tipo_sesion === 'grupo_estudiante') score += 200;
   if (g.tipo_sesion === 'laboratorio') score += 120;
   if (g.tipo_sesion === 'practica') score += 35;
 
@@ -92,7 +96,7 @@ export type CspOpciones = {
   logPrevio?: string[];
 };
 
-export async function generarHorarioCSP(programacion_id: string, opciones: CspOpciones = {}) {
+export async function generarHorarioCSP(programacion_id: string, opciones: CspOpciones = {}): Promise<{ asignaciones: any[]; conflictos: string[]; stats: CspStats }> {
   const inicio = Date.now();
   const debugLog: string[] = opciones.logPrevio ? [...opciones.logPrevio] : [];
 
@@ -215,22 +219,76 @@ export async function generarHorarioCSP(programacion_id: string, opciones: CspOp
     docenteOcupado: new Set<string>(),
     ambienteOcupado: new Set<string>(),
     grupoOcupado: new Set<string>(),
-    cicloOcupado: new Set<string>(),
-    labSlots: new Map(),
-    labCoexistenciasUsadas: 0,
+    labEnFranja: new Map(),
+    franjaModo: new Map(),
+    labParalelosFranjas: 0,
     aulaPreferidaTeoria: new Map<string, string>(),
     docenteCursoClase: new Set<string>(),
+    cicloOcupado: new Set<string>(),
+    _asesoriaSlotCount: new Map<string, number>(),
   };
+
+  if (!opciones.occInicial) {
+    // Pre-asignar aula preferida de teoría por ciclo para evitar que los ciclos salten entre aulas
+    const ciclosUnicos = new Set<string>();
+    for (const g of grupos) {
+      if (g.units[0]?.meta?.ciclo_plan) {
+        const key = `${g.units[0].meta.ciclo_plan}-${g.units[0].meta.seccion || 'A'}`;
+        ciclosUnicos.add(key);
+      }
+    }
+    const aulasTeoria = ambientes.filter((a: any) => a.tipo === 'aula' || a.tipo === 'auditorio')
+                                 .sort((a: any, b: any) => b.capacidad - a.capacidad); // Priorizar aulas grandes
+    
+    let aulaIdx = 0;
+    const ciclosArray = Array.from(ciclosUnicos).sort(); // Orden consistente
+    for (const cicloKey of ciclosArray) {
+      if (aulasTeoria.length > 0) {
+        // Asignar el aula actual y avanzar (con wrap around si hay menos aulas que ciclos)
+        occ.aulaPreferidaTeoria.set(cicloKey, aulasTeoria[aulaIdx % aulasTeoria.length].id);
+        aulaIdx++;
+      }
+    }
+  }
 
   if (!opciones.occInicial && asignaciones.length > 0) {
     for (const a of asignaciones) {
       const timeKey = `${a.dia}-${a.slot_id}`;
       if (a.docente_id) occ.docenteOcupado.add(`${a.docente_id}-${timeKey}`);
       if (a.grupo_id) occ.grupoOcupado.add(`${a.grupo_id}-${timeKey}`);
-      if (a.ciclo_plan) occ.cicloOcupado.add(`${a.ciclo_plan}-${timeKey}`);
-      if (a.ambiente_id) occ.ambienteOcupado.add(`${a.ambiente_id}-${timeKey}`);
+      const cicloStr = a.ciclo_plan ? `${a.ciclo_plan}-${a.seccion || 'A'}` : 'global';
+      const fk = `${cicloStr}-${a.dia}-${a.slot_id}`;
+      
+      if (a.ambiente_id) {
+        occ.ambienteOcupado.add(`${a.ambiente_id}-${timeKey}`);
+        if (a.tipo === 'laboratorio' && a.curso_id) {
+          const usos = occ.labEnFranja.get(fk) || [];
+          usos.push({
+            curso_id: a.curso_id,
+            ambiente_id: a.ambiente_id,
+            docente_id: a.docente_id,
+            grupo_id: a.grupo_id || null,
+            codigo: a.curso_codigo || '',
+          });
+          occ.labEnFranja.set(fk, usos);
+          occ.franjaModo.set(fk, usos.length >= 2 ? 'lleno' : 'solo_lab');
+          if (usos.length === 2) occ.labParalelosFranjas++;
+        } else {
+          // Teoría y práctica marcan franja exclusiva
+          occ.franjaModo.set(fk, 'exclusivo');
+        }
+      }
+      if (a.tipo === 'asesoria') {
+        occ.franjaModo.set(fk, 'exclusivo');
+        occ._asesoriaSlotCount.set(fk, (occ._asesoriaSlotCount.get(fk) || 0) + 1);
+      }
       if (a.docente_id && a.curso_id) {
         occ.docenteCursoClase.add(`${a.docente_id}-${a.curso_id}-${timeKey}`);
+      }
+      // Populate cicloOcupado from initial assignments if they have it
+      if (a.ciclo_plan && a.tipo !== 'laboratorio') {
+        const seccion = a.seccion || 'A';
+        occ.cicloOcupado.add(`${a.ciclo_plan}-${seccion}-${timeKey}`);
       }
     }
   }
@@ -261,9 +319,11 @@ export async function generarHorarioCSP(programacion_id: string, opciones: CspOp
     }
   }
   workCursos.sort((a, b) => {
-    const labA = a.kind === 'group' && a.group.tipo_sesion === 'laboratorio' ? 1 : 0;
-    const labB = b.kind === 'group' && b.group.tipo_sesion === 'laboratorio' ? 1 : 0;
-    if (labB !== labA) return labB - labA;
+    // Assign grupo_estudiante (T+P) blocks FIRST so they get prime time slots,
+    // then labs which are more flexible (can go in parallel).
+    const geA = a.kind === 'group' && a.group.tipo_sesion === 'grupo_estudiante' ? 1 : 0;
+    const geB = b.kind === 'group' && b.group.tipo_sesion === 'grupo_estudiante' ? 1 : 0;
+    if (geB !== geA) return geB - geA;
     return puntuacionDificultad(b, docAvail) - puntuacionDificultad(a, docAvail);
   });
 
@@ -299,13 +359,16 @@ export async function generarHorarioCSP(programacion_id: string, opciones: CspOp
   for (const item of work) {
     const passes = [1, 2];
 
-    if (item.kind === 'group' && item.group.indivisible && item.group.units.length > 1) {
+    if (item.kind === 'group' && item.group.indivisible && item.group.units.length >= 1) {
       const meta = item.group.units[0].meta;
       const passesDoc = meta.docente_id ? passes : [2];
       let assigned = false;
 
       for (const p of passesDoc) {
-        const res = asignarGrupoContinuo(item.group, slots, ambientes, docAvail, occ, p, ambAvail, cspOpts);
+        const res =
+          item.group.tipo_sesion === 'grupo_estudiante'
+            ? asignarBloqueEstudiante(item.group, slots, ambientes, docAvail, occ, p, ambAvail, cspOpts)
+            : asignarGrupoContinuo(item.group, slots, ambientes, docAvail, occ, p, ambAvail, cspOpts);
         if (res.ok) {
           asignaciones.push(...res.asignaciones);
           registrarStats(meta, res.prioridadUsada!);
@@ -339,17 +402,20 @@ export async function generarHorarioCSP(programacion_id: string, opciones: CspOp
       let unitOk = false;
 
       for (const p of passesDoc) {
-        const res = asignarUnidad(
-          unit,
-          slots,
-          ambientes,
-          docAvail,
-          occ,
-          p,
-          item.kind === 'group' ? item.group.id : undefined,
-          ambAvail,
-          cspOpts
-        );
+        const res =
+          item.kind === 'asesoria'
+            ? asignarAsesoria(unit, slots, docAvail, occ, p)
+            : asignarUnidad(
+                unit,
+                slots,
+                ambientes,
+                docAvail,
+                occ,
+                p,
+                item.kind === 'group' ? item.group.id : undefined,
+                ambAvail,
+                cspOpts
+              );
         if (res.ok && res.asignacion) {
           asignaciones.push(res.asignacion);
           registrarStats(meta, res.prioridadUsada!);
@@ -388,6 +454,11 @@ export async function generarHorarioCSP(programacion_id: string, opciones: CspOp
   }
 
   const franjasLabsParalelos = contarFranjasLabsParalelos(asignaciones);
+  const violacionesParalelo = auditarViolacionesParalelismo(asignaciones);
+  if (violacionesParalelo.length > 0) {
+    debugLog.push(`[CSP:ALERTA] ${violacionesParalelo.length} franjas con paralelismo inválido`);
+    violacionesParalelo.slice(0, 5).forEach(v => debugLog.push(`  · ${v}`));
+  }
 
   const porDocente = Array.from(docStatsInit.entries()).map(([docente_id, s]) => ({
     docente_id,
@@ -409,7 +480,7 @@ export async function generarHorarioCSP(programacion_id: string, opciones: CspOp
     prioridad_alta: prioridadAlta,
     prioridad_baja: prioridadBaja,
     bloques_continuos: bloquesContinuos,
-    lab_coexistencias: occ.labCoexistenciasUsadas,
+    lab_coexistencias: occ.labParalelosFranjas,
     franjas_labs_paralelos: franjasLabsParalelos,
     por_docente: porDocente,
     log: debugLog,
@@ -419,6 +490,31 @@ export async function generarHorarioCSP(programacion_id: string, opciones: CspOp
     `[CSP] Tiempo: ${Date.now() - inicio}ms | Continuos: ${bloquesContinuos} | ` +
     `Labs paralelos (franjas): ${franjasLabsParalelos} | Fallos: ${conflictos.length}`
   );
+
+  // ── Distribution validation ──
+  const distrib = { teoria: 0, practica: 0, laboratorio: 0, asesoria: 0, grupo_estudiante: 0 };
+  for (const a of asignaciones) {
+    if (a.tipo in distrib) (distrib as any)[a.tipo]++;
+  }
+  debugLog.push(
+    `[CSP:DISTRIBUCIÓN] Teoría: ${distrib.teoria} | Práctica: ${distrib.practica} | ` +
+    `Lab: ${distrib.laboratorio} | Asesoría: ${distrib.asesoria}`
+  );
+  if (distrib.teoria === 0) debugLog.push('[CSP:ALERTA] ❌ No se asignó NINGUNA sesión de teoría');
+  if (distrib.practica === 0 && grupos.some(g => g.units.some(u => u.tipo_sesion === 'practica')))
+    debugLog.push('[CSP:ALERTA] ❌ No se asignó NINGUNA sesión de práctica');
+
+  // Check asesoria concentration
+  const asesoriaSlots = new Map<string, number>();
+  for (const a of asignaciones) {
+    if (a.tipo === 'asesoria') {
+      const k = `${a.dia}-${a.slot_id}`;
+      asesoriaSlots.set(k, (asesoriaSlots.get(k) || 0) + 1);
+    }
+  }
+  for (const [slot, count] of asesoriaSlots) {
+    if (count > 3) debugLog.push(`[CSP:ALERTA] ⚠️ ${count} asesorías concentradas en ${slot}`);
+  }
 
   const prog = await queryOne(`SELECT config FROM programaciones WHERE id = $1`, [programacion_id]);
   const newConfig = { ...(prog?.config || {}), asignaciones, csp_stats: stats };
