@@ -15,6 +15,7 @@ interface Bloque {
   docente_id: string | null;
   tipo_sesion: 'teoria' | 'practica' | 'laboratorio';
   num_alumnos: number;
+  ciclo_plan?: number;
   condicion_orden?: number;
   categoria_orden?: number;
   fecha_ingreso?: Date;
@@ -44,6 +45,7 @@ function calcularFitness(genes: Gen[], docAvail: Map<string, Set<string>>): numb
   const docenteOcupado = new Set<string>();
   const ambienteOcupado = new Set<string>();
   const grupoOcupado = new Set<string>();
+  const cicloOcupado = new Set<string>();
 
   for (const gen of genes) {
     const timeKey = `${gen.dia}-${gen.slot_id}`;
@@ -77,6 +79,13 @@ function calcularFitness(genes: Gen[], docAvail: Map<string, Set<string>>): numb
       const gk = `${gen.bloque.grupo_id}-${timeKey}`;
       if (grupoOcupado.has(gk)) penalizacion += 10;
       else grupoOcupado.add(gk);
+    }
+    
+    // R5: Ciclo ocupado (evitar superposición de cursos del mismo ciclo_plan)
+    if (gen.bloque.ciclo_plan !== undefined) {
+      const ck = `${gen.bloque.ciclo_plan}-${timeKey}`;
+      if (cicloOcupado.has(ck)) penalizacion += 20; // Alta penalidad porque es REGLA FUNDAMENTAL
+      else cicloOcupado.add(ck);
     }
   }
 
@@ -150,7 +159,10 @@ export async function ejecutarAlgoritmoGenetico(
 ) {
   if (bloquesSinAsignar.length === 0) return [];
 
-  const slots = await query(`SELECT * FROM slots_tiempo ORDER BY orden`);
+  const allSlots = await query(`SELECT * FROM slots_tiempo ORDER BY orden`);
+  // HORA LIBRE PARA COMER: Excluir slot 13:00
+  const slots = allSlots.filter((s: any) => s.hora_inicio !== '13:00' && s.hora_inicio !== '13:00:00');
+  
   const ambientes = await query(`SELECT * FROM ambientes WHERE disponible = true`);
   const disponibilidad = await query(`
     SELECT * FROM disponibilidad_docente WHERE programacion_id = $1 AND disponible = true

@@ -9,8 +9,8 @@ import { query, queryOne } from './db';
 export async function generarHorarioCSP(programacion_id: string) {
   // 1. Obtener datos con jerarquía de docentes
   const cursos = await query(`
-    SELECT pc.*, g.num_alumnos, g.numero_grupo, cu.codigo, cu.nombre as curso_nombre,
-           d.condicion, d.categoria, d.fecha_ingreso,
+    SELECT pc.*, g.num_alumnos, g.numero_grupo, cu.codigo, cu.nombre as curso_nombre, cu.ciclo_plan,
+           d.condicion, d.categoria, d.fecha_ingreso, d.nombre as docente_n, d.apellidos as docente_a,
            CASE d.condicion WHEN 'nombrado' THEN 0 ELSE 1 END as condicion_orden,
            CASE d.categoria 
              WHEN 'principal' THEN 0 
@@ -44,9 +44,10 @@ export async function generarHorarioCSP(programacion_id: string) {
   // 2. Expandir bloques a asignar (1 bloque = 1 hora)
   const blocksToAssign: any[] = [];
   for (const c of cursos) {
-    for (let i=0; i<c.horas_teoria; i++) blocksToAssign.push({ ...c, tipo_sesion: 'teoria' });
-    for (let i=0; i<c.horas_practica; i++) blocksToAssign.push({ ...c, tipo_sesion: 'practica' });
-    for (let i=0; i<c.horas_laboratorio; i++) blocksToAssign.push({ ...c, tipo_sesion: 'laboratorio' });
+    const docName = c.docente_id ? `${c.docente_a}, ${c.docente_n}` : 'Sin asignar';
+    for (let i=0; i<c.horas_teoria; i++) blocksToAssign.push({ ...c, tipo_sesion: 'teoria', docente_nombre_real: docName });
+    for (let i=0; i<c.horas_practica; i++) blocksToAssign.push({ ...c, tipo_sesion: 'practica', docente_nombre_real: docName });
+    for (let i=0; i<c.horas_laboratorio; i++) blocksToAssign.push({ ...c, tipo_sesion: 'laboratorio', docente_nombre_real: docName });
   }
 
   const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
@@ -57,6 +58,7 @@ export async function generarHorarioCSP(programacion_id: string) {
   const docenteOcupado = new Set<string>(); // "docente_id-dia-slot_id"
   const ambienteOcupado = new Set<string>(); // "ambiente_id-dia-slot_id"
   const grupoOcupado = new Set<string>(); // "grupo_id-dia-slot_id"
+  const cicloOcupado = new Set<string>(); // "ciclo_plan-dia-slot_id"
 
   // 3. CSP Algoritmo Greedy Backtracking Simplificado
   // ORDEN DE ASIGNACIÓN: 
@@ -103,8 +105,14 @@ export async function generarHorarioCSP(programacion_id: string) {
 
     outer: for (const dia of DIAS) {
       for (const slot of slots) {
+        // HORA LIBRE PARA COMER: De 13:00 a 14:00
+        if (slot.hora_inicio === '13:00' || slot.hora_inicio === '13:00:00') continue;
+
         const timeKey = `${dia}-${slot.id}`;
         
+        // Hard constraint: ¿El ciclo ya tiene clase?
+        if (cicloOcupado.has(`${block.ciclo_plan}-${timeKey}`)) continue;
+
         // Hard constraint: ¿El docente está disponible y no ocupado?
         if (block.docente_id) {
           if (!docAvail.get(block.docente_id)?.has(timeKey)) continue;
@@ -135,11 +143,16 @@ export async function generarHorarioCSP(programacion_id: string) {
               numero_grupo: block.numero_grupo,
               ambiente_codigo: amb.codigo,
               ambiente_nombre: amb.nombre,
-              docente_nombre: block.docente_id ? 'Asignado' : 'Sin asignar' // Simplificado para la vista
+              docente_nombre: block.docente_nombre_real,
+              ciclo_plan: block.ciclo_plan,
+              condicion_orden: block.condicion_orden,
+              categoria_orden: block.categoria_orden,
+              fecha_ingreso: block.fecha_ingreso
             });
 
             if (block.docente_id) docenteOcupado.add(`${block.docente_id}-${timeKey}`);
             if (block.grupo_id) grupoOcupado.add(`${block.grupo_id}-${timeKey}`);
+            if (block.ciclo_plan) cicloOcupado.add(`${block.ciclo_plan}-${timeKey}`);
             ambienteOcupado.add(`${amb.id}-${timeKey}`);
             
             assigned = true;

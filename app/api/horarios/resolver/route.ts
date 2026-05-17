@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { programacion_id } = await req.json();
+    const { programacion_id, dry_run } = await req.json();
     if (!programacion_id) return NextResponse.json({ error: 'programacion_id requerido' }, { status: 400 });
 
     const prog = await queryOne(`SELECT * FROM programaciones WHERE id = $1`, [programacion_id]);
@@ -48,9 +48,13 @@ export async function POST(req: NextRequest) {
       const totalSlots = parseInt(slotsDisponibles?.total || '0');
       if (totalSlots < info.horas) {
         advertencias.push(
-          `${info.nombre} tiene solo ${totalSlots} slot(s) disponible(s) pero necesita ${info.horas}h. El CSP podría no asignar todas sus horas.`
+          `⚠️ Alerta: ${info.nombre} tiene ${info.horas} horas asignadas pero solo ${totalSlots} horas de disponibilidad marcadas. Faltan ${info.horas - totalSlots} horas.`
         );
       }
+    }
+
+    if (dry_run) {
+      return NextResponse.json({ success: true, advertencias });
     }
 
     // ── FASE 1: MOTOR CSP ────────────────────────────────────────────────────
@@ -63,7 +67,7 @@ export async function POST(req: NextRequest) {
     if (conflictos.length > 0) {
       // Reconstruir bloques sin asignar desde los conflictos
       const cursosFaltantes = await query(`
-        SELECT pc.*, cu.codigo, cu.nombre as curso_nombre, g.numero_grupo, g.num_alumnos,
+        SELECT pc.*, cu.codigo, cu.nombre as curso_nombre, cu.ciclo_plan, g.numero_grupo, g.num_alumnos,
                CASE d.condicion WHEN 'nombrado' THEN 0 ELSE 1 END as condicion_orden,
                CASE d.categoria 
                  WHEN 'principal' THEN 0 
@@ -104,6 +108,7 @@ export async function POST(req: NextRequest) {
             docente_id: c.docente_id,
             tipo_sesion: tipo,
             num_alumnos: c.num_alumnos || 25,
+            ciclo_plan: c.ciclo_plan,
             condicion_orden: c.condicion_orden,
             categoria_orden: c.categoria_orden,
             fecha_ingreso: c.fecha_ingreso,
