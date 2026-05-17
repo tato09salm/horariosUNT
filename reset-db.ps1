@@ -9,7 +9,10 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::InputEncoding  = [System.Text.Encoding]::UTF8
 $env:PGCLIENTENCODING = "UTF8"
 
-$envFile = ".env"
+$envFile = ".env.local"
+if (-not (Test-Path $envFile)) {
+    $envFile = ".env"
+}
 $config = @{}
 
 Get-Content $envFile -Encoding UTF8 | ForEach-Object {

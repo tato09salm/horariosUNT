@@ -44,7 +44,6 @@ EXCEPTION WHEN duplicate_object THEN null; END $$;
 CREATE TABLE IF NOT EXISTS docentes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   usuario_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
-  codigo VARCHAR(20) UNIQUE NOT NULL,
   nombre VARCHAR(100) NOT NULL,
   apellidos VARCHAR(150) NOT NULL,
   dni VARCHAR(8) UNIQUE NOT NULL,
@@ -282,76 +281,74 @@ ON CONFLICT (email) DO NOTHING;
 -- ========================================
 -- DOCENTES (UNIFICADOS 2026-I y 2025-II)
 -- ========================================
-INSERT INTO docentes (codigo, nombre, apellidos, dni, email, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana)
+INSERT INTO docentes (nombre, apellidos, dni, email, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana)
 VALUES
 -- --- DOCENTES 2026-I ---
 -- Ciclo I
-('D011', 'Marcelino', 'Torres Villanueva', '11111111', 'mtorres@unt.edu.pe', 'principal', 'nombrado', '2000-03-01', 'doctor', 20),
-('D012', 'Alberto', 'Mendoza de los Santos', '22222222', 'amendoza@unt.edu.pe', 'asociado', 'nombrado', '2005-08-01', 'magister', 20),
-('D013', 'Paul', 'Cotrina Castellanos', '33333333', 'pcotrina@unt.edu.pe', 'auxiliar', 'contratado', '2018-03-01', 'licenciado', 16),
-('D014', 'Bertha', 'Urtecho Zavaleta', '44444444', 'burtecho@unt.edu.pe', 'principal', 'nombrado', '1998-03-01', 'doctor', 20),
-('D015', 'Jose Luis', 'Ponte Bejarano', '55555555', 'jponte@unt.edu.pe', 'asociado', 'nombrado', '2010-03-01', 'magister', 20),
-('D016', 'Jorge Luis', 'Rios Gonzales', '66666666', 'jrios@unt.edu.pe', 'auxiliar', 'contratado', '2015-08-01', 'licenciado', 16),
-('D017', 'Segundo', 'Guibar Obeso', '77777777', 'sguibar@unt.edu.pe', 'principal', 'nombrado', '2002-03-01', 'doctor', 20),
-('D018', 'Miquel', 'Ipanaque Zapata', '88888888', 'mipanaque@unt.edu.pe', 'asociado', 'nombrado', '2008-03-01', 'magister', 20),
-('D019', 'Martha', 'Cardoso', '99999999', 'mcardoso@unt.edu.pe', 'auxiliar', 'contratado', '2020-08-01', 'bachiller', 16),
+('Marcelino', 'Torres Villanueva', '11111111', 'mtorres@unt.edu.pe', 'principal', 'nombrado', '2000-03-01', 'doctor', 20),
+('Alberto', 'Mendoza de los Santos', '22222222', 'amendoza@unt.edu.pe', 'asociado', 'nombrado', '2005-08-01', 'magister', 20),
+('Paul', 'Cotrina Castellanos', '33333333', 'pcotrina@unt.edu.pe', 'auxiliar', 'contratado', '2018-03-01', 'licenciado', 16),
+('Bertha', 'Urtecho Zavaleta', '44444444', 'burtecho@unt.edu.pe', 'principal', 'nombrado', '1998-03-01', 'doctor', 20),
+('Jose Luis', 'Ponte Bejarano', '55555555', 'jponte@unt.edu.pe', 'asociado', 'nombrado', '2010-03-01', 'magister', 20),
+('Jorge Luis', 'Rios Gonzales', '66666666', 'jrios@unt.edu.pe', 'auxiliar', 'contratado', '2015-08-01', 'licenciado', 16),
+('Segundo', 'Guibar Obeso', '77777777', 'sguibar@unt.edu.pe', 'principal', 'nombrado', '2002-03-01', 'doctor', 20),
+('Miquel', 'Ipanaque Zapata', '88888888', 'mipanaque@unt.edu.pe', 'asociado', 'nombrado', '2008-03-01', 'magister', 20),
+('Martha', 'Cardoso', '99999999', 'mcardoso@unt.edu.pe', 'auxiliar', 'contratado', '2020-08-01', 'bachiller', 16),
 -- Ciclo III
-('D020', 'Zoraida', 'Vidal Melgarejo', '20202020', 'zvidal@unt.edu.pe', 'principal', 'nombrado', '2001-03-01', 'doctor', 20),
-('D021', 'Everson David', 'Agreda Gamboa', '21212121', 'eagreda@unt.edu.pe', 'asociado', 'nombrado', '2006-08-01', 'magister', 20),
-('D022', 'Juan Carlos', 'Obando Roldán', '22222223', 'jobando@unt.edu.pe', 'auxiliar', 'contratado', '2019-03-01', 'licenciado', 16),
-('D023', 'Marcos', 'Ferrer Reyna', '23232323', 'mferrer@unt.edu.pe', 'principal', 'nombrado', '1999-03-01', 'doctor', 20),
-('D024', 'Teresita', 'Rojas García', '24242424', 'trojas@unt.edu.pe', 'asociado', 'nombrado', '2011-03-01', 'magister', 20),
-('D025', 'Juan', 'Carrascal Cabanillas', '25252525', 'jcarrascal@unt.edu.pe', 'auxiliar', 'contratado', '2016-08-01', 'licenciado', 16),
-('D026', 'Wilma', 'Mendez Gil', '26262626', 'wmendez@unt.edu.pe', 'principal', 'nombrado', '2003-03-01', 'doctor', 20),
-('D027', 'Sheyla Laura', 'Escobedo Rodriguez', '27272727', 'sescobedo@unt.edu.pe', 'asociado', 'nombrado', '2009-03-01', 'magister', 20),
+('Zoraida', 'Vidal Melgarejo', '20202020', 'zvidal@unt.edu.pe', 'principal', 'nombrado', '2001-03-01', 'doctor', 20),
+('Everson David', 'Agreda Gamboa', '21212121', 'eagreda@unt.edu.pe', 'asociado', 'nombrado', '2006-08-01', 'magister', 20),
+('Juan Carlos', 'Obando Roldán', '22222223', 'jobando@unt.edu.pe', 'auxiliar', 'contratado', '2019-03-01', 'licenciado', 16),
+('Marcos', 'Ferrer Reyna', '23232323', 'mferrer@unt.edu.pe', 'principal', 'nombrado', '1999-03-01', 'doctor', 20),
+('Teresita', 'Rojas García', '24242424', 'trojas@unt.edu.pe', 'asociado', 'nombrado', '2011-03-01', 'magister', 20),
+('Juan', 'Carrascal Cabanillas', '25252525', 'jcarrascal@unt.edu.pe', 'auxiliar', 'contratado', '2016-08-01', 'licenciado', 16),
+('Wilma', 'Mendez Gil', '26262626', 'wmendez@unt.edu.pe', 'principal', 'nombrado', '2003-03-01', 'doctor', 20),
+('Sheyla Laura', 'Escobedo Rodriguez', '27272727', 'sescobedo@unt.edu.pe', 'asociado', 'nombrado', '2009-03-01', 'magister', 20),
 -- Ciclo V
-('D028', 'Luis', 'Boy Chavil', '28282828', 'lboy@unt.edu.pe', 'principal', 'nombrado', '2004-03-01', 'doctor', 20),
-('D029', 'Robert Jerry', 'Sánchez Ticona', '29292929', 'rsanchez@unt.edu.pe', 'asociado', 'nombrado', '2012-03-01', 'magister', 20),
-('D030', 'Cesar', 'Arellano Salazar', '30303030', 'carellano@unt.edu.pe', 'auxiliar', 'contratado', '2017-08-01', 'licenciado', 16),
-('D031', 'Camilo', 'Suárez Rebaza', '31313131', 'csuarez@unt.edu.pe', 'principal', 'nombrado', '2007-03-01', 'doctor', 20),
-('D032', 'Marcos', 'Baca Lopez', '32323232', 'mbaca@unt.edu.pe', 'asociado', 'nombrado', '2013-03-01', 'magister', 20),
-('D033', 'Ana', 'Cuadra Mituzgaray', '33333334', 'acuadra@unt.edu.pe', 'auxiliar', 'contratado', '2019-08-01', 'licenciado', 16),
+('Luis', 'Boy Chavil', '28282828', 'lboy@unt.edu.pe', 'principal', 'nombrado', '2004-03-01', 'doctor', 20),
+('Robert Jerry', 'Sánchez Ticona', '29292929', 'rsanchez@unt.edu.pe', 'asociado', 'nombrado', '2012-03-01', 'magister', 20),
+('Cesar', 'Arellano Salazar', '30303030', 'carellano@unt.edu.pe', 'auxiliar', 'contratado', '2017-08-01', 'licenciado', 16),
+('Camilo', 'Suárez Rebaza', '31313131', 'csuarez@unt.edu.pe', 'principal', 'nombrado', '2007-03-01', 'doctor', 20),
+('Marcos', 'Baca Lopez', '32323232', 'mbaca@unt.edu.pe', 'asociado', 'nombrado', '2013-03-01', 'magister', 20),
+('Ana', 'Cuadra Mituzgaray', '33333334', 'acuadra@unt.edu.pe', 'auxiliar', 'contratado', '2019-08-01', 'licenciado', 16),
 -- Ciclo VII
-('D034', 'Juan Pedro', 'Santos Fernández', '34343434', 'jsantos@unt.edu.pe', 'principal', 'nombrado', '2005-03-01', 'doctor', 20),
-('D035', 'Ricardo', 'Mendoza Rivera', '35353535', 'rmendoza@unt.edu.pe', 'asociado', 'nombrado', '2010-03-01', 'magister', 20),
-('D036', 'Oscar Romel', 'Alcántara Moreno', '36363636', 'oalcantara@unt.edu.pe', 'auxiliar', 'contratado', '2018-08-01', 'licenciado', 16),
-('D037', 'Jhoe', 'Gonzalez Vasquez', '37373737', 'jgonzalez@unt.edu.pe', 'principal', 'nombrado', '2008-03-01', 'doctor', 20),
+('Juan Pedro', 'Santos Fernández', '34343434', 'jsantos@unt.edu.pe', 'principal', 'nombrado', '2005-03-01', 'doctor', 20),
+('Ricardo', 'Mendoza Rivera', '35353535', 'rmendoza@unt.edu.pe', 'asociado', 'nombrado', '2010-03-01', 'magister', 20),
+('Oscar Romel', 'Alcántara Moreno', '36363636', 'oalcantara@unt.edu.pe', 'auxiliar', 'contratado', '2018-08-01', 'licenciado', 16),
+('Jhoe', 'Gonzalez Vasquez', '37373737', 'jgonzalez@unt.edu.pe', 'principal', 'nombrado', '2008-03-01', 'doctor', 20),
 -- Ciclo IX
-('D038', 'José', 'Gómez Ávila', '38383838', 'jgomez@unt.edu.pe', 'asociado', 'nombrado', '2011-03-01', 'magister', 20),
+('José', 'Gómez Ávila', '38383838', 'jgomez@unt.edu.pe', 'asociado', 'nombrado', '2011-03-01', 'magister', 20),
 
 -- --- DOCENTES 2025-II ---
 -- Ciclo II
-('D039', 'Zoraida Yanet', 'Vidal Melgarejo', '39393939', 'zvidal2@unt.edu.pe', 'principal', 'nombrado', '2001-03-01', 'doctor', 20),
-('D040', 'Edgard', 'Pelaez Vinces', '40404040', 'epelaez@unt.edu.pe', 'asociado', 'nombrado', '2007-03-01', 'magister', 20),
-('D041', 'Diego', 'Llaro Cruz', '41414141', 'dllaro@unt.edu.pe', 'auxiliar', 'contratado', '2018-08-01', 'licenciado', 16),
-('D042', 'Alex', 'Herradas', '42424242', 'aherradas@unt.edu.pe', 'principal', 'nombrado', '2003-03-01', 'doctor', 20),
-('D043', 'Milton', 'Cortez', '43434343', 'mcortez@unt.edu.pe', 'asociado', 'nombrado', '2010-03-01', 'magister', 20),
-('D044', 'Arístides', 'Tavara Aponte', '44444445', 'atavara@unt.edu.pe', 'auxiliar', 'contratado', '2016-08-01', 'licenciado', 16),
-('D045', 'Segundo Roseli', 'Jauregui Rosas', '45454545', 'sjauregui@unt.edu.pe', 'principal', 'nombrado', '2005-03-01', 'doctor', 20),
+('Zoraida Yanet', 'Vidal Melgarejo', '39393939', 'zvidal2@unt.edu.pe', 'principal', 'nombrado', '2001-03-01', 'doctor', 20),
+('Edgard', 'Pelaez Vinces', '40404040', 'epelaez@unt.edu.pe', 'asociado', 'nombrado', '2007-03-01', 'magister', 20),
+('Diego', 'Llaro Cruz', '41414141', 'dllaro@unt.edu.pe', 'auxiliar', 'contratado', '2018-08-01', 'licenciado', 16),
+('Alex', 'Herradas', '42424242', 'aherradas@unt.edu.pe', 'principal', 'nombrado', '2003-03-01', 'doctor', 20),
+('Milton', 'Cortez', '43434343', 'mcortez@unt.edu.pe', 'asociado', 'nombrado', '2010-03-01', 'magister', 20),
+('Arístides', 'Tavara Aponte', '44444445', 'atavara@unt.edu.pe', 'auxiliar', 'contratado', '2016-08-01', 'licenciado', 16),
+('Segundo Roseli', 'Jauregui Rosas', '45454545', 'sjauregui@unt.edu.pe', 'principal', 'nombrado', '2005-03-01', 'doctor', 20),
 -- Ciclo IV
-('D046', 'Juan Carlos', 'Obando Roldán', '46464646', 'jobando2@unt.edu.pe', 'asociado', 'nombrado', '2012-03-01', 'magister', 20),
-('D047', 'Robert Jerry', 'Sanchez Ticona', '47474747', 'rsanchez2@unt.edu.pe', 'auxiliar', 'contratado', '2019-08-01', 'licenciado', 16),
-('D048', 'Cesar', 'Arellano Salazar', '48484848', 'carellano2@unt.edu.pe', 'principal', 'nombrado', '2006-03-01', 'doctor', 20),
-('D049', 'Marcelino', 'Torres Villanueva', '49494949', 'mtorres2@unt.edu.pe', 'asociado', 'nombrado', '2011-03-01', 'magister', 20),
-('D050', 'Camilo', 'Suárez Rebaza', '50505050', 'csuarez2@unt.edu.pe', 'auxiliar', 'contratado', '2017-08-01', 'licenciado', 16),
-('D051', 'José Alberto', 'Gomez Avila', '51515151', 'jgomez2@unt.edu.pe', 'principal', 'nombrado', '2008-03-01', 'doctor', 20),
-('D052', 'Alberto', 'Asmat Alva', '52525252', 'aasmat@unt.edu.pe', 'asociado', 'nombrado', '2013-03-01', 'magister', 20),
+('Juan Carlos', 'Obando Roldán', '46464646', 'jobando2@unt.edu.pe', 'asociado', 'nombrado', '2012-03-01', 'magister', 20),
+('Robert Jerry', 'Sanchez Ticona', '47474747', 'rsanchez2@unt.edu.pe', 'auxiliar', 'contratado', '2019-08-01', 'licenciado', 16),
+('Cesar', 'Arellano Salazar', '48484848', 'carellano2@unt.edu.pe', 'principal', 'nombrado', '2006-03-01', 'doctor', 20),
+('Marcelino', 'Torres Villanueva', '49494949', 'mtorres2@unt.edu.pe', 'asociado', 'nombrado', '2011-03-01', 'magister', 20),
+('Camilo', 'Suárez Rebaza', '50505050', 'csuarez2@unt.edu.pe', 'auxiliar', 'contratado', '2017-08-01', 'licenciado', 16),
+('José Alberto', 'Gomez Avila', '51515151', 'jgomez2@unt.edu.pe', 'principal', 'nombrado', '2008-03-01', 'doctor', 20),
+('Alberto', 'Asmat Alva', '52525252', 'aasmat@unt.edu.pe', 'asociado', 'nombrado', '2013-03-01', 'magister', 20),
 -- Ciclo VI
-('D053', 'Luis Enrique', 'Boy Chavil', '53535353', 'lboy2@unt.edu.pe', 'principal', 'nombrado', '2004-03-01', 'doctor', 20),
-('D054', 'Juan Manuel', 'Granda Fernández', '54545454', 'jgranda@unt.edu.pe', 'asociado', 'nombrado', '2014-03-01', 'magister', 20),
-('D055', 'Joe Alexis', 'Gonzalez Vasquez', '55555556', 'jgonzalez2@unt.edu.pe', 'auxiliar', 'contratado', '2018-08-01', 'licenciado', 16),
-('D056', 'Juan', 'Cabanillas', '56565656', 'jcabanillas@unt.edu.pe', 'principal', 'nombrado', '2009-03-01', 'doctor', 20),
-('D057', 'Luis', 'Moncada Albites', '57575757', 'lmoncada@unt.edu.pe', 'asociado', 'nombrado', '2015-03-01', 'magister', 20),
+('Luis Enrique', 'Boy Chavil', '53535353', 'lboy2@unt.edu.pe', 'principal', 'nombrado', '2004-03-01', 'doctor', 20),
+('Juan Manuel', 'Granda Fernández', '54545454', 'jgranda@unt.edu.pe', 'asociado', 'nombrado', '2014-03-01', 'magister', 20),
+('Joe Alexis', 'Gonzalez Vasquez', '55555556', 'jgonzalez2@unt.edu.pe', 'auxiliar', 'contratado', '2018-08-01', 'licenciado', 16),
+('Juan', 'Cabanillas', '56565656', 'jcabanillas@unt.edu.pe', 'principal', 'nombrado', '2009-03-01', 'doctor', 20),
+('Luis', 'Moncada Albites', '57575757', 'lmoncada@unt.edu.pe', 'asociado', 'nombrado', '2015-03-01', 'magister', 20),
 -- Ciclo VIII
-('D058', 'Juan Pedro', 'Santos Fernández', '58585858', 'jsantos2@unt.edu.pe', 'principal', 'nombrado', '2005-03-01', 'doctor', 20),
-('D059', 'Everton David', 'Agreda Gamboa', '59595959', 'eagreda2@unt.edu.pe', 'asociado', 'nombrado', '2010-03-01', 'magister', 20),
-('D060', 'Alberto Carlos', 'Mendoza de los Santos', '60606060', 'amendoza2@unt.edu.pe', 'auxiliar', 'contratado', '2016-08-01', 'licenciado', 16),
-('D061', 'Ricardo Dario', 'Mendoza Rivera', '61616161', 'rmendoza2@unt.edu.pe', 'principal', 'nombrado', '2007-03-01', 'doctor', 20),
-('D062', 'Marco Celi', 'Arevalo', '62626262', 'marevalo@unt.edu.pe', 'asociado', 'nombrado', '2012-03-01', 'magister', 20),
+('Juan Pedro', 'Santos Fernández', '58585858', 'jsantos2@unt.edu.pe', 'principal', 'nombrado', '2005-03-01', 'doctor', 20),
+('Everton David', 'Agreda Gamboa', '59595959', 'eagreda2@unt.edu.pe', 'asociado', 'nombrado', '2010-03-01', 'magister', 20),
+('Alberto Carlos', 'Mendoza de los Santos', '60606060', 'amendoza2@unt.edu.pe', 'auxiliar', 'contratado', '2016-08-01', 'licenciado', 16),
+('Ricardo Dario', 'Mendoza Rivera', '61616161', 'rmendoza2@unt.edu.pe', 'principal', 'nombrado', '2007-03-01', 'doctor', 20),
+('Marco Celi', 'Arevalo', '62626262', 'marevalo@unt.edu.pe', 'asociado', 'nombrado', '2012-03-01', 'magister', 20),
 -- Ciclo X
-('D063', 'Jorge Paul', 'Cotrina Castellanos', '63636363', 'jcotrina@unt.edu.pe', 'auxiliar', 'contratado', '2019-08-01', 'licenciado', 16)
-
-ON CONFLICT (codigo) DO NOTHING;
+('Jorge Paul', 'Cotrina Castellanos', '63636363', 'jcotrina@unt.edu.pe', 'auxiliar', 'contratado', '2019-08-01', 'licenciado', 16);
 
 
 -- ========================================
@@ -670,4 +667,4 @@ CREATE INDEX IF NOT EXISTS idx_conf_prog ON conflictos_horario(programacion_id);
 
 -- ========================================
 -- FIN DEL SCRIPT
--- ========================================
+-- ========================================
