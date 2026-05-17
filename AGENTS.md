@@ -370,9 +370,10 @@ JWT_SECRET=jwt-horarios-unt-2024
 # Instalar dependencias
 npm install
 
-# Crear base de datos y ejecutar schema
-psql -U postgres -c 'CREATE DATABASE "horariosUNT";'
-psql -U postgres -d horariosUNT -f lib/schema.sql
+# Crear base de datos, migrar el esquema y poblar datos iniciales
+npx sequelize-cli db:create
+npx sequelize-cli db:migrate
+npx sequelize-cli db:seed:all
 
 # Ejecutar en desarrollo
 npm run dev   # → http://localhost:3000
