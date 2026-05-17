@@ -35,13 +35,20 @@ export default function CrearHorarioPage() {
       const [progRes, cursosRes, catRes, docRes] = await Promise.all([
         fetch(`/api/horarios/programaciones/${progId}`).then(r => r.json()),
         fetch(`/api/horarios/programaciones/${progId}/cursos`).then(r => r.json()),
-        fetch('/api/cursos').then(r => r.json()),
-        fetch('/api/docentes').then(r => r.json()),
+        fetch('/api/cursos?limit=1000').then(r => r.json()),
+        fetch('/api/docentes?limit=1000').then(r => r.json()),
       ]);
       setProg(progRes.data);
       setCursos(cursosRes.data || []);
       setCargaDocentes(cursosRes.cargaDocentes || []);
-      setCatalogoCursos(catRes.data || []);
+      
+      // Filtrar cursos del catálogo según si el ciclo es impar (-I) o par (-II)
+      const cicloNombre = progRes.data?.ciclo_nombre || '';
+      const isImpar = cicloNombre.endsWith('-I');
+      const filteredCursos = (catRes.data || []).filter((c: any) => {
+        return isImpar ? c.ciclo_plan % 2 !== 0 : c.ciclo_plan % 2 === 0;
+      });
+      setCatalogoCursos(filteredCursos);
       setDocentes(docRes.data || []);
 
       // Cargar grupos del ciclo

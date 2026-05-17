@@ -666,5 +666,77 @@ CREATE TABLE IF NOT EXISTS conflictos_horario (
 CREATE INDEX IF NOT EXISTS idx_conf_prog ON conflictos_horario(programacion_id);
 
 -- ========================================
+-- SANEAMIENTO Y CONSOLIDACIÓN DE DOCENTES DUPLICADOS
+-- ========================================
+
+-- 1. Consolidación de duplicados exactos (nombre + apellidos idénticos)
+DO $$
+DECLARE
+    r RECORD;
+    keep_id UUID;
+    remove_id UUID;
+BEGIN
+    FOR r IN 
+        SELECT nombre, apellidos, COUNT(*) as cnt 
+        FROM docentes 
+        GROUP BY nombre, apellidos 
+        HAVING COUNT(*) > 1
+    LOOP
+        SELECT id INTO keep_id 
+        FROM docentes 
+        WHERE nombre = r.nombre AND apellidos = r.apellidos 
+        ORDER BY created_at ASC, id ASC 
+        LIMIT 1;
+
+        FOR remove_id IN 
+            SELECT id 
+            FROM docentes 
+            WHERE nombre = r.nombre AND apellidos = r.apellidos AND id <> keep_id
+        LOOP
+            UPDATE programacion_cursos SET docente_id = keep_id WHERE docente_id = remove_id;
+            UPDATE asignaciones SET docente_id = keep_id WHERE docente_id = remove_id;
+            UPDATE disponibilidad_docente SET docente_id = keep_id WHERE docente_id = remove_id;
+            DELETE FROM docentes WHERE id = remove_id;
+        END LOOP;
+        
+        RAISE NOTICE 'Consolidadas duplicidades para: % %', r.nombre, r.apellidos;
+    END LOOP;
+END $$;
+
+-- 2. Consolidación de duplicados similares/parciales por DNI (segundo nombre, acentos, etc.)
+DO $$
+DECLARE
+    consolidations RECORD;
+    keep_id UUID;
+    remove_id UUID;
+BEGIN
+    FOR consolidations IN 
+        SELECT * FROM (VALUES
+            ('21212121', '59595959'), -- Agreda Gamboa
+            ('28282828', '53535353'), -- Boy Chavil
+            ('33333333', '63636363'), -- Cotrina Castellanos
+            ('38383838', '51515151'), -- Gómez Ávila
+            ('37373737', '55555556'), -- Gonzalez Vasquez
+            ('22222222', '60606060'), -- Mendoza de los Santos
+            ('35353535', '61616161'), -- Mendoza Rivera
+            ('29292929', '47474747'), -- Sanchez Ticona
+            ('20202020', '39393939')  -- Vidal Melgarejo
+        ) AS t(keep_dni, remove_dni)
+    LOOP
+        SELECT id INTO keep_id FROM docentes WHERE dni = consolidations.keep_dni;
+        SELECT id INTO remove_id FROM docentes WHERE dni = consolidations.remove_dni;
+
+        IF keep_id IS NOT NULL AND remove_id IS NOT NULL THEN
+            UPDATE programacion_cursos SET docente_id = keep_id WHERE docente_id = remove_id;
+            UPDATE asignaciones SET docente_id = keep_id WHERE docente_id = remove_id;
+            UPDATE disponibilidad_docente SET docente_id = keep_id WHERE docente_id = remove_id;
+            DELETE FROM docentes WHERE id = remove_id;
+            RAISE NOTICE 'Consolidado docente DNI % en DNI %', consolidations.remove_dni, consolidations.keep_dni;
+        END IF;
+    END LOOP;
+END $$;
+
+-- ========================================
 -- FIN DEL SCRIPT
 -- ========================================
+

@@ -66,18 +66,24 @@ export async function POST(
       // Buscar docente (opcional)
       let docente_id = null;
       if (docente_codigo) {
-        const docente = await queryOne(`SELECT id FROM docentes WHERE codigo = $1`, [docente_codigo]);
+        // En el nuevo esquema, el identificador único del docente es su DNI
+        const docente = await queryOne(`SELECT id FROM docentes WHERE dni = $1`, [docente_codigo]);
         if (!docente) {
-          resultados.errores.push(`Línea ${i + 1}: Docente "${docente_codigo}" no encontrado (se omitirá)`);
+          resultados.errores.push(`Línea ${i + 1}: Docente con DNI "${docente_codigo}" no encontrado (se omitirá)`);
         } else {
           docente_id = docente.id;
         }
       }
 
-      const horas_teoria = parseInt(ht || '') || curso.horas_teoria;
-      const horas_practica = parseInt(hp || '') || curso.horas_practica;
-      const horas_laboratorio = parseInt(hl || '') || 0;
-      const horas_consejeria = parseInt(hc || '') || 0;
+      const parseHora = (val: string, fallback: number) => {
+        const parsed = parseInt(val);
+        return isNaN(parsed) ? fallback : parsed;
+      };
+
+      const horas_teoria = parseHora(ht, curso.horas_teoria);
+      const horas_practica = parseHora(hp, curso.horas_practica);
+      const horas_laboratorio = parseHora(hl, 0);
+      const horas_consejeria = parseHora(hc, 0);
 
       try {
         await queryOne(`
