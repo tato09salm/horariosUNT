@@ -74,11 +74,6 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
     c.bloque_total && c.bloque_total > 1
       ? ` · ${c.bloque_parte}/${c.bloque_total}`
       : '';
-  const labTurno =
-    tipo === 'laboratorio' && c.lab_turno
-      ? ` (Grupo ${c.lab_turno})`
-      : '';
-
   const color = mapaColores 
     ? obtenerColorCurso(mapaColores, c.ciclo_plan, c.curso_codigo, c.tipo)
     : { bg: isAsesoria ? '#f3f4f6' : cicloColor + '15', border: isAsesoria ? '#6b7280' : cicloColor, name: 'default' };
@@ -86,11 +81,17 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
   const customStyle: React.CSSProperties = {
     backgroundColor: color.bg,
     borderLeft: `5px solid ${color.border}`,
+    position: 'relative',
+    overflow: 'hidden'
   };
 
   if (color.patron === 'rayado') {
-    customStyle.backgroundImage = 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.04) 4px, rgba(0,0,0,0.04) 8px)';
+    customStyle.backgroundImage = 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.06) 4px, rgba(0,0,0,0.06) 8px)';
   }
+
+  const numG = typeof c.numero_grupo === 'string' ? parseInt(c.numero_grupo, 10) : (c.numero_grupo || 1);
+  const groupPillColors = ['#64748b', '#64748b', '#2563eb', '#d97706', '#059669', '#7c3aed']; // G1 uses default gray/slate, others get distinct colors
+  const pillColor = groupPillColors[numG] || '#475569';
 
   return (
     <div
@@ -98,7 +99,7 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
       style={customStyle}
       title={[
         c.curso_nombre,
-        `Sección G${c.numero_grupo}${labTurno}`,
+        `Sección G${c.numero_grupo}`,
         tipoLabel,
         ambLabel,
         formatDocente(c.docente_nombre),
@@ -111,12 +112,22 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
             ASESORÍA <IconoTipoSesion tipo="asesoria" />
           </span>
         ) : (
-          <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
             <strong>{c.curso_codigo}</strong>
             {!compact && c.curso_nombre && (
               <span className="bloque-horario__nombre-curso"> — {c.curso_nombre}</span>
             )}
-            <span className="bloque-horario__grupo"> · G{c.numero_grupo}{labTurno}</span>
+            <span style={{
+              background: numG > 1 ? pillColor : '#e2e8f0',
+              color: numG > 1 ? 'white' : '#475569',
+              padding: '1px 6px',
+              borderRadius: '12px',
+              fontSize: '10px',
+              fontWeight: 'bold',
+              marginLeft: '2px'
+            }}>
+              G{c.numero_grupo}
+            </span>
             <IconoTipoSesion tipo={tipo} />
           </span>
         )}

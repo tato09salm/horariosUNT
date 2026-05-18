@@ -64,7 +64,7 @@ export default function GrillaHorarios({
           .filter(a => a.docente_id && (docentesConCarga.size === 0 || docentesConCarga.has(a.docente_id)))
           .map(a => [a.docente_id, a.docente_nombre])
       ).entries()
-    ).map(([id, nombre]) => ({ id, nombre: nombre as string }))
+    ).map(([id, nombre]) => ({ id, nombre: (nombre as string) || '' }))
      .sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [asignacionesVisibles, docentesConCarga]);
 

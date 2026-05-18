@@ -34,6 +34,7 @@ export async function GET(
       );
     }
 
+    console.log("DEBUG [exportar-unt]: programacionId =", programacionId);
     // 1. Programación
     const prog = await queryOne(`
       SELECT p.*, c.nombre as ciclo_nombre, c.año, c.semestre
@@ -42,7 +43,10 @@ export async function GET(
       WHERE p.id = $1
     `, [programacionId]);
 
+    console.log("DEBUG [exportar-unt]: prog =", prog);
+
     if (!prog) {
+      console.log("DEBUG [exportar-unt]: Programming not found, returning 404");
       return NextResponse.json({ error: 'Programación no encontrada' }, { status: 404 });
     }
 
