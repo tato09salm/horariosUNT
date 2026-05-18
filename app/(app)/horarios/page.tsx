@@ -43,6 +43,17 @@ export default function HorariosPage() {
   const [miHorario, setMiHorario] = useState<any[]>([]);
   const [loadingMiHorario, setLoadingMiHorario] = useState(false);
 
+  // Cargar parámetro de vista desde URL si existe
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const v = params.get('vista');
+      if (v === 'programaciones' || v === 'horario' || v === 'mi-horario') {
+        setVista(v as any);
+      }
+    }
+  }, []);
+
   // Cargar datos iniciales
   useEffect(() => {
     Promise.all([

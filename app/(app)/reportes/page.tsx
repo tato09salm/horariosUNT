@@ -362,77 +362,77 @@ export default function ReportesPage() {
           </div>
 
           {tipoReporte==='docente' && (
-            Object.entries(porDocente).map(([docNombre, rows]) => (
-              <div key={docNombre} style={{marginBottom:'24px'}}>
-                <div style={{background:'#f8fafc',padding:'12px 20px',borderLeft:'4px solid #1a3a5c',marginBottom:'8px'}}>
-                  <h3 style={{fontSize:'15px',fontWeight:'600',color:'#1e293b',margin:'0 0 2px'}}>{docNombre}</h3>
-                  <p style={{fontSize:'12px',color:'#64748b',margin:0}}>{rows.length} sesiones asignadas</p>
-                </div>
-                {/* Mini grid */}
-                <div style={{overflowX:'auto'}}>
-                  <div className="horario-grid" style={{minWidth:'700px'}}>
-                    <div className="horario-header">Hora</div>
-                    {DIAS.map(d=><div key={d} className="horario-header">{DIAS_L[d]}</div>)}
-                    {slots.map((slot:any)=>(
-                      <div key={slot.id} style={{display:'contents'}}>
-                        <div className="horario-time">{slot.hora_inicio}<br/>{slot.hora_fin}</div>
-                        {DIAS.map(dia=>{
-                          const c = rows.find(r=>r.dia===dia && r.slot_id===slot.id);
-                          return (
-                            <div key={dia} className="horario-cell">
-                              {c && <div className={`block-${c.tipo}`}><div style={{fontWeight:'600',fontSize:'10px'}}>{c.curso_codigo}</div><div style={{fontSize:'9px'}}>{c.ambiente_codigo}</div></div>}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(320px, 1fr))', gap:'20px', marginTop:'24px'}}>
+              {Object.entries(porDocente).map(([docNombre, rows]) => {
+                const totalHoras = rows.length;
+                const cursosUnicos = Array.from(new Set(rows.map(r => r.curso_nombre)));
+                return (
+                  <div key={docNombre} className="card" style={{padding:'20px', display:'flex', flexDirection:'column', borderTop:'4px solid #1a3a5c'}}>
+                    <h3 style={{fontSize:'16px',fontWeight:'700',color:'#1e293b',margin:'0 0 8px'}}>{docNombre}</h3>
+                    <div style={{display:'flex', gap:'12px', marginBottom:'16px'}}>
+                      <span style={{background:'#f1f5f9', color:'#475569', padding:'4px 10px', borderRadius:'6px', fontSize:'13px', fontWeight:'600'}}>📚 {cursosUnicos.length} Cursos</span>
+                      <span style={{background:'#dbeafe', color:'#1e40af', padding:'4px 10px', borderRadius:'6px', fontSize:'13px', fontWeight:'600'}}>⏱️ {totalHoras} hrs asignadas</span>
+                    </div>
+                    <div style={{display:'flex', flexDirection:'column', gap:'8px', flex:1}}>
+                      {rows.sort((a,b)=>DIAS.indexOf(a.dia)-DIAS.indexOf(b.dia)).slice(0, 5).map((r, i) => (
+                        <div key={i} style={{display:'flex', justifyContent:'space-between', fontSize:'13px', padding:'8px', background:'#f8fafc', borderRadius:'6px', border:'1px solid #e2e8f0'}}>
+                          <div style={{fontWeight:'500', color:'#334155'}}><span style={{textTransform:'capitalize', width:'70px', display:'inline-block'}}>{r.dia.substring(0,3)}.</span> {r.hora_inicio} - {r.hora_fin}</div>
+                          <div style={{textAlign:'right'}}>
+                            <div style={{fontWeight:'600', color:'#0f172a'}}>{r.curso_codigo} <span style={{color:'#64748b', fontSize:'11px'}}>(G{r.numero_grupo})</span></div>
+                            <div style={{color:'#64748b', fontSize:'11px'}}>{r.ambiente_codigo} • <span style={{color:r.tipo==='teoria'?'#2563eb':r.tipo==='practica'?'#059669':'#d97706'}}>{r.tipo}</span></div>
+                          </div>
+                        </div>
+                      ))}
+                      {rows.length > 5 && (
+                        <div style={{textAlign:'center', fontSize:'12px', color:'#64748b', marginTop:'4px', fontStyle:'italic'}}>+ {rows.length - 5} sesiones más...</div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))
+                );
+              })}
+            </div>
           )}
 
           {tipoReporte==='docente' && Object.keys(porDocente).length === 0 && (
-            <div style={{padding:'40px',textAlign:'center',color:'#64748b',background:'#f8fafc',borderRadius:'12px',border:'1px dashed #cbd5e1'}}>
+            <div style={{padding:'40px',textAlign:'center',color:'#64748b',background:'#f8fafc',borderRadius:'12px',border:'1px dashed #cbd5e1', marginTop:'24px'}}>
               No hay horarios registrados para ningún docente en este ciclo.
             </div>
           )}
 
           {tipoReporte==='operacional' && (
-            Object.entries(porAmbiente).map(([ambNombre, rows]) => (
-              <div key={ambNombre} style={{marginBottom:'20px'}}>
-                <div style={{background:'#f8fafc',padding:'10px 20px',borderLeft:'4px solid #10b981',marginBottom:'8px'}}>
-                  <h3 style={{fontSize:'14px',fontWeight:'600',color:'#1e293b',margin:0}}>{ambNombre}</h3>
-                </div>
-                <div className="card" style={{padding:0}}>
-                  <div className="table-container">
-                    <table>
-                      <thead><tr><th>Día</th><th>Hora</th><th>Curso</th><th>Docente</th><th>Tipo</th><th>Grupo</th></tr></thead>
-                      <tbody>
-                        {rows.length === 0 ? (
-                          <tr><td colSpan={6} style={{textAlign:'center',color:'#94a3b8',padding:'20px'}}>Sin asignaciones</td></tr>
-                        ) : (
-                          rows.sort((a,b)=>DIAS.indexOf(a.dia)-DIAS.indexOf(b.dia)).map(r=>(
-                            <tr key={r.id}>
-                              <td style={{textTransform:'capitalize',fontWeight:'500'}}>{r.dia}</td>
-                              <td style={{fontSize:'12px',color:'#64748b'}}>{r.hora_inicio} - {r.hora_fin}</td>
-                              <td><div style={{fontWeight:'500',fontSize:'13px'}}>{r.curso_nombre}</div><div style={{fontSize:'11px',color:'#94a3b8'}}>{r.curso_codigo}</div></td>
-                              <td style={{fontSize:'13px'}}>{r.docente_nombre}</td>
-                              <td><span className={`badge badge-${r.tipo}`}>{r.tipo}</span></td>
-                              <td style={{textAlign:'center'}}>G{r.numero_grupo}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(320px, 1fr))', gap:'20px', marginTop:'24px'}}>
+              {Object.entries(porAmbiente).map(([ambNombre, rows]) => {
+                const totalHoras = rows.length;
+                const cursosUnicos = Array.from(new Set(rows.map(r => r.curso_nombre)));
+                return (
+                  <div key={ambNombre} className="card" style={{padding:'20px', display:'flex', flexDirection:'column', borderTop:'4px solid #10b981'}}>
+                    <h3 style={{fontSize:'16px',fontWeight:'700',color:'#1e293b',margin:'0 0 8px'}}>🚪 {ambNombre}</h3>
+                    <div style={{display:'flex', gap:'12px', marginBottom:'16px'}}>
+                      <span style={{background:'#f1f5f9', color:'#475569', padding:'4px 10px', borderRadius:'6px', fontSize:'13px', fontWeight:'600'}}>📚 {cursosUnicos.length} Cursos</span>
+                      <span style={{background:'#d1fae5', color:'#065f46', padding:'4px 10px', borderRadius:'6px', fontSize:'13px', fontWeight:'600'}}>⏱️ {totalHoras} hrs de uso</span>
+                    </div>
+                    <div style={{display:'flex', flexDirection:'column', gap:'8px', flex:1}}>
+                      {rows.sort((a,b)=>DIAS.indexOf(a.dia)-DIAS.indexOf(b.dia)).slice(0, 5).map((r, i) => (
+                        <div key={i} style={{display:'flex', justifyContent:'space-between', fontSize:'13px', padding:'8px', background:'#f8fafc', borderRadius:'6px', border:'1px solid #e2e8f0'}}>
+                          <div style={{fontWeight:'500', color:'#334155'}}><span style={{textTransform:'capitalize', width:'70px', display:'inline-block'}}>{r.dia.substring(0,3)}.</span> {r.hora_inicio} - {r.hora_fin}</div>
+                          <div style={{textAlign:'right'}}>
+                            <div style={{fontWeight:'600', color:'#0f172a'}}>{r.curso_codigo} <span style={{color:'#64748b', fontSize:'11px'}}>(G{r.numero_grupo})</span></div>
+                            <div style={{color:'#64748b', fontSize:'11px', maxWidth:'120px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}} title={r.docente_nombre}>{r.docente_nombre}</div>
+                          </div>
+                        </div>
+                      ))}
+                      {rows.length > 5 && (
+                        <div style={{textAlign:'center', fontSize:'12px', color:'#64748b', marginTop:'4px', fontStyle:'italic'}}>+ {rows.length - 5} sesiones más...</div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))
+                );
+              })}
+            </div>
           )}
 
           {tipoReporte==='operacional' && Object.keys(porAmbiente).length === 0 && (
-            <div style={{padding:'40px',textAlign:'center',color:'#64748b',background:'#f8fafc',borderRadius:'12px',border:'1px dashed #cbd5e1'}}>
+            <div style={{padding:'40px',textAlign:'center',color:'#64748b',background:'#f8fafc',borderRadius:'12px',border:'1px dashed #cbd5e1', marginTop:'24px'}}>
               No hay horarios registrados en ningún ambiente en este ciclo.
             </div>
           )}

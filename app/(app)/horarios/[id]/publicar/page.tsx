@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -16,6 +16,11 @@ export default function PublicarPage() {
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [msg, setMsg] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [filtroTipo, setFiltroTipo] = useState('');
+  const [filtroDocente, setFiltroDocente] = useState('');
+  const [filtroCurso, setFiltroCurso] = useState('');
+  const itemsPerPage = 20;
 
   const cargarDatos = useCallback(async () => {
     setLoading(true);
@@ -64,6 +69,10 @@ export default function PublicarPage() {
     URL.revokeObjectURL(url);
   };
 
+  const exportarExcel = async () => {
+    // TODO: Implementar exportación a Excel
+  };
+
   const exportarPDF = () => {
     if (!asignaciones.length) return;
     const doc = new jsPDF({ orientation: 'landscape' });
@@ -74,7 +83,7 @@ export default function PublicarPage() {
 
     const rows = asignaciones.map((a: any) => [
       DIAS_LABEL[a.dia] || a.dia,
-      a.slot_inicio || '',
+      `${a.hora_inicio?.slice(0,5) || ''} - ${a.hora_fin?.slice(0,5) || ''}`,
       a.curso_codigo,
       a.curso_nombre,
       a.grupo,
@@ -95,6 +104,90 @@ export default function PublicarPage() {
     doc.save(`horario-${prog?.nombre || progId}.pdf`);
   };
 
+  const agrupadas = useMemo(() => {
+    const dayOrder: Record<string, number> = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 };
+    
+    // 0. Filtrar según preferencias del usuario
+    const filtered = asignaciones.filter((a: any) => {
+      const matchTipo = !filtroTipo || a.tipo === filtroTipo;
+      const matchDocente = !filtroDocente || a.docente?.toLowerCase().includes(filtroDocente.toLowerCase());
+      const matchCurso = !filtroCurso || 
+        a.curso_codigo?.toLowerCase().includes(filtroCurso.toLowerCase()) || 
+        a.curso_nombre?.toLowerCase().includes(filtroCurso.toLowerCase());
+      return matchTipo && matchDocente && matchCurso;
+    });
+
+    // 1. Ordenamos agrupando por identidad de sesión primero para juntar los bloques contiguos
+    const sortedForGrouping = [...filtered].sort((a, b) => {
+      const dayA = dayOrder[a.dia] || 99;
+      const dayB = dayOrder[b.dia] || 99;
+      if (dayA !== dayB) return dayA - dayB;
+      
+      const cursoA = a.curso_codigo || '';
+      const cursoB = b.curso_codigo || '';
+      if (cursoA !== cursoB) return cursoA.localeCompare(cursoB);
+      
+      const grpA = a.grupo || '';
+      const grpB = b.grupo || '';
+      if (grpA !== grpB) return grpA.localeCompare(grpB);
+      
+      const tipoA = a.tipo || '';
+      const tipoB = b.tipo || '';
+      if (tipoA !== tipoB) return tipoA.localeCompare(tipoB);
+      
+      const docA = a.docente || '';
+      const docB = b.docente || '';
+      if (docA !== docB) return docA.localeCompare(docB);
+      
+      const aulaA = a.aula || '';
+      const aulaB = b.aula || '';
+      if (aulaA !== aulaB) return aulaA.localeCompare(aulaB);
+      
+      const timeA = a.hora_inicio || '';
+      const timeB = b.hora_inicio || '';
+      return timeA.localeCompare(timeB);
+    });
+
+    // 2. Agrupamos los bloques contiguos
+    const result: any[] = [];
+    for (const a of sortedForGrouping) {
+      if (result.length === 0) {
+        result.push({ ...a });
+        continue;
+      }
+      const last = result[result.length - 1];
+      const sameSession =
+        last.dia === a.dia &&
+        last.curso_codigo === a.curso_codigo &&
+        last.grupo === a.grupo &&
+        last.tipo === a.tipo &&
+        last.docente === a.docente &&
+        last.aula === a.aula;
+
+      if (sameSession && last.hora_fin === a.hora_inicio) {
+        last.hora_fin = a.hora_fin;
+      } else {
+        result.push({ ...a });
+      }
+    }
+
+    // 3. Finalmente ordenamos cronológicamente el resultado agrupado
+    return result.sort((a, b) => {
+      const dayA = dayOrder[a.dia] || 99;
+      const dayB = dayOrder[b.dia] || 99;
+      if (dayA !== dayB) return dayA - dayB;
+      
+      const timeA = a.hora_inicio || '';
+      const timeB = b.hora_inicio || '';
+      if (timeA !== timeB) return timeA.localeCompare(timeB);
+      
+      return (a.curso_codigo || '').localeCompare(b.curso_codigo || '');
+    });
+  }, [asignaciones, filtroTipo, filtroDocente, filtroCurso]);
+
+  const totalPages = Math.ceil(agrupadas.length / itemsPerPage);
+  const paginatedData = agrupadas.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando datos...</div>;
   if (!prog) return <div style={{ padding: '40px', textAlign: 'center' }}>Programación no encontrada</div>;
 
@@ -114,6 +207,9 @@ export default function PublicarPage() {
         <div style={{ display: 'flex', gap: '10px' }}>
           <button className="btn-secondary" onClick={exportarCSV} disabled={!asignaciones.length}>
             📥 Exportar CSV
+          </button>
+          <button className="btn-secondary" onClick={exportarExcel} disabled={!asignaciones.length}>
+            📊 Exportar Excel
           </button>
           <button className="btn-secondary" onClick={exportarPDF} disabled={!asignaciones.length}>
             📄 Exportar PDF
@@ -142,44 +238,87 @@ export default function PublicarPage() {
           </button>
         ) : (
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-            <a href="/horarios"><button className="btn-secondary">Ver Horarios</button></a>
+            <a href="/horarios"><button className="btn-secondary">Volver atrás</button></a>
+            <a href="/horarios?vista=programaciones"><button className="btn-secondary">Ver las fases</button></a>
             <a href="/reportes"><button className="btn-primary">Ir a Reportes</button></a>
           </div>
         )}
       </div>
 
-      {/* Tabla resumen */}
+      {/* Filtros de Vista Previa */}
       {asignaciones.length > 0 && (
-        <div className="card" style={{ overflowX: 'auto' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1e293b', margin: '0 0 16px' }}>
-            Vista Previa — {asignaciones.length} bloques
-          </h3>
+        <div className="card" style={{ marginBottom: '20px', padding: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontWeight: '600' }}>Filtrar por Tipo</label>
+              <select className="form-input" value={filtroTipo} onChange={e => { setFiltroTipo(e.target.value); setCurrentPage(1); }}>
+                <option value="">Todos los tipos</option>
+                <option value="teoria">Teoría</option>
+                <option value="practica">Práctica</option>
+                <option value="laboratorio">Laboratorio</option>
+                <option value="asesoria">Asesoría</option>
+              </select>
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontWeight: '600' }}>Filtrar por Docente</label>
+              <input type="text" className="form-input" placeholder="Nombre de docente..." value={filtroDocente} onChange={e => { setFiltroDocente(e.target.value); setCurrentPage(1); }} />
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontWeight: '600' }}>Filtrar por Curso</label>
+              <input type="text" className="form-input" placeholder="Código o nombre de curso..." value={filtroCurso} onChange={e => { setFiltroCurso(e.target.value); setCurrentPage(1); }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tabla resumen agrupada */}
+      {agrupadas.length > 0 ? (
+        <div className="card" style={{ overflowX: 'auto', padding: 0 }}>
+          <div style={{ padding: '20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1e293b', margin: 0 }}>
+              Vista Previa — {agrupadas.length} bloques asignados ({asignaciones.length} horas)
+            </h3>
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '13px', color: '#64748b' }}>Página {currentPage} de {totalPages}</span>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button className="btn-secondary" style={{ padding: '6px 10px' }} onClick={() => setCurrentPage(c => Math.max(1, c - 1))} disabled={currentPage === 1}>Anterior</button>
+                  <button className="btn-secondary" style={{ padding: '6px 10px' }} onClick={() => setCurrentPage(c => Math.min(totalPages, c + 1))} disabled={currentPage === totalPages}>Siguiente</button>
+                </div>
+              </div>
+            )}
+          </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
-              <tr style={{ background: '#f1f5f9' }}>
-                {['Día', 'Curso', 'Nombre', 'Grupo', 'Tipo', 'Docente', 'Aula'].map(h => (
-                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: '600', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
+              <tr style={{ background: '#f8fafc' }}>
+                {['Día', 'Hora', 'Curso', 'Nombre', 'Grupo', 'Tipo', 'Docente', 'Aula'].map(h => (
+                  <th key={h} style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {asignaciones.map((a: any, i: number) => (
+              {paginatedData.map((a: any, i: number) => (
                 <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '7px 12px', color: '#334155' }}>{DIAS_LABEL[a.dia] || a.dia}</td>
-                  <td style={{ padding: '7px 12px' }}><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{a.curso_codigo}</code></td>
-                  <td style={{ padding: '7px 12px', color: '#475569' }}>{a.curso_nombre}</td>
-                  <td style={{ padding: '7px 12px', color: '#64748b' }}>{a.grupo}</td>
-                  <td style={{ padding: '7px 12px' }}>
-                    <span style={{ background: a.tipo === 'teoria' ? '#dbeafe' : a.tipo === 'practica' ? '#d1fae5' : '#fef3c7', color: a.tipo === 'teoria' ? '#1d4ed8' : a.tipo === 'practica' ? '#065f46' : '#92400e', padding: '2px 8px', borderRadius: '999px', fontSize: '11px' }}>
+                  <td style={{ padding: '10px 12px', color: '#334155', fontWeight: '500' }}>{DIAS_LABEL[a.dia] || a.dia}</td>
+                  <td style={{ padding: '10px 12px', color: '#0f172a', fontWeight: '600' }}>{a.hora_inicio?.slice(0,5) || ''} - {a.hora_fin?.slice(0,5) || ''}</td>
+                  <td style={{ padding: '10px 12px' }}><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{a.curso_codigo}</code></td>
+                  <td style={{ padding: '10px 12px', color: '#475569', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={a.curso_nombre}>{a.curso_nombre}</td>
+                  <td style={{ padding: '10px 12px', color: '#64748b' }}>{a.grupo}</td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <span style={{ background: a.tipo === 'teoria' ? '#dbeafe' : a.tipo === 'practica' ? '#d1fae5' : '#fef3c7', color: a.tipo === 'teoria' ? '#1d4ed8' : a.tipo === 'practica' ? '#065f46' : '#92400e', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600' }}>
                       {a.tipo}
                     </span>
                   </td>
-                  <td style={{ padding: '7px 12px', color: '#475569' }}>{a.docente}</td>
-                  <td style={{ padding: '7px 12px' }}><code style={{ background: '#fef3c7', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{a.aula}</code></td>
+                  <td style={{ padding: '10px 12px', color: '#475569' }}>{a.docente}</td>
+                  <td style={{ padding: '10px 12px' }}><code style={{ background: '#fef3c7', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{a.aula}</code></td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      ) : (
+        <div className="card" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+          No se encontraron asignaciones con los filtros seleccionados.
         </div>
       )}
     </div>

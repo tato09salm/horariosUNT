@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       p.*,
       c.nombre as ciclo_nombre, c.año, c.semestre,
       u.nombre || ' ' || u.apellidos as creador_nombre,
-      (SELECT COUNT(*) FROM programacion_cursos pc WHERE pc.programacion_id = p.id) as total_cursos,
+      (SELECT COUNT(DISTINCT pc.curso_id) FROM programacion_cursos pc WHERE pc.programacion_id = p.id) as total_cursos,
       (SELECT COUNT(DISTINCT pc.docente_id) FROM programacion_cursos pc WHERE pc.programacion_id = p.id AND pc.docente_id IS NOT NULL) as total_docentes
     FROM programaciones p
     JOIN ciclos c ON c.id = p.ciclo_id

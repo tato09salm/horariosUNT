@@ -117,6 +117,29 @@ export default function DashboardPage() {
         margin:{left:14,right:14},
       });
 
+      // Capture charts with html2canvas
+      try {
+        const html2canvas = (await import('html2canvas')).default;
+        const chartDensidad = document.getElementById('chart-densidad');
+        const chartCategoria = document.getElementById('chart-categoria');
+        
+        if (chartDensidad && chartCategoria) {
+          doc.addPage();
+          doc.setFontSize(14); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
+          doc.text('GRÁFICOS ESTADÍSTICOS', 14, 20);
+          
+          const canvas1 = await html2canvas(chartDensidad, { scale: 2 });
+          const img1 = canvas1.toDataURL('image/png');
+          doc.addImage(img1, 'PNG', 14, 30, 180, Math.min(100, (canvas1.height * 180) / canvas1.width));
+          
+          const canvas2 = await html2canvas(chartCategoria, { scale: 2 });
+          const img2 = canvas2.toDataURL('image/png');
+          doc.addImage(img2, 'PNG', 14, 140, 180, Math.min(100, (canvas2.height * 180) / canvas2.width));
+        }
+      } catch (err) {
+        console.warn('Could not export charts:', err);
+      }
+
       doc.save(`reporte-gestion-${ciclo?.nombre||'unt'}.pdf`);
     } catch (e) {
       console.error(e);
@@ -330,7 +353,7 @@ export default function DashboardPage() {
       {/* Charts Row 1 */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(400px, 1fr))',gap:'24px',marginBottom:'24px'}}>
         {/* Distribución por día */}
-        <div className="card" style={{padding:'24px', border:'1px solid #e2e8f0', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.05)'}}>
+        <div id="chart-densidad" className="card" style={{padding:'24px', border:'1px solid #e2e8f0', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.05)', backgroundColor:'white'}}>
           <h3 style={{fontSize:'16px',fontWeight:'600',color:'#1e293b',margin:'0 0 20px', display:'flex', alignItems:'center', gap:'8px'}}>
             <span style={{background:'#eff6ff', padding:'6px', borderRadius:'8px', color:'#3b82f6'}}>📅</span> Densidad de Clases por Día
           </h3>
@@ -357,7 +380,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Horas por categoría */}
-        <div className="card" style={{padding:'24px', border:'1px solid #e2e8f0', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.05)'}}>
+        <div id="chart-categoria" className="card" style={{padding:'24px', border:'1px solid #e2e8f0', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.05)', backgroundColor:'white'}}>
           <h3 style={{fontSize:'16px',fontWeight:'600',color:'#1e293b',margin:'0 0 20px', display:'flex', alignItems:'center', gap:'8px'}}>
             <span style={{background:'#f5f3ff', padding:'6px', borderRadius:'8px', color:'#8b5cf6'}}>👥</span> Participación por Categoría Docente
           </h3>
