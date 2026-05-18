@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useUser } from '@/app/(app)/layout';
+import GrillaHorarios from '@/components/horarios/GrillaHorarios';
+import { BotonExportarExcel } from '@/components/exportar/BotonExportarExcel';
 
 const DIAS = ['lunes','martes','miercoles','jueves','viernes','sabado'];
 const DIAS_LABEL: Record<string,string> = {lunes:'Lunes',martes:'Martes',miercoles:'Miérc.',jueves:'Jueves',viernes:'Viernes',sabado:'Sábado'};
@@ -30,8 +32,6 @@ export default function HorariosPage() {
   const [ambientes, setAmbientes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [vista, setVista] = useState<'programaciones'|'horario'|'mi-horario'>('programaciones');
-  const [filtroDocente, setFiltroDocente] = useState('');
-  const [filtroAmbiente, setFiltroAmbiente] = useState('');
   const [msg, setMsg] = useState<any>(null);
   const [showCrear, setShowCrear] = useState(false);
   const [creando, setCreando] = useState(false);
@@ -84,11 +84,8 @@ export default function HorariosPage() {
   // Cargar asignaciones para vista de horario publicado
   const cargarHorario = useCallback(() => {
     if (!cicloId) return;
-    const q = new URLSearchParams({ ciclo_id: cicloId });
-    if (filtroDocente) q.set('docente_id', filtroDocente);
-    if (filtroAmbiente) q.set('ambiente_id', filtroAmbiente);
-    fetch(`/api/horarios?${q}`).then(r => r.json()).then(d => setAsignaciones(d.data || []));
-  }, [cicloId, filtroDocente, filtroAmbiente]);
+    fetch(`/api/horarios?ciclo_id=${cicloId}`).then(r => r.json()).then(d => setAsignaciones(d.data || []));
+  }, [cicloId]);
 
   useEffect(() => { if (vista === 'horario') cargarHorario(); }, [vista, cargarHorario]);
 
@@ -210,24 +207,6 @@ export default function HorariosPage() {
               {ciclos.map(c => <option key={c.id} value={c.id}>{c.nombre} {c.activo ? '(Activo)' : ''}</option>)}
             </select>
           </div>
-          {vista === 'horario' && (
-            <>
-              <div className="form-group" style={{margin:0,flex:1}}>
-                <label className="form-label">Filtrar docente</label>
-                <select className="form-input" value={filtroDocente} onChange={e => setFiltroDocente(e.target.value)}>
-                  <option value="">Todos los docentes</option>
-                  {docentes.map(d => <option key={d.id} value={d.id}>{d.apellidos}, {d.nombre}</option>)}
-                </select>
-              </div>
-              <div className="form-group" style={{margin:0,flex:1}}>
-                <label className="form-label">Filtrar ambiente</label>
-                <select className="form-input" value={filtroAmbiente} onChange={e => setFiltroAmbiente(e.target.value)}>
-                  <option value="">Todos los ambientes</option>
-                  {ambientes.map(a => <option key={a.id} value={a.id}>{a.codigo} - {a.nombre}</option>)}
-                </select>
-              </div>
-            </>
-          )}
         </div>
       </div>
 
@@ -313,12 +292,15 @@ export default function HorariosPage() {
                       </div>
 
                       {/* Acciones */}
-                      <div style={{display:'flex',gap:'10px',justifyContent:'flex-end'}}>
+                      <div style={{display:'flex',gap:'10px',alignItems:'center',justifyContent:'flex-end'}}>
                         {prog.estado !== 'publicado' && prog.estado !== 'cancelado' && isAdminOrSec && (
                           <button className="btn-danger" style={{padding:'6px 14px',fontSize:'13px'}} onClick={() => setShowDeleteModal(prog.id)}>
                             Cancelar
                           </button>
                         )}
+                        
+                        <BotonExportarExcel programacionId={prog.id} variant="icon" />
+
                         <a href={isDocente ? `/horarios/${prog.id}/disponibilidad` : getFaseUrl(prog)} style={{textDecoration:'none'}}>
                           <button className="btn-primary" style={{padding:'6px 14px',fontSize:'13px'}}>
                             {isDocente ? 'Marcar Disponibilidad' : (prog.estado === 'publicado' ? 'Ver horario' : `Continuar Fase ${prog.fase}`)} →
@@ -334,35 +316,8 @@ export default function HorariosPage() {
         </div>
       )}
 
-      {/* ===== VISTA: HORARIO PUBLICADO (grid) ===== */}
       {vista === 'horario' && (
-        <div className="card" style={{padding:'16px',overflowX:'auto'}}>
-          <div className="horario-grid" style={{minWidth:'900px'}}>
-            <div className="horario-header">Hora</div>
-            {DIAS.map(d => <div key={d} className="horario-header">{DIAS_LABEL[d]}</div>)}
-            {slots.map((slot: any) => (
-              <div key={slot.id} style={{display:'contents'}}>
-                <div className="horario-time">{slot.hora_inicio}<br/>{slot.hora_fin}</div>
-                {DIAS.map(dia => {
-                  const cells = getCell(dia, slot.id);
-                  return (
-                    <div key={`${dia}-${slot.id}`} className="horario-cell">
-                      {cells.map(c => (
-                        <div key={c.id} className={`block-${c.tipo}`} style={{marginBottom:'2px',cursor:'pointer'}} title={`${c.curso_nombre}\n${c.docente_nombre}\n${c.ambiente_nombre}`}>
-                          <div style={{fontWeight:'600',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.curso_codigo}</div>
-                          <div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.ambiente_codigo}</div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-          {asignaciones.length === 0 && (
-            <p style={{textAlign:'center',padding:'40px',color:'#94a3b8',fontSize:'14px'}}>No hay asignaciones publicadas para este ciclo. Completa el flujo de programación primero.</p>
-          )}
-        </div>
+        <GrillaHorarios asignaciones={asignaciones} slots={slots} />
       )}
 
       {/* ===== VISTA: MI HORARIO (solo docentes) ===== */}

@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   let sql = `
     SELECT 
       a.*,
-      c.nombre as curso_nombre, c.codigo as curso_codigo,
+      c.nombre as curso_nombre, c.codigo as curso_codigo, c.ciclo_plan,
       c.horas_teoria, c.horas_practica,
       d.nombre || ' ' || d.apellidos as docente_nombre,
       d.categoria as docente_categoria, d.condicion as docente_condicion,

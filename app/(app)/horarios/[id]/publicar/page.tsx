@@ -70,18 +70,31 @@ export default function PublicarPage() {
   };
 
   const exportarExcel = async () => {
-    // TODO: Implementar exportación a Excel
+    try {
+      const response = await fetch(
+        `/api/horarios/programaciones/${progId}/exportar`
+      );
+      if (!response.ok) {
+        throw new Error('Error al obtener datos');
+      }
+      const resData = await response.json();
+      const { exportarHorariosExcel } = await import('@/lib/exportar/excel-horarios');
+      await exportarHorariosExcel(resData);
+    } catch (err: any) {
+      alert(err.message || 'Error al generar el Excel');
+      console.error(err);
+    }
   };
 
   const exportarPDF = () => {
-    if (!asignaciones.length) return;
+    if (!agrupadas.length) return;
     const doc = new jsPDF({ orientation: 'landscape' });
     doc.setFontSize(16);
     doc.text(`Horario: ${prog?.nombre || ''}`, 14, 15);
     doc.setFontSize(10);
     doc.text(`Generado: ${new Date().toLocaleDateString('es-PE')}`, 14, 22);
 
-    const rows = asignaciones.map((a: any) => [
+    const rows = agrupadas.map((a: any) => [
       DIAS_LABEL[a.dia] || a.dia,
       `${a.hora_inicio?.slice(0,5) || ''} - ${a.hora_fin?.slice(0,5) || ''}`,
       a.curso_codigo,
@@ -239,7 +252,7 @@ export default function PublicarPage() {
         ) : (
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
             <a href="/horarios"><button className="btn-secondary">Volver atrás</button></a>
-            <a href="/horarios?vista=programaciones"><button className="btn-secondary">Ver las fases</button></a>
+            <a href="/horarios"><button className="btn-secondary">Ver horario general</button></a>
             <a href="/reportes"><button className="btn-primary">Ir a Reportes</button></a>
           </div>
         )}
