@@ -18,8 +18,7 @@ class ProgramacionCursos extends Sequelize.Model {
       references: {
         model: 'programaciones',
         key: 'id'
-      },
-      unique: "programacion_cursos_programacion_id_grupo_id_uk"
+      }
     },
     curso_id: {
       type: DataTypes.UUID,
@@ -35,8 +34,7 @@ class ProgramacionCursos extends Sequelize.Model {
       references: {
         model: 'grupos',
         key: 'id'
-      },
-      unique: "programacion_cursos_programacion_id_grupo_id_uk"
+      }
     },
     docente_id: {
       type: DataTypes.UUID,
@@ -94,11 +92,12 @@ class ProgramacionCursos extends Sequelize.Model {
         ]
       },
       {
-        name: "programacion_cursos_programacion_id_grupo_id_uk",
+        name: "programacion_cursos_prog_grupo_docente_uk",
         unique: true,
         fields: [
           { name: "programacion_id" },
           { name: "grupo_id" },
+          { name: "docente_id" },
         ]
       },
     ]
