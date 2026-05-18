@@ -32,7 +32,8 @@
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",
     "sequelize": "^6.37.8",
-    "sequelize-auto": "^0.8.8"
+    "sequelize-auto": "^0.8.8",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
