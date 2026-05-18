@@ -24,6 +24,9 @@ export async function GET(req: NextRequest) {
     totalCursos,
     totalAmbientes,
     totalAsignaciones,
+    globalDoc,
+    globalCur,
+    globalAmb,
     horasPorCategoria,
     ocupacionAmbientes,
     cargaDocentes,
@@ -31,10 +34,14 @@ export async function GET(req: NextRequest) {
     ciclos,
     slots,
   ] = await Promise.all([
+    cid ? queryOne<{count:string}>(`SELECT COUNT(DISTINCT docente_id) as count FROM asignaciones WHERE ciclo_id = $1 AND estado = 'activo'`, [cid]) : Promise.resolve({count:'0'}),
+    cid ? queryOne<{count:string}>(`SELECT COUNT(DISTINCT curso_id) as count FROM grupos WHERE ciclo_id = $1`, [cid]) : Promise.resolve({count:'0'}),
+    cid ? queryOne<{count:string}>(`SELECT COUNT(DISTINCT ambiente_id) as count FROM asignaciones WHERE ciclo_id = $1 AND estado = 'activo'`, [cid]) : Promise.resolve({count:'0'}),
+    cid ? queryOne<{count:string}>(`SELECT COUNT(*) as count FROM asignaciones WHERE ciclo_id = $1 AND estado = 'activo'`, [cid]) : Promise.resolve({count:'0'}),
+
     queryOne<{count:string}>(`SELECT COUNT(*) as count FROM docentes WHERE activo = true`),
     queryOne<{count:string}>(`SELECT COUNT(*) as count FROM cursos WHERE activo = true`),
     queryOne<{count:string}>(`SELECT COUNT(*) as count FROM ambientes WHERE disponible = true`),
-    cid ? queryOne<{count:string}>(`SELECT COUNT(*) as count FROM asignaciones WHERE ciclo_id = $1 AND estado = 'activo'`, [cid]) : Promise.resolve({count:'0'}),
 
     // Horas asignadas por categoría de docente
     cid ? query(`
@@ -97,6 +104,9 @@ export async function GET(req: NextRequest) {
       totalCursos: parseInt(totalCursos?.count || '0'),
       totalAmbientes: parseInt(totalAmbientes?.count || '0'),
       totalAsignaciones: parseInt((totalAsignaciones as any)?.count || '0'),
+      globalDocentes: parseInt((globalDoc as any)?.count || '0'),
+      globalCursos: parseInt((globalCur as any)?.count || '0'),
+      globalAmbientes: parseInt((globalAmb as any)?.count || '0'),
     },
     horasPorCategoria,
     ocupacionAmbientes,
