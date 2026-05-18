@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     slots,
   ] = await Promise.all([
     cid ? queryOne<{count:string}>(`SELECT COUNT(DISTINCT docente_id) as count FROM asignaciones WHERE ciclo_id = $1 AND estado = 'activo'`, [cid]) : Promise.resolve({count:'0'}),
-    cid ? queryOne<{count:string}>(`SELECT COUNT(DISTINCT curso_id) as count FROM grupos WHERE ciclo_id = $1`, [cid]) : Promise.resolve({count:'0'}),
+    cid ? queryOne<{count:string}>(`SELECT COUNT(DISTINCT g.curso_id) as count FROM grupos g JOIN programaciones p ON p.id = g.programacion_id WHERE p.ciclo_id = $1`, [cid]) : Promise.resolve({count:'0'}),
     cid ? queryOne<{count:string}>(`SELECT COUNT(DISTINCT ambiente_id) as count FROM asignaciones WHERE ciclo_id = $1 AND estado = 'activo'`, [cid]) : Promise.resolve({count:'0'}),
     cid ? queryOne<{count:string}>(`SELECT COUNT(*) as count FROM asignaciones WHERE ciclo_id = $1 AND estado = 'activo'`, [cid]) : Promise.resolve({count:'0'}),
 
