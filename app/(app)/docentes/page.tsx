@@ -44,6 +44,7 @@ export default function DocentesPage() {
     if (filtroCondicion) q.set('condicion', filtroCondicion);
     q.set('page', pagina.toString());
     q.set('limit', limit.toString());
+    q.set('verificarUsuarios', 'true'); // Activar verificación automática
     fetch(`/api/docentes?${q}`).then(r => r.json()).then(d => {
       setDocentes(d.data || []);
       setTotal(d.total || 0);
