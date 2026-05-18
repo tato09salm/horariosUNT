@@ -127,12 +127,39 @@ export default function DashboardPage() {
           doc.addPage();
           doc.setFontSize(14); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
           doc.text('GRÁFICOS ESTADÍSTICOS', 14, 20);
+
+          const captureFixedElement = async (el: HTMLElement) => {
+            const clone = el.cloneNode(true) as HTMLElement;
+            clone.style.position = 'fixed';
+            clone.style.left = '-9999px';
+            clone.style.top = '0';
+            clone.style.width = '680px';
+            clone.style.height = '340px';
+            clone.style.background = '#ffffff';
+            clone.style.padding = '20px';
+            clone.style.borderRadius = '0';
+            clone.style.boxShadow = 'none';
+            document.body.appendChild(clone);
+
+            // Wait for SVG render
+            await new Promise(resolve => setTimeout(resolve, 250));
+
+            const canvas = await html2canvas(clone, {
+              scale: 2,
+              useCORS: true,
+              logging: false,
+              backgroundColor: '#ffffff'
+            });
+
+            document.body.removeChild(clone);
+            return canvas;
+          };
           
-          const canvas1 = await html2canvas(chartDensidad, { scale: 2 });
+          const canvas1 = await captureFixedElement(chartDensidad);
           const img1 = canvas1.toDataURL('image/png');
           doc.addImage(img1, 'PNG', 14, 30, 180, Math.min(100, (canvas1.height * 180) / canvas1.width));
           
-          const canvas2 = await html2canvas(chartCategoria, { scale: 2 });
+          const canvas2 = await captureFixedElement(chartCategoria);
           const img2 = canvas2.toDataURL('image/png');
           doc.addImage(img2, 'PNG', 14, 140, 180, Math.min(100, (canvas2.height * 180) / canvas2.width));
         }

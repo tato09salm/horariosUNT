@@ -54,32 +54,108 @@ export default function ReportesPage() {
   async function exportarPDF() {
     const { default: jsPDF } = await import('jspdf');
     const autoTable = (await import('jspdf-autotable')).default;
+    const { generarMapaColores, obtenerColorCurso } = await import('@/lib/colores-curso');
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const ciclo = ciclos.find(c=>c.id===cicloId);
+    const nombreCiclo = ciclo?.nombre || '';
 
-    // Encabezado Formal
-    doc.setFontSize(16);
-    doc.setTextColor(30, 41, 59); // Slate 800
-    doc.text('UNIVERSIDAD NACIONAL DE TRUJILLO', 148.5, 20, { align: 'center' });
-    
-    doc.setFontSize(12);
-    doc.text('Facultad de Ingeniería - Escuela de Ingeniería de Sistemas', 148.5, 28, { align: 'center' });
-    
-    doc.setDrawColor(226, 232, 240); // Slate 200
-    doc.line(14, 35, 283, 35);
-    
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${tipoReporte==='gestion'?'REPORTE DE GESTIÓN':'REPORTE OPERACIONAL'} — ${ciclo?.nombre||''}`, 14, 45);
-    
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 116, 139); // Slate 500
-    doc.text(`Fecha de emisión: ${new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' })}`, 14, 52);
+    function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : null;
+    }
+
+    interface BloqueAgrupado {
+      curso_codigo: string;
+      curso_nombre: string;
+      grupo: string;
+      aula: string;
+      docente_nombre: string;
+      tipo_sesion: string;
+      dia: string;
+      hora_inicio: string;
+      hora_fin: string;
+      duracion_horas: number;
+      ciclo: number;
+    }
+
+    function agruparBloquesContiguos(asigList: any[]): BloqueAgrupado[] {
+      const ordenDias = (dia: string): number => {
+        const orden = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+        return orden.indexOf(dia.toLowerCase());
+      };
+
+      const ordenadas = [...asigList].sort((a, b) => {
+        if (a.dia !== b.dia) return ordenDias(a.dia) - ordenDias(b.dia);
+        return a.hora_inicio.localeCompare(b.hora_inicio);
+      });
+      
+      const bloques: BloqueAgrupado[] = [];
+      let bloqueActual: BloqueAgrupado | null = null;
+      
+      for (const asig of ordenadas) {
+        const currentCycle = asig.ciclo_plan || asig.ciclo || 0;
+        const isContinuation = bloqueActual && 
+          bloqueActual.dia === asig.dia &&
+          bloqueActual.curso_codigo === asig.curso_codigo &&
+          bloqueActual.grupo === `G${asig.numero_grupo || asig.grupo}` &&
+          bloqueActual.aula === (asig.ambiente_codigo || asig.aula || asig.ambiente_nombre) &&
+          bloqueActual.docente_nombre === asig.docente_nombre &&
+          bloqueActual.tipo_sesion === asig.tipo &&
+          bloqueActual.hora_fin === asig.hora_inicio;
+
+        if (isContinuation && bloqueActual) {
+          bloqueActual.hora_fin = asig.hora_fin;
+          bloqueActual.duracion_horas += 1;
+        } else {
+          if (bloqueActual) bloques.push(bloqueActual);
+          
+          bloqueActual = {
+            curso_codigo: asig.curso_codigo || '',
+            curso_nombre: asig.curso_nombre || '',
+            grupo: `G${asig.numero_grupo || asig.grupo || ''}`,
+            aula: asig.ambiente_codigo || asig.aula || asig.ambiente_nombre || '',
+            docente_nombre: asig.docente_nombre || '',
+            tipo_sesion: asig.tipo || '',
+            dia: asig.dia,
+            hora_inicio: asig.hora_inicio,
+            hora_fin: asig.hora_fin,
+            duracion_horas: 1,
+            ciclo: currentCycle
+          };
+        }
+      }
+      
+      if (bloqueActual) bloques.push(bloqueActual);
+      return bloques;
+    }
 
     let y = 62;
 
     if (tipoReporte === 'gestion') {
+      // Encabezado Formal
+      doc.setFontSize(16);
+      doc.setTextColor(30, 41, 59); // Slate 800
+      doc.text('UNIVERSIDAD NACIONAL DE TRUJILLO', 148.5, 20, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.text('Facultad de Ingeniería - Escuela de Ingeniería de Sistemas', 148.5, 28, { align: 'center' });
+      
+      doc.setDrawColor(226, 232, 240); // Slate 200
+      doc.line(14, 35, 283, 35);
+      
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`REPORTE DE GESTIÓN — ${ciclo?.nombre||''}`, 14, 45);
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139); // Slate 500
+      doc.text(`Fecha de emisión: ${new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' })}`, 14, 52);
+
       // Estadísticas
       doc.setFontSize(12); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
       doc.text('RESUMEN EJECUTIVO', 14, y); y += 6;
@@ -108,7 +184,7 @@ export default function ReportesPage() {
         startY: y,
         head:[['Docente','Categoría','Condición','Horas Asignadas','Horas Máx.','% Carga']],
         body: dashData?.cargaDocentes?.map((d:any)=>[
-          d.nombre, d.categoria.replace('_',' '), d.condicion,
+          d.nombre, d.categoria.replace('_',' ').toUpperCase(), d.condicion,
           `${d.horas_asignadas}h`, `${d.horas_max_semana}h`, `${d.porcentaje_carga||0}%`
         ])||[],
         theme:'striped', 
@@ -120,13 +196,14 @@ export default function ReportesPage() {
       y = (doc as any).lastAutoTable.finalY + 10;
 
       // Ocupación ambientes
+      if (y > 160) { doc.addPage(); y = 20; }
       doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
       doc.text('OCUPACIÓN DE AMBIENTES', 14, y); y += 6;
       autoTable(doc, {
         startY: y,
         head:[['Ambiente','Tipo','Horas Usadas','% Ocupación']],
         body: dashData?.ocupacionAmbientes?.map((a:any)=>[
-          a.nombre, a.tipo, `${a.horas_usadas}h`, `${a.porcentaje}%`
+          a.nombre, a.tipo.toUpperCase(), `${a.horas_usadas}h`, `${a.porcentaje}%`
         ])||[],
         theme:'striped',
         headStyles:{fillColor:[30, 41, 59], textColor:[255, 255, 255], fontStyle:'bold', halign:'center'},
@@ -135,7 +212,7 @@ export default function ReportesPage() {
         margin:{left:14,right:14},
       });
     } else {
-      // Reporte operacional
+      // Reporte operacional semanal agrupado y pintado
       const docGrp: Record<string,any[]> = {};
       asignaciones.forEach(a => {
         const k = tipoReporte==='docente' ? a.docente_nombre : a.ambiente_nombre;
@@ -143,72 +220,225 @@ export default function ReportesPage() {
         docGrp[k].push(a);
       });
 
-      Object.entries(docGrp).forEach(([titulo, rows]) => {
-        if (y > 160) { doc.addPage(); y = 20; }
-        doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
-        doc.text(titulo, 14, y); y += 6;
-        autoTable(doc, {
-          startY: y,
-          head:[['Día','Hora Inicio','Hora Fin','Curso','Ambiente/Docente','Tipo','Grupo']],
-          body: rows.sort((a,b)=>DIAS.indexOf(a.dia)-DIAS.indexOf(b.dia)).map(r=>[
-            DIAS_L[r.dia]||r.dia, r.hora_inicio, r.hora_fin, r.curso_nombre,
-            tipoReporte==='docente' ? r.ambiente_nombre : r.docente_nombre,
-            r.tipo, `G${r.numero_grupo}`
-          ]),
-          theme:'striped', 
-          headStyles:{fillColor:[30, 41, 59], textColor:[255, 255, 255], fontStyle:'bold', halign:'center'},
-          bodyStyles:{textColor:[51, 65, 85], fontSize:8},
-          columnStyles: { 0:{halign:'center'}, 1:{halign:'center'}, 2:{halign:'center'}, 5:{halign:'center'}, 6:{halign:'center'} },
-          margin:{left:14,right:14},
+      const items = Object.entries(docGrp);
+      items.forEach(([tituloGrp, grpAsignaciones], idxPage) => {
+        if (idxPage > 0) doc.addPage();
+
+        // Encabezado institucional de la página
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text('UNIVERSIDAD NACIONAL DE TRUJILLO', 14, 15);
+        
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(71, 85, 105);
+        doc.text('Facultad de Ingeniería - Escuela de Ingeniería de Sistemas', 14, 20);
+
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        const subTitle = tipoReporte === 'docente' 
+          ? `HORARIO SEMANAL DEL DOCENTE: ${tituloGrp.toUpperCase()}`
+          : `HORARIO SEMANAL DEL AMBIENTE: ${tituloGrp.toUpperCase()}`;
+        doc.text(`${subTitle} — ${nombreCiclo}`, 14, 26);
+
+        doc.setDrawColor(226, 232, 240);
+        doc.line(14, 29, 283, 29);
+
+        // Agrupar bloques contiguos
+        const bloquesAgrupados = agruparBloquesContiguos(grpAsignaciones);
+        
+        // Generar mapa de colores
+        const mapaColores = generarMapaColores(grpAsignaciones);
+
+        // Columnas y filas
+        const diasSem = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        const headersTable = ['Hora', ...diasSem];
+
+        const sortedSlots = [...slots].sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio));
+        
+        const rowsTable = sortedSlots.map(slot => {
+          const horaIni = slot.hora_inicio.substring(0, 5);
+          const horaFin = slot.hora_fin.substring(0, 5);
+          const timeLabel = `${horaIni}\n${horaFin}`;
+          const fila: any[] = [timeLabel];
+
+          const isLunch = slot.hora_inicio.startsWith('13:00');
+          if (isLunch) {
+            diasSem.forEach(() => fila.push('HORA LIBRE (REFRIGERIO)'));
+          } else {
+            diasSem.forEach(d => {
+              const bloquesEnCelda = bloquesAgrupados.filter(b => 
+                b.dia.toLowerCase() === d.toLowerCase() &&
+                b.hora_inicio <= slot.hora_inicio &&
+                b.hora_fin > slot.hora_inicio
+              );
+
+              if (bloquesEnCelda.length === 0) {
+                fila.push('');
+              } else {
+                const cellText = bloquesEnCelda.map(b => {
+                  const typeLabel = b.tipo_sesion === 'asesoria' ? '[C]' : `[${b.tipo_sesion[0].toUpperCase()}]`;
+                  const det = tipoReporte === 'docente' ? b.aula : b.docente_nombre;
+                  return `${b.curso_nombre}\n${b.curso_codigo} ${typeLabel} - ${b.grupo}\n${det}\n(${b.hora_inicio.substring(0,5)} - ${b.hora_fin.substring(0,5)})`;
+                }).join('\n---\n');
+                fila.push(cellText);
+              }
+            });
+          }
+
+          return fila;
         });
-        y = (doc as any).lastAutoTable.finalY + 12;
+
+        // Renderizar autoTable
+        autoTable(doc, {
+          head: [headersTable],
+          body: rowsTable,
+          startY: 33,
+          theme: 'grid',
+          styles: {
+            fontSize: 7,
+            cellPadding: 2.5,
+            overflow: 'linebreak',
+            valign: 'middle',
+            halign: 'left',
+            textColor: [51, 65, 85]
+          },
+          headStyles: {
+            fillColor: [30, 41, 59],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            halign: 'center',
+            fontSize: 8
+          },
+          columnStyles: {
+            0: {
+              cellWidth: 20,
+              halign: 'center',
+              fontStyle: 'bold',
+              fillColor: [248, 250, 252]
+            }
+          },
+          didParseCell: (data) => {
+            if (data.section === 'body') {
+              const textContent = String(data.cell.raw);
+              if (textContent === 'HORA LIBRE (REFRIGERIO)') {
+                data.cell.styles.fillColor = [241, 245, 249];
+                data.cell.styles.textColor = [100, 116, 139];
+                data.cell.styles.fontStyle = 'italic';
+                data.cell.styles.halign = 'center';
+                return;
+              }
+
+              if (data.column.index > 0) {
+                const slot = sortedSlots[data.row.index];
+                if (!slot) return;
+                const dia = diasSem[data.column.index - 1];
+
+                const bloque = bloquesAgrupados.find(b => 
+                  b.dia.toLowerCase() === dia.toLowerCase() &&
+                  b.hora_inicio <= slot.hora_inicio &&
+                  b.hora_fin > slot.hora_inicio
+                );
+
+                if (bloque) {
+                  if (bloque.tipo_sesion === 'asesoria') {
+                    data.cell.styles.fillColor = [229, 231, 235]; // Gris neutro
+                    data.cell.styles.lineColor = [107, 114, 128];
+                    data.cell.styles.lineWidth = 0.4;
+                  } else {
+                    const color = obtenerColorCurso(mapaColores, bloque.ciclo, bloque.curso_codigo, bloque.tipo_sesion);
+                    const rgb = hexToRgb(color.bg);
+                    if (rgb) {
+                      data.cell.styles.fillColor = [rgb.r, rgb.g, rgb.b];
+                    }
+                    const borderRgb = hexToRgb(color.border);
+                    if (borderRgb) {
+                      data.cell.styles.lineColor = [borderRgb.r, borderRgb.g, borderRgb.b];
+                      data.cell.styles.lineWidth = 0.5;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        // Leyenda de cursos de la página al final
+        const finalY = (doc as any).lastAutoTable.finalY + 8;
+        if (finalY < 185) {
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(30, 41, 59);
+          doc.text('Leyenda - Cursos representados', 14, finalY);
+
+          doc.setFontSize(7.5);
+          doc.setFont('helvetica', 'normal');
+
+          const cursosUnicos = Array.from(new Map(grpAsignaciones.filter(a => a.tipo !== 'asesoria' && a.curso_codigo).map(a => [a.curso_codigo, a])).values());
+          let yPos = finalY + 5;
+          let xPos = 14;
+
+          cursosUnicos.forEach((curso) => {
+            const color = obtenerColorCurso(mapaColores, curso.ciclo_plan || curso.ciclo, curso.curso_codigo);
+            const rgb = hexToRgb(color.bg);
+            
+            if (rgb) {
+              doc.setFillColor(rgb.r, rgb.g, rgb.b);
+              doc.setDrawColor(hexToRgb(color.border)?.r || 100, hexToRgb(color.border)?.g || 100, hexToRgb(color.border)?.b || 100);
+              doc.rect(xPos, yPos - 3, 5, 4, 'FD');
+              
+              doc.setTextColor(51, 65, 85);
+              const labelText = `${curso.curso_nombre} (${curso.curso_codigo})`;
+              doc.text(labelText, xPos + 7, yPos);
+            }
+            
+            yPos += 5;
+            if (yPos > 200) {
+              yPos = finalY + 5;
+              xPos += 80;
+            }
+          });
+        }
       });
     }
-
     const nombre = tipoReporte==='gestion' ? 'reporte-gestion' : tipoReporte==='docente' ? 'horario-docente' : 'reporte-operacional';
     doc.save(`${nombre}-${ciclo?.nombre||'unt'}.pdf`);
   }
 
   async function exportarExcel() {
-    const { utils, writeFile } = await import('xlsx');
-    const ciclo = ciclos.find(c=>c.id===cicloId);
-    let wb = utils.book_new();
-    
-    if (tipoReporte === 'gestion') {
-      const stats = [
-        ['Indicador', 'Valor'],
-        ['Docentes activos', dashData?.stats?.totalDocentes],
-        ['Cursos activos', dashData?.stats?.totalCursos],
-        ['Ambientes disponibles', dashData?.stats?.totalAmbientes],
-        ['Total asignaciones', dashData?.stats?.totalAsignaciones],
-      ];
-      const wsStats = utils.aoa_to_sheet(stats);
-      utils.book_append_sheet(wb, wsStats, 'Resumen');
-      
-      const carga = [['Docente','Categoría','Condición','Horas Asignadas','Horas Máx.','% Carga'], ...(dashData?.cargaDocentes?.map((d:any)=>[
-          d.nombre, d.categoria.replace('_',' '), d.condicion, d.horas_asignadas, d.horas_max_semana, `${d.porcentaje_carga||0}%`
-      ]) || [])];
-      const wsCarga = utils.aoa_to_sheet(carga);
-      utils.book_append_sheet(wb, wsCarga, 'Carga Docente');
-      
-      const ocupacion = [['Ambiente','Tipo','Horas Usadas','% Ocupación'], ...(dashData?.ocupacionAmbientes?.map((a:any)=>[
-          a.nombre, a.tipo, a.horas_usadas, `${a.porcentaje}%`
-      ]) || [])];
-      const wsOcupacion = utils.aoa_to_sheet(ocupacion);
-      utils.book_append_sheet(wb, wsOcupacion, 'Ocupación Ambientes');
-    } else {
-      const rows = asignaciones.sort((a,b)=>DIAS.indexOf(a.dia)-DIAS.indexOf(b.dia)).map(r=>[
-        DIAS_L[r.dia]||r.dia, r.hora_inicio, r.hora_fin, r.curso_nombre,
-        tipoReporte==='docente' ? r.ambiente_nombre : r.docente_nombre,
-        r.tipo, `G${r.numero_grupo}`
-      ]);
-      const data = [['Día','Hora Inicio','Hora Fin','Curso','Ambiente/Docente','Tipo','Grupo'], ...rows];
-      const ws = utils.aoa_to_sheet(data);
-      utils.book_append_sheet(wb, ws, 'Horarios');
+    if (!cicloId) {
+      alert('Por favor seleccione un ciclo');
+      return;
     }
-    
-    const nombre = tipoReporte==='gestion' ? 'reporte-gestion' : tipoReporte==='docente' ? 'horario-docente' : 'reporte-operacional';
-    writeFile(wb, `${nombre}-${ciclo?.nombre||'unt'}.xlsx`);
+    setLoading(true);
+    try {
+      // 1. Encontrar la programación asociada al ciclo
+      const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`).then(r => r.json());
+      const publishedProg = progsRes.data?.find((p: any) => p.estado === 'publicado') || progsRes.data?.[0];
+      
+      if (!publishedProg) {
+        throw new Error('No se encontró ninguna programación para este ciclo.');
+      }
+      
+      // 2. Obtener los datos estructurados
+      const response = await fetch(`/api/horarios/programaciones/${publishedProg.id}/exportar`);
+      if (!response.ok) {
+        throw new Error('Error al obtener datos de exportación');
+      }
+      
+      const resData = await response.json();
+      
+      // 3. Generar y descargar el libro Excel premium
+      const { exportarHorariosExcel } = await import('@/lib/exportar/excel-horarios');
+      await exportarHorariosExcel(resData);
+    } catch (err: any) {
+      alert(err.message || 'Error al exportar a Excel');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function exportarCSV() {
