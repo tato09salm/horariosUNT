@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
-import { query, queryOne } from '@/lib/db';
+import { getSession, hashPassword } from '@/lib/auth';
+import { query, queryOne, transaction } from '@/lib/db';
 import { registrarAuditoria } from '@/lib/auditoria';
 
 export async function GET(req: NextRequest) {
@@ -13,9 +13,57 @@ export async function GET(req: NextRequest) {
   const condicion = searchParams.get('condicion');
   const activo = searchParams.get('activo');
   const reporte = searchParams.get('reporte') === 'true';
+  const verificarUsuarios = searchParams.get('verificarUsuarios') === 'true';
   const page = parseInt(searchParams.get('page') || '1');
   const limit = parseInt(searchParams.get('limit') || '10');
   const offset = (page - 1) * limit;
+
+  // Lógica de verificación y creación automática de usuarios para docentes existentes
+  if (verificarUsuarios && (session.rol === 'admin' || session.rol === 'secretaria')) {
+    try {
+      const docentesSinUsuario = await query(`
+        SELECT d.* FROM docentes d
+        LEFT JOIN usuarios u ON u.id = d.usuario_id
+        WHERE (d.usuario_id IS NULL OR u.id IS NULL) AND d.email IS NOT NULL AND d.email != ''
+      `);
+
+      let creados = 0;
+      for (const doc of docentesSinUsuario) {
+        await transaction(async (client) => {
+          // Verificar si el email ya existe en usuarios (aunque no esté vinculado a este docente)
+          const userExists = await client.query('SELECT id FROM usuarios WHERE email = $1', [doc.email]);
+          
+          let usuarioId;
+          if (userExists.rows.length === 0) {
+            const passwordHash = await hashPassword(doc.dni);
+            const userRes = await client.query(
+              `INSERT INTO usuarios (nombre, apellidos, email, password_hash, rol)
+               VALUES ($1, $2, $3, $4, 'docente') RETURNING id`,
+              [doc.nombre, doc.apellidos, doc.email, passwordHash]
+            );
+            usuarioId = userRes.rows[0].id;
+            creados++;
+          } else {
+            usuarioId = userExists.rows[0].id;
+          }
+
+          await client.query('UPDATE docentes SET usuario_id = $1 WHERE id = $2', [usuarioId, doc.id]);
+        });
+      }
+
+      if (creados > 0) {
+        await registrarAuditoria({
+          usuario_id: session.id,
+          usuario_nombre: `${session.nombre} ${session.apellidos}`,
+          accion: 'UPDATE',
+          tabla_afectada: 'usuarios/docentes',
+          descripcion: `Se crearon ${creados} usuarios automáticos para docentes existentes`,
+        });
+      }
+    } catch (err) {
+      console.error('Error verificando usuarios:', err);
+    }
+  }
 
   let sql = `
     SELECT d.*, 
@@ -69,23 +117,52 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana } = body;
 
-    const docente = await queryOne(
-      `INSERT INTO docentes (nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-      [nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana || 20]
-    );
+    const result = await transaction(async (client) => {
+      // 1. Crear el docente
+      const docenteRes = await client.query(
+        `INSERT INTO docentes (nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+        [nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana || 20]
+      );
+      const docente = docenteRes.rows[0];
+
+      // 2. Crear usuario automático si tiene email
+      if (email) {
+        // Verificar si ya existe un usuario con ese email
+        const userExists = await client.query('SELECT id FROM usuarios WHERE email = $1', [email]);
+        
+        let usuarioId;
+        if (userExists.rows.length === 0) {
+          const passwordHash = await hashPassword(dni); // DNI como password
+          const userRes = await client.query(
+            `INSERT INTO usuarios (nombre, apellidos, email, password_hash, rol)
+             VALUES ($1, $2, $3, $4, 'docente') RETURNING id`,
+            [nombre, apellidos, email, passwordHash]
+          );
+          usuarioId = userRes.rows[0].id;
+        } else {
+          usuarioId = userExists.rows[0].id;
+        }
+
+        // 3. Vincular docente con usuario
+        await client.query('UPDATE docentes SET usuario_id = $1 WHERE id = $2', [usuarioId, docente.id]);
+        docente.usuario_id = usuarioId;
+      }
+
+      return docente;
+    });
 
     await registrarAuditoria({
       usuario_id: session.id,
       usuario_nombre: `${session.nombre} ${session.apellidos}`,
       accion: 'CREATE',
       tabla_afectada: 'docentes',
-      registro_id: docente?.id,
-      datos_nuevos: docente,
-      descripcion: `Docente creado: ${nombre} ${apellidos}`,
+      registro_id: result?.id,
+      datos_nuevos: result,
+      descripcion: `Docente creado con usuario automático: ${nombre} ${apellidos}`,
     });
 
-    return NextResponse.json({ data: docente }, { status: 201 });
+    return NextResponse.json({ data: result }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
