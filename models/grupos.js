@@ -12,14 +12,14 @@ class Grupos extends Sequelize.Model {
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true
     },
-    ciclo_id: {
+    programacion_id: {
       type: DataTypes.UUID,
       allowNull: true,
       references: {
-        model: 'ciclos',
+        model: 'programaciones',
         key: 'id'
       },
-      unique: "grupos_ciclo_id_curso_id_numero_grupo_uk"
+      unique: "grupos_programacion_id_curso_id_numero_grupo_uk"
     },
     curso_id: {
       type: DataTypes.UUID,
@@ -28,13 +28,13 @@ class Grupos extends Sequelize.Model {
         model: 'cursos',
         key: 'id'
       },
-      unique: "grupos_ciclo_id_curso_id_numero_grupo_uk"
+      unique: "grupos_programacion_id_curso_id_numero_grupo_uk"
     },
     numero_grupo: {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 1,
-      unique: "grupos_ciclo_id_curso_id_numero_grupo_uk"
+      unique: "grupos_programacion_id_curso_id_numero_grupo_uk"
     },
     max_alumnos: {
       type: DataTypes.INTEGER,
@@ -53,10 +53,10 @@ class Grupos extends Sequelize.Model {
     timestamps: true,
     indexes: [
       {
-        name: "grupos_ciclo_id_curso_id_numero_grupo_uk",
+        name: "grupos_programacion_id_curso_id_numero_grupo_uk",
         unique: true,
         fields: [
-          { name: "ciclo_id" },
+          { name: "programacion_id" },
           { name: "curso_id" },
           { name: "numero_grupo" },
         ]

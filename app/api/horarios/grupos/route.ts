@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const ciclo_id = searchParams.get('ciclo_id');
+    const programacion_id = searchParams.get('programacion_id');
     const curso_id = searchParams.get('curso_id');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '100');
@@ -25,28 +25,28 @@ export async function GET(req: NextRequest) {
         c.horas_teoria, 
         c.horas_practica, 
         c.creditos,
-        ci.nombre as ciclo_nombre,
-        ci.activo as ciclo_activo,
+        p.nombre as programacion_nombre,
+        p.estado as programacion_estado,
         (SELECT COUNT(*) FROM asignaciones a WHERE a.grupo_id = g.id AND a.estado = 'activo') as total_asignaciones
       FROM grupos g
       JOIN cursos c ON c.id = g.curso_id
-      JOIN ciclos ci ON ci.id = g.ciclo_id
+      JOIN programaciones p ON p.id = g.programacion_id
       WHERE 1=1
     `;
     
     const params: any[] = [];
     let idx = 1;
 
-    if (ciclo_id) {
-      sql += ` AND g.ciclo_id = $${idx++}`;
-      params.push(ciclo_id);
+    if (programacion_id) {
+      sql += ` AND g.programacion_id = $${idx++}`;
+      params.push(programacion_id);
     }
     if (curso_id) {
       sql += ` AND g.curso_id = $${idx++}`;
       params.push(curso_id);
     }
 
-    sql += ` ORDER BY ci.activo DESC, ci.año DESC, ci.semestre DESC, c.nombre, g.numero_grupo`;
+    sql += ` ORDER BY p.created_at DESC, c.nombre, g.numero_grupo`;
     sql += ` LIMIT $${idx++} OFFSET $${idx++}`;
     params.push(limit, offset);
 
@@ -57,15 +57,15 @@ export async function GET(req: NextRequest) {
       SELECT COUNT(*) as total
       FROM grupos g
       JOIN cursos c ON c.id = g.curso_id
-      JOIN ciclos ci ON ci.id = g.ciclo_id
+      JOIN programaciones p ON p.id = g.programacion_id
       WHERE 1=1
     `;
     const countParams: any[] = [];
     let countIdx = 1;
     
-    if (ciclo_id) {
-      countSql += ` AND g.ciclo_id = $${countIdx++}`;
-      countParams.push(ciclo_id);
+    if (programacion_id) {
+      countSql += ` AND g.programacion_id = $${countIdx++}`;
+      countParams.push(programacion_id);
     }
     if (curso_id) {
       countSql += ` AND g.curso_id = $${countIdx++}`;
@@ -97,13 +97,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { ciclo_id, curso_id, numero_grupo, max_alumnos, num_alumnos } = body;
+    const { programacion_id, curso_id, tipo_actividad, numero_grupo, max_alumnos, num_alumnos } = body;
 
     // ========== VALIDACIONES ==========
 
     // 1. Campos requeridos
-    if (!ciclo_id) {
-      return NextResponse.json({ error: 'El ciclo es requerido' }, { status: 400 });
+    if (!programacion_id) {
+      return NextResponse.json({ error: 'La programación es requerida' }, { status: 400 });
     }
     if (!curso_id) {
       return NextResponse.json({ error: 'El curso es requerido' }, { status: 400 });
@@ -111,18 +111,14 @@ export async function POST(req: NextRequest) {
     if (!numero_grupo || numero_grupo < 1) {
       return NextResponse.json({ error: 'El número de grupo debe ser mayor a 0' }, { status: 400 });
     }
-
-    // 2. Verificar que el ciclo existe
-    const ciclo = await queryOne('SELECT id, activo, nombre FROM ciclos WHERE id = $1', [ciclo_id]);
-    if (!ciclo) {
-      return NextResponse.json({ error: 'El ciclo seleccionado no existe' }, { status: 400 });
+    if (!tipo_actividad || !['teoria', 'practica', 'laboratorio'].includes(tipo_actividad)) {
+      return NextResponse.json({ error: 'El tipo de actividad es inválido o requerido' }, { status: 400 });
     }
 
-    // 3. ⚠️ VALIDACIÓN CLAVE: No permitir grupos en ciclos INACTIVOS
-    if (ciclo.activo !== true) {
-      return NextResponse.json({ 
-        error: `No se pueden crear grupos en el ciclo "${ciclo.nombre}" porque está INACTIVO. Solo se permiten grupos en ciclos activos.` 
-      }, { status: 400 });
+    // 2. Verificar que la programación existe
+    const programacion = await queryOne('SELECT id, nombre, estado FROM programaciones WHERE id = $1', [programacion_id]);
+    if (!programacion) {
+      return NextResponse.json({ error: 'La programación seleccionada no existe' }, { status: 400 });
     }
 
     // 4. Verificar que el curso existe
@@ -131,16 +127,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'El curso seleccionado no existe' }, { status: 400 });
     }
 
-    // 5. Verificar que no exista un grupo con el mismo número en el mismo ciclo y curso
+    // 5. Verificar que no exista un grupo con el mismo número y actividad
     const grupoExistente = await queryOne(
       `SELECT id, numero_grupo FROM grupos 
-       WHERE ciclo_id = $1 AND curso_id = $2 AND numero_grupo = $3`,
-      [ciclo_id, curso_id, numero_grupo]
+       WHERE programacion_id = $1 AND curso_id = $2 AND tipo_actividad = $3 AND numero_grupo = $4`,
+      [programacion_id, curso_id, tipo_actividad, numero_grupo]
     );
 
     if (grupoExistente) {
       return NextResponse.json({ 
-        error: `Ya existe el Grupo ${numero_grupo} para el curso ${curso.codigo} en el ciclo ${ciclo.nombre}` 
+        error: `Ya existe el Grupo ${numero_grupo} de ${tipo_actividad} para el curso ${curso.codigo} en la programación ${programacion.nombre}` 
       }, { status: 400 });
     }
 
@@ -156,14 +152,14 @@ export async function POST(req: NextRequest) {
 
     // ========== CREAR GRUPO ==========
     const grupo = await queryOne(
-      `INSERT INTO grupos (ciclo_id, curso_id, numero_grupo, max_alumnos, num_alumnos)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [ciclo_id, curso_id, numero_grupo, maxAlumnosValido, numAlumnosValido]
+      `INSERT INTO grupos (programacion_id, curso_id, tipo_actividad, numero_grupo, max_alumnos, num_alumnos)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [programacion_id, curso_id, tipo_actividad, numero_grupo, maxAlumnosValido, numAlumnosValido]
     );
 
     return NextResponse.json({ 
       data: grupo,
-      message: `✅ Grupo ${numero_grupo} creado exitosamente para ${curso.codigo} en ${ciclo.nombre}`
+      message: `✅ Grupo ${numero_grupo} creado exitosamente para ${curso.codigo}`
     }, { status: 201 });
 
   } catch (error: any) {
@@ -172,10 +168,10 @@ export async function POST(req: NextRequest) {
     // Error de clave duplicada (por si acaso)
     if (error.code === '23505') {
       return NextResponse.json({ 
-        error: 'Ya existe un grupo con ese número para este ciclo y curso' 
+        error: 'Ya existe un grupo con ese número para esta programación y curso' 
       }, { status: 400 });
     }
     
     return NextResponse.json({ error: 'Error al crear el grupo' }, { status: 500 });
   }
-}
+}

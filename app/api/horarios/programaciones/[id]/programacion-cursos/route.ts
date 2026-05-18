@@ -101,9 +101,54 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error';
     if (message.includes('unique') || message.includes('duplicate')) {
-      return NextResponse.json({ error: 'Este grupo ya está agregado a la programación' }, { status: 409 });
+      return NextResponse.json({ error: 'Este docente ya está asignado a este grupo' }, { status: 409 });
     }
     return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session || !['admin', 'secretaria'].includes(session.rol)) {
+    return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const prog = await queryOne(`SELECT * FROM programaciones WHERE id = $1`, [id]);
+  if (!prog) return NextResponse.json({ error: 'Programación no encontrada' }, { status: 404 });
+  if (prog.fase !== 1) {
+    return NextResponse.json({ error: 'Solo se pueden editar cursos en la Fase 1' }, { status: 400 });
+  }
+
+  try {
+    const body = await req.json();
+    const { pc_id, horas_teoria, horas_practica, horas_laboratorio, horas_consejeria } = body;
+
+    if (!pc_id) return NextResponse.json({ error: 'pc_id es requerido' }, { status: 400 });
+
+    const pc = await queryOne(`SELECT * FROM programacion_cursos WHERE id = $1 AND programacion_id = $2`, [pc_id, id]);
+    if (!pc) return NextResponse.json({ error: 'Asignación no encontrada' }, { status: 404 });
+
+    // TODO: Se podría validar que no exceda las horas del docente aquí también
+    
+    const updated = await queryOne(`
+      UPDATE programacion_cursos 
+      SET horas_teoria = $1, horas_practica = $2, horas_laboratorio = $3, horas_consejeria = $4
+      WHERE id = $5 RETURNING *
+    `, [
+      horas_teoria ?? pc.horas_teoria,
+      horas_practica ?? pc.horas_practica,
+      horas_laboratorio ?? pc.horas_laboratorio,
+      horas_consejeria ?? pc.horas_consejeria,
+      pc_id
+    ]);
+
+    await queryOne(`UPDATE programaciones SET updated_at = NOW() WHERE id = $1`, [id]);
+
+    return NextResponse.json({ data: updated }, { status: 200 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error interno';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
