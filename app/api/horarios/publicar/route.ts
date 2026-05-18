@@ -38,9 +38,9 @@ export async function POST(req: NextRequest) {
         VALUES ($1, $2, $3, $4, $5, $6, $7, 'activo', $8)
       `, [
         prog.ciclo_id,
-        a.grupo_id,
+        a.grupo_id || null,
         a.docente_id || null,
-        a.ambiente_id,
+        a.ambiente_id || null,
         a.slot_id,
         a.dia,
         a.tipo,

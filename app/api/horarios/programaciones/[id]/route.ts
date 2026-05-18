@@ -33,7 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // Stats rápidos
   const stats = await queryOne(`
     SELECT 
-      COUNT(*) as total_cursos,
+      COUNT(DISTINCT pc.curso_id) as total_cursos,
       COUNT(DISTINCT pc.docente_id) FILTER (WHERE pc.docente_id IS NOT NULL) as total_docentes,
       SUM(pc.horas_teoria + pc.horas_practica + pc.horas_laboratorio) as total_horas,
       SUM(pc.horas_consejeria) as total_consejeria

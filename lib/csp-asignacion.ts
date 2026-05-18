@@ -78,9 +78,7 @@ export function construirGruposBloques(cursos: any[]): BlockGroup[] {
     const teoriaUnits = mkUnits('teoria', c.horas_teoria || 0);
     const practicaUnits = mkUnits('practica', c.horas_practica || 0);
 
-    const horasLabPc = Number(c.horas_laboratorio) || 0;
-    const horasLabCat = Number(c.horas_laboratorio_catalogo) || 0;
-    const horasPorTurno = horasLabPc > 0 ? horasLabPc : horasLabCat;
+    const horasPorTurno = Number(c.horas_laboratorio) || 0;
     const turnosLab = Math.max(0, Number(c.cantidad_labs) || 0);
     const tieneLab = horasPorTurno > 0 && turnosLab > 0;
 

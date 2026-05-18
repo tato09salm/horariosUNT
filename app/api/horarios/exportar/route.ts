@@ -38,9 +38,17 @@ export async function GET(req: NextRequest) {
     : [];
   const docenteMap = new Map(docentesData.map((d: any) => [d.id, d.nombre_completo]));
 
-  const rows = asignaciones.map((a: any) => ({
-    dia: a.dia,
-    slot_inicio: a.slot_id,
+  // Obtener slots_tiempo
+  const slotsData = await query('SELECT id, hora_inicio, hora_fin FROM slots_tiempo');
+  const slotMap = new Map(slotsData.map((s: any) => [s.id, { inicio: s.hora_inicio, fin: s.hora_fin }]));
+
+  const rows = asignaciones.map((a: any) => {
+    const slot = slotMap.get(a.slot_id) || { inicio: '', fin: '' };
+    return {
+      dia: a.dia,
+      slot_id: a.slot_id,
+      hora_inicio: slot.inicio,
+      hora_fin: slot.fin,
     curso_codigo: a.curso_codigo,
     curso_nombre: a.curso_nombre,
     grupo: `G${a.numero_grupo}`,
@@ -49,12 +57,13 @@ export async function GET(req: NextRequest) {
     aula: a.ambiente_codigo,
     aula_nombre: a.ambiente_nombre,
     fuente: a.fuente || 'CSP',
-  }));
+    };
+  });
 
   if (formato === 'csv') {
-    const encabezado = 'Día,Curso,Nombre Curso,Grupo,Tipo,Docente,Aula\n';
+    const encabezado = 'Día,Hora Inicio,Hora Fin,Curso,Nombre Curso,Grupo,Tipo,Docente,Aula\n';
     const csvContent = rows.map((r: any) =>
-      `${r.dia},${r.curso_codigo},"${r.curso_nombre}",${r.grupo},${r.tipo},"${r.docente}",${r.aula}`
+      `${r.dia},${r.hora_inicio},${r.hora_fin},${r.curso_codigo},"${r.curso_nombre}",${r.grupo},${r.tipo},"${r.docente}",${r.aula}`
     ).join('\n');
 
     return new NextResponse(encabezado + csvContent, {
