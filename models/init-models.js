@@ -15,6 +15,9 @@ const _ProgramacionCursos = require("./programacion_cursos");
 const _Programaciones = require("./programaciones");
 const _SlotsTiempo = require("./slots_tiempo");
 const _Usuarios = require("./usuarios");
+const _Curriculas = require("./curriculas");
+const _MallaCurricular = require("./malla_curricular");
+const _Configuracion = require("./configuracion");
 
 function initModels(sequelize) {
   const SequelizeMeta = _SequelizeMeta(sequelize, DataTypes);
@@ -33,6 +36,9 @@ function initModels(sequelize) {
   const Programaciones = _Programaciones(sequelize, DataTypes);
   const SlotsTiempo = _SlotsTiempo(sequelize, DataTypes);
   const Usuarios = _Usuarios(sequelize, DataTypes);
+  const Curriculas = _Curriculas(sequelize, DataTypes);
+  const MallaCurricular = _MallaCurricular(sequelize, DataTypes);
+  const Configuracion = _Configuracion(sequelize, DataTypes);
 
   Asignaciones.belongsTo(Ambientes, { as: "ambiente", foreignKey: "ambiente_id"});
   Ambientes.hasMany(Asignaciones, { as: "asignaciones", foreignKey: "ambiente_id"});
@@ -40,8 +46,8 @@ function initModels(sequelize) {
   Ambientes.hasMany(DisponibilidadAmbiente, { as: "disponibilidad_ambientes", foreignKey: "ambiente_id"});
   Asignaciones.belongsTo(Ciclos, { as: "ciclo", foreignKey: "ciclo_id"});
   Ciclos.hasMany(Asignaciones, { as: "asignaciones", foreignKey: "ciclo_id"});
-  Grupos.belongsTo(Ciclos, { as: "ciclo", foreignKey: "ciclo_id"});
-  Ciclos.hasMany(Grupos, { as: "grupos", foreignKey: "ciclo_id"});
+  Grupos.belongsTo(Programaciones, { as: "programacion", foreignKey: "programacion_id"});
+  Programaciones.hasMany(Grupos, { as: "grupos", foreignKey: "programacion_id"});
   Programaciones.belongsTo(Ciclos, { as: "ciclo", foreignKey: "ciclo_id"});
   Ciclos.hasMany(Programaciones, { as: "programaciones", foreignKey: "ciclo_id"});
   Grupos.belongsTo(Cursos, { as: "curso", foreignKey: "curso_id"});
@@ -85,6 +91,13 @@ function initModels(sequelize) {
   Programaciones.belongsTo(Usuarios, { as: "publicado_por_usuario", foreignKey: "publicado_por"});
   Usuarios.hasMany(Programaciones, { as: "publicado_por_programaciones", foreignKey: "publicado_por"});
 
+  Curriculas.belongsToMany(Cursos, { as: 'cursos', through: MallaCurricular, foreignKey: "curricula_id", otherKey: "curso_id" });
+  Cursos.belongsToMany(Curriculas, { as: 'curriculas', through: MallaCurricular, foreignKey: "curso_id", otherKey: "curricula_id" });
+  MallaCurricular.belongsTo(Curriculas, { as: "curricula", foreignKey: "curricula_id"});
+  Curriculas.hasMany(MallaCurricular, { as: "mallas", foreignKey: "curricula_id"});
+  MallaCurricular.belongsTo(Cursos, { as: "curso", foreignKey: "curso_id"});
+  Cursos.hasMany(MallaCurricular, { as: "mallas", foreignKey: "curso_id"});
+
   return {
     SequelizeMeta,
     Ambientes,
@@ -102,6 +115,9 @@ function initModels(sequelize) {
     Programaciones,
     SlotsTiempo,
     Usuarios,
+    Curriculas,
+    MallaCurricular,
+    Configuracion,
   };
 }
 module.exports = initModels;

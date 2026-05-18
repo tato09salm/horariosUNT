@@ -1,167 +1,295 @@
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fetchProgramacionCursos, programacionCursosApiUrl } from '@/lib/fetch-programacion-cursos';
 
-const FASE_INFO: Record<number, { label: string; icon: string }> = {
-  1: { label: 'Carga de Información', icon: '📋' },
-  2: { label: 'Disponibilidad Docente', icon: '🕐' },
-  3: { label: 'Programación', icon: '⚡' },
-  4: { label: 'Publicado', icon: '✅' },
+// Helper para Romanos
+const toRoman = (num: number) => {
+  const map = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+  return map[num - 1] || num.toString();
 };
+const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 export default function CrearHorarioPage() {
   const searchParams = useSearchParams();
   const progId = searchParams.get('id');
 
   const [prog, setProg] = useState<any>(null);
-  const [cursos, setCursos] = useState<any[]>([]);
-  const [cargaDocentes, setCargaDocentes] = useState<any[]>([]);
-  const [catalogoCursos, setCatalogoCursos] = useState<any[]>([]);
-  const [grupos, setGrupos] = useState<any[]>([]);
+
+  // Catálogos
+  const [curriculas, setCurriculas] = useState<any[]>([]);
+  const [curriculaActual, setCurriculaActual] = useState<string>('');
+  const [cursosCurricula, setCursosCurricula] = useState<any[]>([]);
   const [docentes, setDocentes] = useState<any[]>([]);
+
+  // Datos Programados
+  const [grupos, setGrupos] = useState<any[]>([]);
+  const [asignaciones, setAsignaciones] = useState<any[]>([]);
+
+  // Estado UI
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<any>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState<any>({});
-  const [lastSaved, setLastSaved] = useState<Date|null>(null);
-  const autoSaveRef = useRef<NodeJS.Timeout|null>(null);
-  const [sortCursosBy, setSortCursosBy] = useState<string>('ciclo');
-  const [sortCargaDocenteBy, setSortCargaDocenteBy] = useState<string>('apellidos');
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
-  // Cargar datos
-  const cargarDatos = useCallback(async () => {
-    if (!progId) return;
-    setLoading(true);
+  // Selección de Ciclos y Cursos
+  const [selectedCiclosPlan, setSelectedCiclosPlan] = useState<number[]>([]);
+  const [selectedCursosIds, setSelectedCursosIds] = useState<string[]>([]);
+
+  // Buscador de docentes en la tabla
+  const [searchGrupoId, setSearchGrupoId] = useState<string | null>(null);
+  const [docenteSearch, setDocenteSearch] = useState('');
+  const [alertasOpen, setAlertasOpen] = useState(false);
+
+  // =================== CARGA INICIAL ===================
+  const cargarConfiguracion = useCallback(async () => {
     try {
-      const [progRes, cursosRes, catRes, docRes] = await Promise.all([
-        fetch(`/api/horarios/programaciones/${progId}`).then(r => r.json()),
-        fetchProgramacionCursos(progId),
-        fetch('/api/cursos?limit=1000').then(r => r.json()),
+      const [currRes, configRes, docRes] = await Promise.all([
+        fetch('/api/curriculas').then(r => r.json()),
+        fetch('/api/configuracion?clave=ID_MALLA_CURRICULAR_ACTUAL').then(r => r.json()),
         fetch('/api/docentes?limit=1000').then(r => r.json()),
       ]);
-      setProg(progRes.data);
-      setCursos(cursosRes.data || []);
-      setCargaDocentes(cursosRes.cargaDocentes || []);
-      
-      // Filtrar cursos del catálogo según si el ciclo es impar (-I) o par (-II)
-      const cicloNombre = progRes.data?.ciclo_nombre || '';
-      const isImpar = cicloNombre.endsWith('-I');
-      const filteredCursos = (catRes.data || []).filter((c: any) => {
-        return isImpar ? c.ciclo_plan % 2 !== 0 : c.ciclo_plan % 2 === 0;
-      });
-      setCatalogoCursos(filteredCursos);
+      setCurriculas(currRes.data || []);
       setDocentes(docRes.data || []);
 
-      // Cargar grupos del ciclo
-      if (progRes.data?.ciclo_id) {
-        const grpRes = await fetch(`/api/horarios/grupos?ciclo_id=${progRes.data.ciclo_id}`).then(r => r.json());
-        setGrupos(grpRes.data || []);
+      const mallaActual = configRes.data?.valor || '';
+      if (mallaActual) {
+        setCurriculaActual(mallaActual);
+      } else if (currRes.data && currRes.data.length > 0) {
+        setCurriculaActual(currRes.data[0].id);
       }
-    } finally { setLoading(false); }
+    } catch (e) {
+      console.error('Error config:', e);
+    }
+  }, []);
+
+  const cargarProgramacion = useCallback(async () => {
+    if (!progId) return;
+    try {
+      const [progRes, asignRes] = await Promise.all([
+        fetch(`/api/horarios/programaciones/${progId}`).then(r => r.json()),
+        fetchProgramacionCursos(progId)
+      ]);
+
+      setProg(progRes.data);
+      setAsignaciones(asignRes.data || []);
+
+      if (progId) {
+        const grpRes = await fetch(`/api/horarios/grupos?programacion_id=${progId}`).then(r => r.json());
+        setGrupos(grpRes.data || []);
+
+        // Auto-seleccionar cursos que ya tienen grupos
+        const ids = Array.from(new Set((grpRes.data || []).map((g: any) => g.curso_id))) as string[];
+        setSelectedCursosIds(ids);
+      }
+    } catch (e) {
+      console.error('Error prog:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [progId]);
 
-  useEffect(() => { cargarDatos(); }, [cargarDatos]);
-
-  // Auto-save config cada 30 segundos
   useEffect(() => {
-    if (!prog || prog.fase !== 1) return;
-    autoSaveRef.current = setInterval(async () => {
-      try {
-        await fetch(`/api/horarios/programaciones/${progId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ config: prog.config }),
-        });
-        setLastSaved(new Date());
-      } catch (e) { /* silencioso */ }
-    }, 30000);
-    return () => { if (autoSaveRef.current) clearInterval(autoSaveRef.current); };
-  }, [prog, progId]);
+    if (curriculaActual) {
+      fetch(`/api/curriculas/${curriculaActual}/cursos`)
+        .then(r => r.json())
+        .then(res => {
+          const cursos = res.data || [];
+          setCursosCurricula(cursos);
 
-  // Agregar curso
-  async function agregarCurso() {
-    if (!progId) return;
-    if (!addForm.curso_id || !addForm.grupo_id) {
-      setMsg({ type: 'error', text: 'Selecciona un curso y un grupo' });
-      return;
+          // Auto-marcar ciclos de los cursos que ya están seleccionados
+          const ciclosConCursosSelectos = Array.from(new Set(
+            cursos.filter((c: any) => selectedCursosIds.includes(c.id)).map((c: any) => c.ciclo_plan)
+          )) as number[];
+          if (ciclosConCursosSelectos.length > 0) {
+            setSelectedCiclosPlan(prev => Array.from(new Set([...prev, ...ciclosConCursosSelectos])));
+          }
+        })
+        .catch(e => console.error(e));
     }
-    setSaving(true); setMsg(null);
+  }, [curriculaActual, selectedCursosIds.length]);
+
+  useEffect(() => {
+    cargarConfiguracion().then(() => cargarProgramacion());
+  }, [cargarConfiguracion, cargarProgramacion]);
+
+  // =================== LÓGICA DE SELECCIÓN ===================
+  const ciclosDisponibles = useMemo(() => {
+    const set = new Set(cursosCurricula.map(c => c.ciclo_plan));
+    return Array.from(set).sort((a, b) => a - b);
+  }, [cursosCurricula]);
+
+  const toggleCicloPlan = (cicloPlan: number) => {
+    setSelectedCiclosPlan(prev => {
+      if (prev.includes(cicloPlan)) return prev.filter(c => c !== cicloPlan);
+      return [...prev, cicloPlan];
+    });
+  };
+
+  const toggleCurso = (cursoId: string) => {
+    setSelectedCursosIds(prev => {
+      if (prev.includes(cursoId)) return prev.filter(id => id !== cursoId);
+      return [...prev, cursoId];
+    });
+  };
+
+  const seleccionarTodosCursosDeCiclo = (cicloPlan: number, selectAll: boolean) => {
+    const cursosDelCiclo = cursosCurricula.filter(c => c.ciclo_plan === cicloPlan).map(c => c.id);
+    if (selectAll) {
+      setSelectedCursosIds(prev => Array.from(new Set([...prev, ...cursosDelCiclo])));
+    } else {
+      setSelectedCursosIds(prev => prev.filter(id => !cursosDelCiclo.includes(id)));
+    }
+  };
+
+  // =================== OPTIMISTIC UI: GRUPOS ===================
+  const agregarGrupo = async (cursoId: string, tipo_actividad: string) => {
+    if (!progId) return;
+
+    const tempId = `temp-g-${Date.now()}`;
+    const gruposAct = grupos.filter(g => g.curso_id === cursoId && g.tipo_actividad === tipo_actividad);
+    const numero_grupo = gruposAct.length > 0 ? Math.max(...gruposAct.map(g => g.numero_grupo)) + 1 : 1;
+
+    const newGrupo = {
+      id: tempId,
+      programacion_id: progId,
+      curso_id: cursoId,
+      tipo_actividad,
+      numero_grupo,
+      max_alumnos: 40,
+      isTemp: true
+    };
+    setGrupos(prev => [...prev, newGrupo]);
+
+    try {
+      const res = await fetch('/api/horarios/grupos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          programacion_id: progId,
+          curso_id: cursoId,
+          tipo_actividad,
+          numero_grupo,
+          max_alumnos: 40,
+          num_alumnos: 0
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setGrupos(prev => prev.map(g => g.id === tempId ? data.data : g));
+      setLastSaved(new Date());
+    } catch (e: any) {
+      setMsg({ type: 'error', text: e.message });
+      setGrupos(prev => prev.filter(g => g.id !== tempId));
+    }
+  };
+
+  const eliminarGrupo = async (grupoId: string) => {
+    if (!confirm('¿Seguro que deseas eliminar este grupo y todas sus asignaciones?')) return;
+
+    const grupoActual = grupos.find(g => g.id === grupoId);
+    const asignacionesGrupo = asignaciones.filter(a => a.grupo_id === grupoId);
+
+    setGrupos(prev => prev.filter(g => g.id !== grupoId));
+    setAsignaciones(prev => prev.filter(a => a.grupo_id !== grupoId));
+
+    try {
+      const res = await fetch(`/api/horarios/grupos/${grupoId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setLastSaved(new Date());
+    } catch (e: any) {
+      setMsg({ type: 'error', text: e.message });
+      if (grupoActual) setGrupos(prev => [...prev, grupoActual]);
+      setAsignaciones(prev => [...prev, ...asignacionesGrupo]);
+    }
+  };
+
+  // =================== OPTIMISTIC UI: ASIGNACIONES ===================
+  const addDocente = async (curso: any, grupoId: string, docente: any) => {
+    if (!progId) return;
+
+    const newId = `temp-pc-${Date.now()}`;
+    const newAsig = {
+      id: newId,
+      curso_id: curso.id,
+      grupo_id: grupoId,
+      docente_id: docente.id,
+      docente_nombre: `${docente.nombre} ${docente.apellidos}`,
+      docente_codigo: docente.usuario_id || '0000',
+      docente_dni: docente.dni,
+      horas_teoria: 0,
+      horas_practica: 0,
+      horas_laboratorio: 0,
+      horas_consejeria: 0,
+      isTemp: true
+    };
+
+    setAsignaciones(prev => [...prev, newAsig]);
+    setSearchGrupoId(null);
+    setDocenteSearch('');
+
     try {
       const res = await fetch(programacionCursosApiUrl(progId), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(addForm),
+        body: JSON.stringify(newAsig),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setMsg({ type: 'success', text: 'Curso agregado correctamente' });
-      setShowAddModal(false);
-      setAddForm({});
-      cargarDatos();
-    } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
-    finally { setSaving(false); }
-  }
 
-  // Eliminar curso
-  async function eliminarCurso(pcId: string) {
-    if (!progId) return;
-    try {
-      const res = await fetch(`${programacionCursosApiUrl(progId)}?pc_id=${pcId}`, { method: 'DELETE' });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
-      setMsg({ type: 'success', text: 'Curso removido' });
-      cargarDatos();
-    } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
-  }
-
-  // Vaciar todos los cursos
-  async function vaciarCursos() {
-    if (!progId) return;
-    if (!confirm('¿Estás seguro de que deseas eliminar TODOS los cursos programados? Esta acción no se puede deshacer.')) return;
-    setSaving(true);
-    setMsg(null);
-    try {
-      const res = await fetch(`${programacionCursosApiUrl(progId)}?pc_id=all`, { method: 'DELETE' });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
-      setMsg({ type: 'success', text: 'Se han eliminado todos los cursos correctamente' });
-      cargarDatos();
-    } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
-    finally { setSaving(false); }
-  }
-
-  // Importar CSV
-  async function handleImportCSV(e: any) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setSaving(true);
-    setMsg(null);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch(`/api/horarios/programaciones/${progId}/csv`, {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setMsg({ type: 'success', text: `Importación CSV: ${data.importados} cursos importados. ${data.errores.length > 0 ? `Se encontraron ${data.errores.length} errores (ver consola).` : ''}` });
-      if (data.errores.length > 0) {
-        console.warn('Errores de importación CSV:', data.errores);
-      }
-      cargarDatos();
-    } catch (error: any) {
-      setMsg({ type: 'error', text: error.message });
-    } finally {
-      setSaving(false);
-      e.target.value = null;
+      setAsignaciones(prev => prev.map(a => a.id === newId ? { ...data.data, docente_nombre: newAsig.docente_nombre } : a));
+      setLastSaved(new Date());
+    } catch (e: any) {
+      setMsg({ type: 'error', text: e.message });
+      setAsignaciones(prev => prev.filter(a => a.id !== newId));
     }
-  }
+  };
 
-  // Avanzar a Fase 2
-  async function avanzarFase() {
-    if (cursos.length === 0) {
-      setMsg({ type: 'error', text: 'Agrega al menos un curso antes de avanzar a la Fase 2' });
+  const updateHoras = async (pc_id: string, field: string, value: number) => {
+    const asigActual = asignaciones.find(a => a.id === pc_id);
+    if (!asigActual) return;
+
+    const updatedAsig = { ...asigActual, [field]: value };
+    setAsignaciones(prev => prev.map(a => a.id === pc_id ? updatedAsig : a));
+
+    try {
+      const res = await fetch(programacionCursosApiUrl(progId as string), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pc_id,
+          horas_teoria: updatedAsig.horas_teoria,
+          horas_practica: updatedAsig.horas_practica,
+          horas_laboratorio: updatedAsig.horas_laboratorio,
+          horas_consejeria: updatedAsig.horas_consejeria
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setLastSaved(new Date());
+    } catch (e: any) {
+      setMsg({ type: 'error', text: e.message });
+      setAsignaciones(prev => prev.map(a => a.id === pc_id ? asigActual : a));
+    }
+  };
+
+  const removeDocente = async (pc_id: string) => {
+    const asigActual = asignaciones.find(a => a.id === pc_id);
+    setAsignaciones(prev => prev.filter(a => a.id !== pc_id));
+
+    try {
+      const res = await fetch(`${programacionCursosApiUrl(progId as string)}?pc_id=${pc_id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setLastSaved(new Date());
+    } catch (e: any) {
+      setMsg({ type: 'error', text: e.message });
+      if (asigActual) setAsignaciones(prev => [...prev, asigActual]);
+    }
+  };
+
+  const avanzarFase = async () => {
+    if (asignaciones.length === 0) {
+      setMsg({ type: 'error', text: 'Agrega docentes a los grupos antes de avanzar.' });
       return;
     }
     setSaving(true);
@@ -171,348 +299,393 @@ export default function CrearHorarioPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fase: 2 }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error((await res.json()).error);
       window.location.href = `/horarios/${progId}/disponibilidad`;
-    } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
-    finally { setSaving(false); }
-  }
-
-  // Cuando se selecciona un curso, auto-rellenar horas
-  function handleCursoChange(cursoId: string) {
-    const curso = catalogoCursos.find(c => c.id === cursoId);
-    setAddForm((p: any) => ({
-      ...p,
-      curso_id: cursoId,
-      horas_teoria: curso?.horas_teoria || 0,
-      horas_practica: curso?.horas_practica || 0,
-      horas_laboratorio: 0,
-      horas_consejeria: 0,
-    }));
-  }
-
-  if (loading) return (
-    <div style={{padding:'40px',textAlign:'center'}}>
-      <div style={{width:'40px',height:'40px',border:'3px solid #e2e8f0',borderTop:'3px solid #1a3a5c',borderRadius:'50%',animation:'spin 0.7s linear infinite',margin:'0 auto 12px'}} />
-      <p style={{color:'#64748b'}}>Cargando programación...</p>
-    </div>
-  );
-
-  if (!prog) return (
-    <div style={{padding:'40px',textAlign:'center'}}>
-      <p style={{color:'#991b1b',fontSize:'16px'}}>Programación no encontrada</p>
-      <a href="/horarios" style={{color:'#1a3a5c',fontSize:'14px'}}>← Volver a Horarios</a>
-    </div>
-  );
-
-  // Total de horas cargadas
-  const totalHoras = cursos.reduce((s, c) => s + (c.horas_teoria||0) + (c.horas_practica||0) + (c.horas_laboratorio||0), 0);
-  const totalConsejeria = cursos.reduce((s, c) => s + (c.horas_consejeria||0), 0);
-
-  // Helper to convert arabic numbers to Roman numerals
-  const toRoman = (num: number) => {
-    const map = ['I','II','III','IV','V','VI','VII','VIII','IX','X'];
-    return map[num - 1] || num.toString();
+    } catch (e: any) {
+      setMsg({ type: 'error', text: e.message });
+      setSaving(false);
+    }
   };
 
-  // Helper to extract last names for sorting
-  const getLastName = (fullName: string) => {
-    const parts = fullName.trim().split(/\s+/);
-    // If the name has more than one word, slice off the first one as name
-    return parts.slice(1).join(' ') || fullName;
-  };
+  // =================== CÁLCULO DE CURSOS ===================
+  const cursosFiltrados = useMemo(() => {
+    const result: any[] = [];
+    selectedCiclosPlan.sort((a, b) => a - b).forEach(cicloPlan => {
+      const cursosDelCiclo = cursosCurricula.filter(c => c.ciclo_plan === cicloPlan && selectedCursosIds.includes(c.id));
+      cursosDelCiclo.forEach(curso => result.push(curso));
+    });
+    return result;
+  }, [selectedCiclosPlan, cursosCurricula, selectedCursosIds]);
 
-  // Sort courses
-  const sortedCursos = [...cursos].sort((a, b) => {
-    if (sortCursosBy === 'ciclo') {
-      return (a.ciclo_plan || 0) - (b.ciclo_plan || 0) || a.curso_codigo.localeCompare(b.curso_codigo);
-    }
-    if (sortCursosBy === 'codigo') {
-      return a.curso_codigo.localeCompare(b.curso_codigo);
-    }
-    if (sortCursosBy === 'nombre') {
-      return a.curso_nombre.localeCompare(b.curso_nombre);
-    }
-    if (sortCursosBy === 'docente') {
-      const docA = a.docente_nombre || '';
-      const docB = b.docente_nombre || '';
-      return docA.localeCompare(docB) || a.curso_codigo.localeCompare(b.curso_codigo);
-    }
-    return 0;
-  });
+  const cargaDocenteMap = useMemo(() => {
+    const map: Record<string, { ocupada: number, max: number, nombre: string }> = {};
+    docentes.forEach(d => {
+      map[d.id] = { ocupada: 0, max: d.horas_max_semana || 0, nombre: `${d.nombre} ${d.apellidos}` };
+    });
+    asignaciones.forEach(a => {
+      if (a.docente_id && map[a.docente_id]) {
+        map[a.docente_id].ocupada += (a.horas_teoria || 0) + (a.horas_practica || 0) + (a.horas_laboratorio || 0) + (a.horas_consejeria || 0);
+      }
+    });
+    return map;
+  }, [asignaciones, docentes]);
 
-  // Sort teacher loads
-  const sortedCargaDocentes = [...cargaDocentes].sort((a, b) => {
-    if (sortCargaDocenteBy === 'apellidos') {
-      return getLastName(a.nombre).localeCompare(getLastName(b.nombre));
-    }
-    if (sortCargaDocenteBy === 'horas') {
-      return parseInt(b.horas_asignadas) - parseInt(a.horas_asignadas);
-    }
-    return 0;
-  });
+  const alerts = useMemo(() => {
+    const newAlerts: string[] = [];
+
+    // Validar carga docente máxima
+    Object.values(cargaDocenteMap).forEach(carga => {
+      if (carga.ocupada > carga.max) {
+        newAlerts.push(`El docente ${carga.nombre} supera su carga semanal disponible (${carga.ocupada}/${carga.max} hrs).`);
+      }
+    });
+
+    cursosFiltrados.forEach(curso => {
+      const actividades = [
+        { id: 'teoria', name: 'TEORÍA', horas: curso.horas_teoria },
+        { id: 'practica', name: 'PRÁCTICA', horas: curso.horas_practica },
+        { id: 'laboratorio', name: 'LABORATORIO', horas: curso.horas_laboratorio || 0 }
+      ].filter(a => a.horas > 0);
+
+      actividades.forEach(act => {
+        const gruposAct = grupos.filter(g => g.curso_id === curso.id && g.tipo_actividad === act.id);
+        
+        if (gruposAct.length === 0) {
+          newAlerts.push(`El curso ${curso.codigo} no tiene grupos de ${act.name}.`);
+        }
+
+        gruposAct.forEach(grupo => {
+          const asigs = asignaciones.filter(a => a.grupo_id === grupo.id);
+          
+          if (asigs.length === 0) {
+            newAlerts.push(`El grupo ${grupo.numero_grupo} de ${act.name} del curso ${curso.codigo} no tiene docentes.`);
+          }
+          
+          if (act.id === 'teoria') {
+            const sum = asigs.reduce((s, a) => s + (a.horas_teoria || 0), 0);
+            if (sum !== act.horas) newAlerts.push(`El grupo ${grupo.numero_grupo} de ${act.name} del curso ${curso.codigo} requiere ${act.horas}hrs (tiene ${sum}).`);
+          } else if (act.id === 'practica') {
+            const sum = asigs.reduce((s, a) => s + (a.horas_practica || 0), 0);
+            if (sum !== act.horas) newAlerts.push(`El grupo ${grupo.numero_grupo} de ${act.name} del curso ${curso.codigo} requiere ${act.horas}hrs (tiene ${sum}).`);
+          } else if (act.id === 'laboratorio') {
+            const sum = asigs.reduce((s, a) => s + (a.horas_laboratorio || 0), 0);
+            if (sum !== act.horas) newAlerts.push(`El grupo ${grupo.numero_grupo} de ${act.name} del curso ${curso.codigo} requiere ${act.horas}hrs (tiene ${sum}).`);
+          }
+        });
+      });
+    });
+    return newAlerts;
+  }, [cargaDocenteMap, cursosFiltrados, grupos, asignaciones, docentes]);
+
+  const filteredDocentes = docenteSearch.length >= 2 ? docentes.filter(d =>
+    normalize(d.nombre + ' ' + d.apellidos).includes(normalize(docenteSearch)) ||
+    d.dni?.includes(docenteSearch) || d.email?.toLowerCase().includes(docenteSearch.toLowerCase())
+  ) : [];
+
+  if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando...</div>;
+  if (!prog) return <div style={{ padding: '40px', textAlign: 'center' }}>Programación no encontrada.</div>;
 
   return (
-    <div style={{padding:'32px'}}>
-      {/* Header con breadcrumb */}
-      <div style={{marginBottom:'8px'}}>
-        <a href="/horarios" style={{fontSize:'13px',color:'#64748b',textDecoration:'none'}}>← Volver a Horarios</a>
-      </div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'24px'}}>
+    <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
-          <h1 style={{fontSize:'24px',fontWeight:'700',color:'#1e293b',margin:'0 0 4px'}}>{prog.nombre}</h1>
-          <p style={{color:'#64748b',fontSize:'14px',margin:0}}>
+          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', margin: '0 0 4px' }}>{prog.nombre}</h1>
+          <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>
             Fase 1: Carga de Información — {prog.ciclo_nombre}
-            {lastSaved && <span style={{marginLeft:'12px',fontSize:'12px',color:'#94a3b8'}}>Guardado: {lastSaved.toLocaleTimeString('es-PE')}</span>}
+            {lastSaved && <span style={{ marginLeft: '12px', color: '#10b981' }}>✔ Guardado</span>}
           </p>
         </div>
-        <button className="btn-primary" onClick={avanzarFase} disabled={saving || cursos.length === 0}>
-          {saving ? 'Avanzando...' : 'Avanzar a Fase 2 →'}
-        </button>
-      </div>
-
-      {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
-
-      {/* Fases timeline */}
-      <div style={{display:'flex',gap:'0',marginBottom:'24px',borderRadius:'10px',overflow:'hidden',border:'1px solid #e2e8f0'}}>
-        {[1,2,3,4].map(f => {
-          const fi = FASE_INFO[f];
-          const activa = f === prog.fase;
-          const completada = f < prog.fase;
-          return (
-            <div key={f} style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',padding:'12px',background:activa?'#dbeafe':completada?'#f0fdf4':'#f8fafc',borderRight:f<4?'1px solid #e2e8f0':'none'}}>
-              <span style={{fontSize:'16px'}}>{completada ? '✅' : fi.icon}</span>
-              <span style={{fontSize:'12px',fontWeight:activa?'700':'400',color:activa?'#1e40af':'#94a3b8'}}>
-                Fase {f}: {fi.label}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Stats */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'12px',marginBottom:'20px'}}>
-        {[
-          { label: 'Cursos cargados', value: cursos.length, color: '#1a3a5c' },
-          { label: 'Horas semanales', value: `${totalHoras}h`, color: '#065f46' },
-          { label: 'Hrs consejería', value: `${totalConsejeria}h`, color: '#92400e' },
-          { label: 'Docentes asignados', value: cargaDocentes.length, color: '#6b21a8' },
-        ].map((s, i) => (
-          <div key={i} className="card" style={{padding:'16px',textAlign:'center'}}>
-            <p style={{fontSize:'24px',fontWeight:'700',color:s.color,margin:'0 0 4px'}}>{s.value}</p>
-            <p style={{fontSize:'12px',color:'#64748b',margin:0}}>{s.label}</p>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Currícula Base:</label>
+            <select className="form-input" style={{ padding: '6px 12px', fontSize: '13px' }} value={curriculaActual} onChange={e => setCurriculaActual(e.target.value)}>
+              <option value="">Seleccionar currícula...</option>
+              {curriculas.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre_carrera} ({c.año_curricula})</option>
+              ))}
+            </select>
           </div>
-        ))}
+          <button className="btn-primary" onClick={avanzarFase} disabled={saving || alerts.length > 0 || cursosFiltrados.length === 0} title={alerts.length > 0 ? "Existen errores por corregir" : ""}>
+            {saving ? 'Avanzando...' : 'Avanzar a Fase 2 →'}
+          </button>
+        </div>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:'16px'}}>
-        {/* Tabla de cursos */}
-        <div>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
-            <h3 style={{fontSize:'16px',fontWeight:'600',color:'#1e293b',margin:0}}>Cursos en la programación</h3>
-            <div style={{display:'flex',gap:'10px'}}>
-              {cursos.length > 0 && (
-                <button 
-                  className="btn-danger" 
-                  style={{padding:'6px 14px',fontSize:'13px',background:'#ef4444',color:'#ffffff',borderRadius:'6px',border:'none',fontWeight:'500',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px'}} 
-                  onClick={vaciarCursos}
-                  disabled={saving}
-                >
-                  🗑 Vaciar todo
-                </button>
+      {msg && <div className={`alert alert-${msg.type}`} style={{ marginBottom: '20px' }}>{msg.text}</div>}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '24px' }}>
+
+        {/* PANEL IZQUIERDO: Selección de Ciclos y Cursos */}
+        <div className="card" style={{ padding: '20px', height: 'fit-content' }}>
+          <h2 style={{ fontSize: '15px', fontWeight: '700', color: '#1e293b', marginBottom: '16px' }}>Cursos a Programar</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {ciclosDisponibles.map(cicloPlan => {
+              const cursosDelCiclo = cursosCurricula.filter(c => c.ciclo_plan === cicloPlan);
+              const isCicloSelected = selectedCiclosPlan.includes(cicloPlan);
+              const seleccionadosCount = cursosDelCiclo.filter(c => selectedCursosIds.includes(c.id)).length;
+              const allSelected = seleccionadosCount === cursosDelCiclo.length && cursosDelCiclo.length > 0;
+
+              return (
+                <div key={cicloPlan} style={{ border: '1px solid #e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
+                  <div
+                    style={{ background: isCicloSelected ? '#e0e7ff' : '#f8fafc', padding: '8px 12px', display: 'flex', alignItems: 'center', cursor: 'pointer', borderBottom: isCicloSelected ? '1px solid #c7d2fe' : 'none' }}
+                    onClick={() => toggleCicloPlan(cicloPlan)}
+                  >
+                    <span style={{ fontWeight: '600', color: '#1e293b', fontSize: '13px', flex: 1 }}>Ciclo {toRoman(cicloPlan)}</span>
+                    <span style={{ fontSize: '11px', color: '#64748b', background: '#fff', padding: '2px 6px', borderRadius: '4px' }}>{seleccionadosCount}/{cursosDelCiclo.length}</span>
+                  </div>
+                  {isCicloSelected && (
+                    <div style={{ padding: '6px', background: '#fff' }}>
+                      <div
+                        style={{ fontSize: '11px', color: '#3b82f6', cursor: 'pointer', marginBottom: '6px', textAlign: 'right' }}
+                        onClick={(e) => { e.stopPropagation(); seleccionarTodosCursosDeCiclo(cicloPlan, !allSelected); }}
+                      >
+                        {allSelected ? 'Desmarcar todos' : 'Marcar todos'}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {cursosDelCiclo.map(curso => (
+                          <label key={curso.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', padding: '4px', cursor: 'pointer', background: selectedCursosIds.includes(curso.id) ? '#f8fafc' : 'transparent' }}>
+                            <input type="checkbox" checked={selectedCursosIds.includes(curso.id)} onChange={() => toggleCurso(curso.id)} style={{ marginTop: '2px' }} />
+                            <span style={{ fontSize: '12px', color: '#334155', lineHeight: '1.2' }}>{curso.codigo} - {curso.nombre}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* PANEL DERECHO: Tabla Plana */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, overflow: 'hidden' }}>
+          {alerts.length > 0 && (
+            <div style={{ background: '#fef2f2', border: '1px solid #f87171', borderRadius: '8px', overflow: 'hidden' }}>
+              <div 
+                style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: alertasOpen ? '#fee2e2' : 'transparent' }}
+                onClick={() => setAlertasOpen(!alertasOpen)}
+              >
+                <h4 style={{ color: '#b91c1c', fontWeight: '700', fontSize: '14px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  ⚠️ Existen alertas de asignación que debe solucionar ({alerts.length})
+                </h4>
+                <span style={{ color: '#b91c1c', fontSize: '18px', lineHeight: 1 }}>{alertasOpen ? '▴' : '▾'}</span>
+              </div>
+              {alertasOpen && (
+                <div style={{ padding: '16px', borderTop: '1px solid #fca5a5' }}>
+                  <ul style={{ margin: 0, paddingLeft: '20px', color: '#991b1b', fontSize: '13px' }}>
+                    {alerts.map((al, idx) => <li key={idx} style={{ marginBottom: '4px' }}>{al}</li>)}
+                  </ul>
+                </div>
               )}
-              <label className="btn-secondary" style={{padding:'6px 14px',fontSize:'13px',cursor:'pointer'}}>
-                📥 Importar CSV
-                <input type="file" accept=".csv" style={{display:'none'}} onChange={handleImportCSV} disabled={saving} />
-              </label>
-              <button className="btn-primary" style={{padding:'6px 14px',fontSize:'13px'}} onClick={() => { setAddForm({}); setShowAddModal(true); setMsg(null); }} disabled={saving}>
-                + Agregar curso
-              </button>
             </div>
-          </div>
-          <div className="card" style={{padding:0}}>
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th onClick={() => setSortCursosBy('codigo')} style={{cursor:'pointer',userSelect:'none',background:sortCursosBy==='codigo'?'#f1f5f9':'none'}}>Código {sortCursosBy==='codigo'?'⬇️':''}</th>
-                    <th onClick={() => setSortCursosBy('nombre')} style={{cursor:'pointer',userSelect:'none',background:sortCursosBy==='nombre'?'#f1f5f9':'none'}}>Curso {sortCursosBy==='nombre'?'⬇️':''}</th>
-                    <th onClick={() => setSortCursosBy('ciclo')} style={{cursor:'pointer',userSelect:'none',textAlign:'center',background:sortCursosBy==='ciclo'?'#f1f5f9':'none'}}>Ciclo {sortCursosBy==='ciclo'?'⬇️':''}</th>
-                    <th style={{textAlign:'center'}}>Grupo</th>
-                    <th onClick={() => setSortCursosBy('docente')} style={{cursor:'pointer',userSelect:'none',background:sortCursosBy==='docente'?'#f1f5f9':'none'}}>Docente {sortCursosBy==='docente'?'⬇️':''}</th>
-                    <th style={{textAlign:'center'}}>T</th>
-                    <th style={{textAlign:'center'}}>P</th>
-                    <th style={{textAlign:'center'}}>L</th>
-                    <th style={{textAlign:'center'}}>C</th>
-                    <th></th>
+          )}
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="table-container" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+                  <tr style={{ background: '#1e293b', color: '#fff' }}>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', minWidth: '60px' }}>CICLO</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left' }}>CÓDIGO</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left' }}>CURSO</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center' }}>GRUPO</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left' }}>DOCENTE</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center', width: '60px' }}>T</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center', width: '60px' }}>P</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center', width: '60px' }}>L</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center', width: '60px' }}>C</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedCursos.length === 0 ? (
-                    <tr><td colSpan={10} style={{textAlign:'center',padding:'40px',color:'#94a3b8'}}>No hay cursos. Agrega cursos del catálogo o importa desde CSV.</td></tr>
-                  ) : sortedCursos.map(c => (
-                    <tr key={c.id}>
-                      <td style={{fontWeight:'600',color:'#475569',fontFamily:'monospace',fontSize:'12px'}}>{c.curso_codigo}</td>
-                      <td style={{fontWeight:'500',fontSize:'13px'}}>{c.curso_nombre}</td>
-                      <td style={{textAlign:'center'}}><span style={{background:'#eff6ff',color:'#1e40af',padding:'2px 8px',borderRadius:'6px',fontSize:'12px',fontWeight:'600'}}>{toRoman(c.ciclo_plan)}</span></td>
-                      <td style={{textAlign:'center'}}><span style={{background:'#f1f5f9',padding:'2px 8px',borderRadius:'6px',fontSize:'12px',fontWeight:'600'}}>G{c.numero_grupo}</span></td>
-                      <td>
-                        {c.docente_nombre ? (
-                          <div>
-                            <div style={{fontSize:'13px'}}>{c.docente_nombre}</div>
-                            <span className={`badge badge-${c.docente_categoria}`} style={{fontSize:'10px'}}>{c.docente_categoria?.replace('_',' ')}</span>
-                          </div>
-                        ) : <span style={{color:'#94a3b8',fontSize:'12px'}}>Sin asignar</span>}
-                      </td>
-                      <td style={{textAlign:'center',fontSize:'13px'}}><span className="badge badge-teoria">{c.horas_teoria}h</span></td>
-                      <td style={{textAlign:'center',fontSize:'13px'}}>{c.horas_practica > 0 ? <span className="badge badge-practica">{c.horas_practica}h</span> : '—'}</td>
-                      <td style={{textAlign:'center',fontSize:'13px'}}>{c.horas_laboratorio > 0 ? <span className="badge badge-laboratorio">{c.horas_laboratorio}h</span> : '—'}</td>
-                      <td style={{textAlign:'center',fontSize:'13px',color:'#64748b'}}>{c.horas_consejeria || 0}h</td>
-                      <td>
-                        <button className="btn-danger" style={{padding:'4px 10px',fontSize:'11px'}} onClick={() => eliminarCurso(c.id)}>✕</button>
+                  {cursosFiltrados.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                        Selecciona ciclos y cursos en el panel izquierdo.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    cursosFiltrados.map(curso => {
+                      const actividades = [
+                        { id: 'teoria', name: 'TEORÍA', horas: curso.horas_teoria },
+                        { id: 'practica', name: 'PRÁCTICA', horas: curso.horas_practica },
+                        { id: 'laboratorio', name: 'LABORATORIO', horas: curso.horas_laboratorio || 0 }
+                      ].filter(a => a.horas > 0);
+
+                      const rowSpanCurso = 1 + actividades.reduce((acc, act) => {
+                        const gruposAct = grupos.filter(g => g.curso_id === curso.id && g.tipo_actividad === act.id);
+                        if (gruposAct.length === 0) return acc + 1;
+                        return acc + gruposAct.reduce((gAcc, g) => {
+                          const asigs = asignaciones.filter(a => a.grupo_id === g.id);
+                          return gAcc + 1 + asigs.length + 1;
+                        }, 0);
+                      }, 0);
+
+                      return (
+                        <React.Fragment key={curso.id}>
+                          {/* Course Header Row */}
+                          <tr style={{ background: '#fff', borderTop: '2px solid #e2e8f0' }}>
+                            <td rowSpan={rowSpanCurso} style={{ padding: '12px', verticalAlign: 'top', fontWeight: '600', color: '#3730a3', borderRight: '1px solid #f1f5f9' }}>
+                              {toRoman(curso.ciclo_plan)}
+                            </td>
+                            <td rowSpan={rowSpanCurso} style={{ padding: '12px', verticalAlign: 'top', borderRight: '1px solid #f1f5f9', fontWeight: '600' }}>
+                              {curso.codigo}
+                            </td>
+                            <td style={{ padding: '12px', verticalAlign: 'top', borderRight: '1px solid #f1f5f9', maxWidth: '250px' }}>
+                              <div style={{ fontWeight: '700', color: '#1e293b', lineHeight: '1.3' }}>{curso.nombre}</div>
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center' }}></td>
+                            <td style={{ padding: '8px 12px', textAlign: 'left' }}></td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: '#475569' }}>{curso.horas_teoria}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: '#475569' }}>{curso.horas_practica}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: '#475569' }}>{curso.horas_laboratorio || 0}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: '#475569' }}>-</td>
+                          </tr>
+
+                          {/* Activities & Group Rows */}
+                          {actividades.map(act => {
+                            const gruposAct = grupos.filter(g => g.curso_id === curso.id && g.tipo_actividad === act.id).sort((a, b) => a.numero_grupo - b.numero_grupo);
+                            let rowSpanAct = 0;
+                            if (gruposAct.length === 0) rowSpanAct = 1;
+                            else {
+                              rowSpanAct = gruposAct.reduce((acc, g) => {
+                                const asigs = asignaciones.filter(a => a.grupo_id === g.id);
+                                return acc + 1 + asigs.length + 1;
+                              }, 0);
+                            }
+
+                            return (
+                              <React.Fragment key={act.id}>
+                                {gruposAct.length === 0 ? (
+                                  <tr style={{ background: '#f8fafc' }}>
+                                    <td style={{ padding: '12px', verticalAlign: 'top', borderRight: '1px solid #f1f5f9', background: '#f1f5f9' }}>
+                                      <div style={{ fontWeight: '600', color: '#334155', marginBottom: '8px', textTransform: 'uppercase', fontSize: '12px' }}>{act.name}</div>
+                                      <button className="btn-secondary" style={{ padding: '4px 8px', fontSize: '10px', width: '100%', border: '1px dashed #cbd5e1', background: '#fff', color: '#475569' }} onClick={() => agregarGrupo(curso.id, act.id)}>
+                                        + AGREGAR GRUPO
+                                      </button>
+                                    </td>
+                                    <td colSpan={6} style={{ borderTop: '1px solid #f1f5f9' }}></td>
+                                  </tr>
+                                ) : (
+                                  gruposAct.map((grupo, gIdx) => {
+                                    const asigs = asignaciones.filter(a => a.grupo_id === grupo.id);
+                                    const rowSpanGrupo = 1 + asigs.length + 1;
+                                    const sumT = asigs.reduce((s, a) => s + (a.horas_teoria || 0), 0);
+                                    const sumP = asigs.reduce((s, a) => s + (a.horas_practica || 0), 0);
+                                    const sumL = asigs.reduce((s, a) => s + (a.horas_laboratorio || 0), 0);
+                                    const sumC = asigs.reduce((s, a) => s + (a.horas_consejeria || 0), 0);
+
+                                    return (
+                                      <React.Fragment key={grupo.id}>
+                                        <tr style={{ background: '#f8fafc' }}>
+                                          {gIdx === 0 && (
+                                            <td rowSpan={rowSpanAct} style={{ padding: '12px', verticalAlign: 'top', borderRight: '1px solid #f1f5f9', background: '#f1f5f9' }}>
+                                              <div style={{ fontWeight: '600', color: '#334155', marginBottom: '8px', textTransform: 'uppercase', fontSize: '12px' }}>{act.name}</div>
+                                              <button className="btn-secondary" style={{ padding: '4px 8px', fontSize: '10px', width: '100%', border: '1px dashed #cbd5e1', background: '#fff', color: '#475569' }} onClick={() => agregarGrupo(curso.id, act.id)}>
+                                                + AGREGAR GRUPO
+                                              </button>
+                                            </td>
+                                          )}
+                                          {/* Group Header */}
+                                          <td rowSpan={rowSpanGrupo} style={{ padding: '12px', textAlign: 'center', fontWeight: '700', borderRight: '1px solid #f1f5f9', borderTop: '1px solid #f1f5f9', verticalAlign: 'top', position: 'relative' }}>
+                                            G{grupo.numero_grupo}
+                                            <button style={{ position: 'absolute', top: '4px', right: '4px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '10px' }} onClick={() => eliminarGrupo(grupo.id)} title="Eliminar Grupo">✖</button>
+                                          </td>
+                                          <td style={{ padding: '8px 12px', fontSize: '11px', color: '#94a3b8', fontWeight: '500', borderTop: '1px solid #f1f5f9' }}>
+                                            COD. DOCENTE
+                                          </td>
+                                          <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: '#64748b', borderTop: '1px solid #f1f5f9' }}>
+                                            {sumT}/{curso.horas_teoria}
+                                          </td>
+                                          <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: '#64748b', borderTop: '1px solid #f1f5f9' }}>
+                                            {sumP}/{curso.horas_practica}
+                                          </td>
+                                          <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: '#64748b', borderTop: '1px solid #f1f5f9' }}>
+                                            {sumL}/{curso.horas_laboratorio || 0}
+                                          </td>
+                                          <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: '#64748b', borderTop: '1px solid #f1f5f9' }}>
+                                            {sumC}/-
+                                          </td>
+                                        </tr>
+
+                                        {/* Teachers */}
+                                        {asigs.map(asig => {
+                                          const carga = asig.docente_id && cargaDocenteMap[asig.docente_id] ? cargaDocenteMap[asig.docente_id] : null;
+                                          const isExcedido = carga && carga.ocupada > carga.max;
+                                          return (
+                                            <tr key={asig.id} style={{ background: '#f8fafc' }}>
+                                              <td style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                  <span style={{ fontSize: '11px', color: '#64748b', marginRight: '16px', display: 'inline-block', width: '30px', fontFamily: 'monospace' }}>{asig.docente_codigo || '0000'}</span>
+                                                  <span style={{ fontWeight: '500', fontSize: '12px', color: '#1e293b' }}>{asig.docente_nombre}</span>
+                                                  {carga && (
+                                                    <span style={{ fontSize: '11px', marginLeft: '8px', color: isExcedido ? '#ef4444' : '#64748b', fontWeight: isExcedido ? '700' : '500', background: isExcedido ? '#fee2e2' : 'transparent', padding: isExcedido ? '2px 4px' : '0', borderRadius: '4px' }}>
+                                                      ({carga.ocupada}/{carga.max})
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                <button style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px' }} onClick={() => removeDocente(asig.id)} title="Eliminar docente">✖</button>
+                                              </td>
+                                              <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid #e2e8f0', background: grupo.tipo_actividad !== 'teoria' ? '#e2e8f0' : '#fff' }} disabled={grupo.tipo_actividad !== 'teoria'} value={asig.horas_teoria} onChange={e => updateHoras(asig.id, 'horas_teoria', parseInt(e.target.value) || 0)} /></td>
+                                              <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid #e2e8f0', background: grupo.tipo_actividad !== 'practica' ? '#e2e8f0' : '#fff' }} disabled={grupo.tipo_actividad !== 'practica'} value={asig.horas_practica} onChange={e => updateHoras(asig.id, 'horas_practica', parseInt(e.target.value) || 0)} /></td>
+                                              <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid #e2e8f0', background: grupo.tipo_actividad !== 'laboratorio' ? '#e2e8f0' : '#fff' }} disabled={grupo.tipo_actividad !== 'laboratorio'} value={asig.horas_laboratorio} onChange={e => updateHoras(asig.id, 'horas_laboratorio', parseInt(e.target.value) || 0)} /></td>
+                                              <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid #e2e8f0' }} value={asig.horas_consejeria || 0} onChange={e => updateHoras(asig.id, 'horas_consejeria', parseInt(e.target.value) || 0)} /></td>
+                                            </tr>
+                                          );
+                                        })}
+
+                                        {/* Add Teacher Button Row */}
+                                        <tr style={{ background: '#f8fafc' }}>
+                                          <td style={{ padding: '8px 12px', position: 'relative' }}>
+                                            {searchGrupoId === grupo.id ? (
+                                              <div>
+                                                <input
+                                                  type="text"
+                                                  autoFocus
+                                                  className="form-input"
+                                                  placeholder="🔍 Buscar nombre o DNI..."
+                                                  value={docenteSearch}
+                                                  onChange={e => setDocenteSearch(e.target.value)}
+                                                  style={{ width: '100%', fontSize: '12px', padding: '6px' }}
+                                                />
+                                                {filteredDocentes.length > 0 && (
+                                                  <div style={{ position: 'absolute', top: '100%', left: '12px', right: '12px', background: '#fff', border: '1px solid #cbd5e1', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 20, maxHeight: '200px', overflowY: 'auto' }}>
+                                                    {filteredDocentes.map(d => (
+                                                      <div key={d.id} style={{ padding: '8px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }} onClick={() => addDocente(curso, grupo.id, d)}>
+                                                        <div style={{ fontWeight: '600', fontSize: '12px', color: '#1e293b' }}>{d.nombre} {d.apellidos}</div>
+                                                        <div style={{ fontSize: '10px', color: '#64748b' }}>COD: {d.usuario_id || '0000'} | DNI: {d.dni}</div>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                                <button style={{ fontSize: '11px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', marginTop: '4px' }} onClick={() => setSearchGrupoId(null)}>Cancelar</button>
+                                              </div>
+                                            ) : (
+                                              <button style={{ background: 'none', border: '1px solid #cbd5e1', borderRadius: '4px', color: '#475569', fontWeight: '600', fontSize: '10px', padding: '4px 8px', cursor: 'pointer', display: 'block', margin: '0 auto' }} onClick={() => { setSearchGrupoId(grupo.id); setDocenteSearch(''); }}>
+                                                + AGREGAR DOCENTE
+                                              </button>
+                                            )}
+                                          </td>
+                                          <td colSpan={4}></td>
+                                        </tr>
+                                      </React.Fragment>
+                                    );
+                                  })
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         </div>
 
-        {/* Panel lateral: Carga docente */}
-        <div>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'12px'}}>
-            <h3 style={{fontSize:'16px',fontWeight:'600',color:'#1e293b',margin:0}}>Carga docente</h3>
-            <div style={{display:'flex',gap:'6px',alignItems:'center'}}>
-              <span style={{fontSize:'11px',color:'#64748b'}}>Orden:</span>
-              <button 
-                onClick={() => setSortCargaDocenteBy('apellidos')}
-                style={{
-                  padding:'3px 8px',
-                  fontSize:'11px',
-                  borderRadius:'4px',
-                  border:'none',
-                  background:sortCargaDocenteBy==='apellidos'?'#1a3a5c':'#f1f5f9',
-                  color:sortCargaDocenteBy==='apellidos'?'#ffffff':'#64748b',
-                  fontWeight:'600',
-                  cursor:'pointer'
-                }}
-              >
-                Apellidos
-              </button>
-              <button 
-                onClick={() => setSortCargaDocenteBy('horas')}
-                style={{
-                  padding:'3px 8px',
-                  fontSize:'11px',
-                  borderRadius:'4px',
-                  border:'none',
-                  background:sortCargaDocenteBy==='horas'?'#1a3a5c':'#f1f5f9',
-                  color:sortCargaDocenteBy==='horas'?'#ffffff':'#64748b',
-                  fontWeight:'600',
-                  cursor:'pointer'
-                }}
-              >
-                Horas
-              </button>
-            </div>
-          </div>
-          <div className="card" style={{padding:'16px'}}>
-            {sortedCargaDocentes.length === 0 ? (
-              <p style={{color:'#94a3b8',fontSize:'13px',textAlign:'center',padding:'20px 0'}}>Asigna docentes a los cursos para ver la carga</p>
-            ) : sortedCargaDocentes.map((d, i) => {
-              const porcentaje = d.horas_max_semana > 0 ? (parseInt(d.horas_asignadas) / d.horas_max_semana * 100) : 0;
-              const excede = porcentaje > 100;
-              return (
-                <div key={i} style={{marginBottom:'12px'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:'3px'}}>
-                    <span style={{fontSize:'13px',color:'#374151',fontWeight:'500',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.nombre}</span>
-                    <span style={{fontSize:'12px',color:excede?'#dc2626':'#64748b',fontWeight:excede?'700':'400',marginLeft:'8px',flexShrink:0}}>
-                      {d.horas_asignadas}/{d.horas_max_semana}h
-                    </span>
-                  </div>
-                  <div style={{background:'#f1f5f9',borderRadius:'9999px',height:'6px'}}>
-                    <div style={{height:'100%',borderRadius:'9999px',background:excede?'#dc2626':porcentaje>80?'#f59e0b':'#10b981',width:`${Math.min(porcentaje,100)}%`,transition:'width 0.3s'}} />
-                  </div>
-                  {excede && <p style={{fontSize:'11px',color:'#dc2626',margin:'2px 0 0',fontWeight:'600'}}>⚠ Excede límite</p>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
       </div>
-
-      {/* Modal: Agregar curso */}
-      {showAddModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowAddModal(false)}>
-          <div className="modal">
-            <div className="modal-header">
-              <h2 style={{fontSize:'18px',fontWeight:'600',margin:0}}>Agregar curso a la programación</h2>
-              <button onClick={() => setShowAddModal(false)} style={{background:'none',border:'none',cursor:'pointer',color:'#64748b'}}>
-                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-              </button>
-            </div>
-            <div className="modal-body">
-              {msg && msg.type === 'error' && <div className="alert alert-error">{msg.text}</div>}
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
-                <div className="form-group" style={{gridColumn:'1/-1'}}>
-                  <label className="form-label">Curso del catálogo *</label>
-                  <select className="form-input" value={addForm.curso_id || ''} onChange={e => handleCursoChange(e.target.value)}>
-                    <option value="">Seleccionar curso...</option>
-                    {catalogoCursos.map(c => (
-                      <option key={c.id} value={c.id}>[Ciclo {c.ciclo_plan}] {c.codigo} — {c.nombre} (T:{c.horas_teoria}h P:{c.horas_practica}h)</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Grupo *</label>
-                  <select className="form-input" value={addForm.grupo_id || ''} onChange={e => setAddForm((p: any) => ({...p, grupo_id: e.target.value}))}>
-                    <option value="">Seleccionar grupo...</option>
-                    {grupos.filter(g => !addForm.curso_id || g.curso_id === addForm.curso_id).map(g => (
-                      <option key={g.id} value={g.id}>G{g.numero_grupo} — {g.curso_nombre} ({g.max_alumnos} alumnos)</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Docente (opcional)</label>
-                  <select className="form-input" value={addForm.docente_id || ''} onChange={e => setAddForm((p: any) => ({...p, docente_id: e.target.value || null}))}>
-                    <option value="">Sin asignar aún...</option>
-                    {docentes.map(d => (
-                      <option key={d.id} value={d.id}>[{d.categoria?.replace('_',' ')}] {d.apellidos}, {d.nombre} (máx {d.horas_max_semana}h)</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Hrs Teoría/semana</label>
-                  <input className="form-input" type="number" min={0} max={20} value={addForm.horas_teoria ?? 0} onChange={e => setAddForm((p: any) => ({...p, horas_teoria: parseInt(e.target.value) || 0}))} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Hrs Práctica/semana</label>
-                  <input className="form-input" type="number" min={0} max={20} value={addForm.horas_practica ?? 0} onChange={e => setAddForm((p: any) => ({...p, horas_practica: parseInt(e.target.value) || 0}))} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Hrs Laboratorio/semana</label>
-                  <input className="form-input" type="number" min={0} max={20} value={addForm.horas_laboratorio ?? 0} onChange={e => setAddForm((p: any) => ({...p, horas_laboratorio: parseInt(e.target.value) || 0}))} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Hrs Consejería/semana</label>
-                  <input className="form-input" type="number" min={0} max={2} value={addForm.horas_consejeria ?? 0} onChange={e => setAddForm((p: any) => ({...p, horas_consejeria: parseInt(e.target.value) || 0}))} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Sección</label>
-                  <input className="form-input" placeholder="A, B, C..." value={addForm.seccion || ''} onChange={e => setAddForm((p: any) => ({...p, seccion: e.target.value}))} />
-                </div>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowAddModal(false)}>Cancelar</button>
-              <button className="btn-primary" onClick={agregarCurso} disabled={saving}>
-                {saving ? 'Agregando...' : 'Agregar curso'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

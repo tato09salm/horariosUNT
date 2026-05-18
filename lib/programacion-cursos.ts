@@ -11,7 +11,7 @@ export async function getProgramacionCursosData(programacionId: string) {
       cu.horas_teoria as horas_teoria_catalogo, cu.horas_practica as horas_practica_catalogo,
       COALESCE(cu.horas_laboratorio, 0) as horas_laboratorio_catalogo,
       g.numero_grupo, g.max_alumnos, g.num_alumnos,
-      d.nombre || ' ' || d.apellidos as docente_nombre, d.dni as docente_dni,
+      d.nombre || ' ' || d.apellidos as docente_nombre, d.dni as docente_dni, d.usuario_id as docente_codigo,
       d.categoria as docente_categoria, d.condicion as docente_condicion,
       d.horas_max_semana as docente_horas_max
     FROM programacion_cursos pc
