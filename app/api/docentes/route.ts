@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession, hashPassword } from '@/lib/auth';
 import { query, queryOne, transaction } from '@/lib/db';
 import { registrarAuditoria } from '@/lib/auditoria';
+import { enviarCredencialesDocente } from '@/lib/email';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest) {
           const userExists = await client.query('SELECT id FROM usuarios WHERE email = $1', [doc.email]);
           
           let usuarioId;
+          let nuevoUsuario = false;
           if (userExists.rows.length === 0) {
             const passwordHash = await hashPassword(doc.dni);
             const userRes = await client.query(
@@ -43,11 +45,21 @@ export async function GET(req: NextRequest) {
             );
             usuarioId = userRes.rows[0].id;
             creados++;
+            nuevoUsuario = true;
           } else {
             usuarioId = userExists.rows[0].id;
           }
 
           await client.query('UPDATE docentes SET usuario_id = $1 WHERE id = $2', [usuarioId, doc.id]);
+          
+          // Notificar por correo si se creó un nuevo usuario
+          if (nuevoUsuario) {
+            try {
+              await enviarCredencialesDocente(`${doc.nombre} ${doc.apellidos}`, doc.email, doc.dni);
+            } catch (emailErr) {
+              console.error(`Error enviando email a ${doc.email}:`, emailErr);
+            }
+          }
         });
       }
 
@@ -57,7 +69,7 @@ export async function GET(req: NextRequest) {
           usuario_nombre: `${session.nombre} ${session.apellidos}`,
           accion: 'UPDATE',
           tabla_afectada: 'usuarios/docentes',
-          descripcion: `Se crearon ${creados} usuarios automáticos para docentes existentes`,
+          descripcion: `Se crearon ${creados} usuarios automáticos y se enviaron notificaciones por correo`,
         });
       }
     } catch (err) {
@@ -132,6 +144,7 @@ export async function POST(req: NextRequest) {
         const userExists = await client.query('SELECT id FROM usuarios WHERE email = $1', [email]);
         
         let usuarioId;
+        let nuevoUsuario = false;
         if (userExists.rows.length === 0) {
           const passwordHash = await hashPassword(dni); // DNI como password
           const userRes = await client.query(
@@ -140,6 +153,7 @@ export async function POST(req: NextRequest) {
             [nombre, apellidos, email, passwordHash]
           );
           usuarioId = userRes.rows[0].id;
+          nuevoUsuario = true;
         } else {
           usuarioId = userExists.rows[0].id;
         }
@@ -147,6 +161,15 @@ export async function POST(req: NextRequest) {
         // 3. Vincular docente con usuario
         await client.query('UPDATE docentes SET usuario_id = $1 WHERE id = $2', [usuarioId, docente.id]);
         docente.usuario_id = usuarioId;
+
+        // 4. Notificar por correo
+        if (nuevoUsuario) {
+          try {
+            await enviarCredencialesDocente(`${nombre} ${apellidos}`, email, dni);
+          } catch (emailErr) {
+            console.error(`Error enviando email a ${email}:`, emailErr);
+          }
+        }
       }
 
       return docente;
