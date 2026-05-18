@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useUser } from '@/app/(app)/layout';
 import GrillaHorarios from '@/components/horarios/GrillaHorarios';
 import { BotonExportarExcel } from '@/components/exportar/BotonExportarExcel';
+import { BotonExportarFormatoUNT } from '@/components/exportar/BotonExportarFormatoUNT';
 
 const DIAS = ['lunes','martes','miercoles','jueves','viernes','sabado'];
 const DIAS_LABEL: Record<string,string> = {lunes:'Lunes',martes:'Martes',miercoles:'Miérc.',jueves:'Jueves',viernes:'Viernes',sabado:'Sábado'};
@@ -299,6 +300,7 @@ export default function HorariosPage() {
                           </button>
                         )}
                         
+                        <BotonExportarFormatoUNT programacionId={prog.id} />
                         <BotonExportarExcel programacionId={prog.id} variant="icon" />
 
                         <a href={isDocente ? `/horarios/${prog.id}/disponibilidad` : getFaseUrl(prog)} style={{textDecoration:'none'}}>

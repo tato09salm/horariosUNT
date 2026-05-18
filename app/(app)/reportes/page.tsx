@@ -441,6 +441,37 @@ export default function ReportesPage() {
     }
   }
 
+  async function exportarExcelUNT() {
+    if (!cicloId) {
+      alert('Por favor seleccione un ciclo');
+      return;
+    }
+    setLoading(true);
+    try {
+      const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`).then(r => r.json());
+      const publishedProg = progsRes.data?.find((p: any) => p.estado === 'publicado') || progsRes.data?.[0];
+      
+      if (!publishedProg) {
+        throw new Error('No se encontró ninguna programación para este ciclo.');
+      }
+      
+      const response = await fetch(`/api/horarios/programaciones/${publishedProg.id}/exportar-unt`);
+      if (!response.ok) {
+        throw new Error('Error al obtener datos de exportación oficial UNT');
+      }
+      
+      const resData = await response.json();
+      
+      const { exportarHorariosFormatoUNT } = await import('@/lib/exportar/excel-horarios-unt');
+      await exportarHorariosFormatoUNT(resData);
+    } catch (err: any) {
+      alert(err.message || 'Error al exportar a Formato Oficial UNT');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function exportarCSV() {
     const { utils, writeFile } = await import('xlsx');
     const ciclo = ciclos.find(c=>c.id===cicloId);
@@ -569,6 +600,10 @@ export default function ReportesPage() {
               <button className="btn-secondary" onClick={exportarExcel}>
                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 Excel
+              </button>
+              <button className="btn-secondary" onClick={exportarExcelUNT} style={{ background: '#eef2ff', color: '#4f46e5', borderColor: '#c7d2fe' }}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Excel Formato UNT
               </button>
               <button className="btn-secondary" onClick={exportarCSV}>
                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -732,6 +767,10 @@ export default function ReportesPage() {
             <button className="btn-secondary" onClick={exportarExcel}>
               <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
               Excel
+            </button>
+            <button className="btn-secondary" onClick={exportarExcelUNT} style={{ background: '#eef2ff', color: '#4f46e5', borderColor: '#c7d2fe' }}>
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              Excel Formato UNT
             </button>
             <button className="btn-secondary" onClick={exportarPDF}>
               <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
