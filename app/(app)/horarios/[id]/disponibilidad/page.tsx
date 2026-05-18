@@ -1,6 +1,6 @@
 'use client';
 import { fetchProgramacionCursos } from '@/lib/fetch-programacion-cursos';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { useUser } from '@/app/(app)/layout';
 
@@ -117,6 +117,47 @@ export default function DisponibilidadPage() {
     }
   };
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const importarCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !progId) return;
+
+    setLoading(true);
+    setMsg({ type: 'info', text: 'Procesando archivo CSV...' });
+
+    try {
+      const text = await file.text();
+      const rows = text.split('\n').filter(r => r.trim());
+      const header = rows[0].split(',').map(c => c.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase());
+      const data = rows.slice(1).map(row => {
+        const values = row.split(',').map(v => v.trim());
+        const obj: Record<string, string> = {};
+        header.forEach((h, i) => obj[h] = values[i] || '');
+        return obj;
+      });
+
+      const res = await fetch(`/api/horarios/programaciones/${progId}/importar-disponibilidad`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: data })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+
+      setMsg({ type: 'success', text: json.message });
+      // Recargar datos para el docente actual si lo hay
+      if (docenteId) await cargarDisponibilidad(docenteId);
+    } catch (err: any) {
+      setMsg({ type: 'error', text: 'Error importando: ' + err.message });
+    } finally {
+      setLoading(false);
+    }
+    
+    // reset input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const notificarDocentes = async () => {
     setMsg(null);
     try {
@@ -163,6 +204,10 @@ export default function DisponibilidadPage() {
         </div>
         {isAdminOrSec && (
           <div style={{ display: 'flex', gap: '10px' }}>
+            <input type="file" accept=".csv" ref={fileInputRef} style={{ display: 'none' }} onChange={importarCSV} />
+            <button className="btn-secondary" style={{ background: '#fff', border: '1px solid #cbd5e1' }} onClick={() => fileInputRef.current?.click()} disabled={saving || loading}>
+              📥 Importar CSV
+            </button>
             <button className="btn-secondary" onClick={notificarDocentes}>Notificar Docentes</button>
             <button className="btn-primary" onClick={avanzarFase}>Avanzar a Fase 3</button>
           </div>
