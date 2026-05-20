@@ -11,6 +11,17 @@ const GRADIENTS = [
   { id: 'colorOrange', from: '#fbbf24', to: '#f59e0b' },
 ];
 
+const TIPO_SESION_LABELS: Record<string, string> = {
+  teoria: 'Teoria',
+  practica: 'Practica',
+  laboratorio: 'Laboratorio',
+};
+
+function formatTime(value?: string) {
+  if (!value) return '';
+  return value.slice(0, 5);
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -22,11 +33,59 @@ export default function DashboardPage() {
   const isDocente = user?.rol === 'docente';
 
   useEffect(() => {
-    fetch('/api/dashboard').then(r => r.json()).then(d => {
-      setData(d);
-      setCicloId(d.ciclo?.id || '');
-    }).finally(() => setLoading(false));
-    fetch('/api/horarios/programaciones').then(r => r.json()).then(d => setProgramaciones(d.data || []));
+    const loadDashboard = async () => {
+      try {
+        const res = await fetch('/api/dashboard');
+        const text = await res.text();
+        if (!text) {
+          if (!res.ok) {
+            throw new Error(`Respuesta vacia del servidor (${res.status})`);
+          }
+          console.warn('Respuesta vacia del servidor en /api/dashboard');
+          setData(null);
+          setCicloId('');
+          return;
+        }
+        let payload: any = null;
+        try {
+          payload = JSON.parse(text);
+        } catch (parseErr) {
+          throw new Error('Respuesta no valida del servidor');
+        }
+        if (!res.ok) {
+          throw new Error(payload?.error || 'No se pudo cargar el dashboard');
+        }
+        setData(payload);
+        setCicloId(payload.ciclo?.id || '');
+      } catch (err) {
+        console.error(err);
+        alert('No se pudo cargar el dashboard. Revisa tu sesion e intenta nuevamente.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const loadProgramaciones = async () => {
+      try {
+        const res = await fetch('/api/horarios/programaciones');
+        const text = await res.text();
+        if (!text) return;
+        let payload: any = null;
+        try {
+          payload = JSON.parse(text);
+        } catch (parseErr) {
+          return;
+        }
+        if (res.ok) {
+          setProgramaciones(payload.data || []);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    loadDashboard();
+    loadProgramaciones();
   }, []);
 
   function recargar(id: string) {
@@ -44,26 +103,37 @@ export default function DashboardPage() {
       const ciclo = data?.ciclo;
       const dashData = data;
 
-      doc.setFontSize(16);
-      doc.setTextColor(30, 41, 59);
-      doc.text('UNIVERSIDAD NACIONAL DE TRUJILLO', 148.5, 20, { align: 'center' });
-      
-      doc.setFontSize(12);
-      doc.text('Facultad de Ingeniería - Escuela de Ingeniería de Sistemas', 148.5, 28, { align: 'center' });
-      
-      doc.setDrawColor(226, 232, 240);
-      doc.line(14, 35, 283, 35);
-      
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`REPORTE DE GESTIÓN — ${ciclo?.nombre||''}`, 14, 45);
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(100, 116, 139);
-      doc.text(`Fecha de emisión: ${new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' })}`, 14, 52);
+      const fechaEmision = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
+      const horaEmision = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+      const coberturaGrupos = dashData?.stats?.totalGrupos ? Math.round((dashData?.stats?.gruposConHorario / dashData?.stats?.totalGrupos) * 100) : 0;
+      const ocupacionGlobal = dashData?.stats?.globalAmbientes && dashData?.slots?.length
+        ? Math.round((dashData?.stats?.totalAsignaciones / (dashData?.stats?.globalAmbientes * dashData?.slots?.length * 5)) * 100)
+        : 0;
 
-      let y = 62;
+      doc.setFillColor(15, 23, 42);
+      doc.rect(0, 0, 297, 24, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text('UNIVERSIDAD NACIONAL DE TRUJILLO', 14, 15);
+
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('REPORTE DE GESTIÓN DE HORARIOS', 14, 36);
+
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text('Facultad de Ingeniería - Escuela de Ingeniería de Sistemas', 14, 43);
+      doc.text(`Ciclo: ${ciclo?.nombre || 'Sin ciclo activo'}`, 14, 50);
+      doc.text(`Fecha de emisión: ${fechaEmision} ${horaEmision}`, 14, 57);
+      doc.text(`Usuario: ${user?.nombre || ''} ${user?.apellidos || ''}`, 14, 64);
+
+      doc.setDrawColor(226, 232, 240);
+      doc.line(14, 70, 283, 70);
+
+      let y = 80;
 
       doc.setFontSize(12); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
       doc.text('RESUMEN EJECUTIVO', 14, y); y += 6;
@@ -73,6 +143,8 @@ export default function DashboardPage() {
         ['Docentes programados', `${dashData?.stats?.totalDocentes} de ${dashData?.stats?.globalDocentes||0} (${Math.round((dashData?.stats?.totalDocentes / (dashData?.stats?.globalDocentes||1))*100)}%)`],
         ['Cursos programados', `${dashData?.stats?.totalCursos} de ${dashData?.stats?.globalCursos||0} (${Math.round((dashData?.stats?.totalCursos / (dashData?.stats?.globalCursos||1))*100)}%)`],
         ['Ambientes usados', `${dashData?.stats?.totalAmbientes} de ${dashData?.stats?.globalAmbientes||0} (${Math.round((dashData?.stats?.totalAmbientes / (dashData?.stats?.globalAmbientes||1))*100)}%)`],
+        ['Cobertura de grupos', `${dashData?.stats?.gruposConHorario || 0} de ${dashData?.stats?.totalGrupos || 0} (${coberturaGrupos}%)`],
+        ['Ocupación global', `${ocupacionGlobal}%`],
         ['Total asignaciones', `${dashData?.stats?.totalAsignaciones}`],
       ];
       autoTable(doc, {
@@ -81,7 +153,26 @@ export default function DashboardPage() {
         headStyles:{fillColor:[30, 41, 59], textColor:[255, 255, 255], fontStyle:'bold'},
         bodyStyles:{textColor:[51, 65, 85]},
         margin:{left:14,right:14},
-        tableWidth: 100,
+        tableWidth: 120,
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+
+      doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
+      doc.text('ALERTAS Y OBSERVACIONES', 14, y); y += 6;
+      autoTable(doc, {
+        startY: y,
+        head:[['Indicador','Detalle']],
+        body: [
+          ['Grupos sin horario', `${dashData?.stats?.gruposSinHorario || 0}`],
+          ['Docentes sobrecargados', `${dashData?.docentesSobrecarga?.length || 0}`],
+          ['Capacidad excedida', `${dashData?.capacidadExcedida?.length || 0}`],
+          ['Conflictos pendientes', `${dashData?.conflictosPendientes || 0}`],
+        ],
+        theme:'striped',
+        headStyles:{fillColor:[148, 163, 184], textColor:[15, 23, 42], fontStyle:'bold'},
+        bodyStyles:{textColor:[51, 65, 85]},
+        margin:{left:14,right:14},
+        tableWidth: 120,
       });
       y = (doc as any).lastAutoTable.finalY + 10;
 
@@ -116,6 +207,58 @@ export default function DashboardPage() {
         columnStyles: { 2:{halign:'center'}, 3:{halign:'center'} },
         margin:{left:14,right:14},
       });
+      y = (doc as any).lastAutoTable.finalY + 10;
+
+      doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
+      doc.text('DISTRIBUCIÓN POR DÍA', 14, y); y += 6;
+      autoTable(doc, {
+        startY: y,
+        head:[['Día','Asignaciones']],
+        body: dashData?.distribucionDias?.map((d:any)=>[
+          d.dia, d.cantidad
+        ])||[],
+        theme:'striped',
+        headStyles:{fillColor:[30, 41, 59], textColor:[255, 255, 255], fontStyle:'bold'},
+        bodyStyles:{textColor:[51, 65, 85], fontSize:8},
+        margin:{left:14,right:14},
+      });
+
+      // Seccion detallada
+      doc.addPage();
+      doc.setFontSize(14); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
+      doc.text('ANEXO: DETALLE DE INCIDENCIAS', 14, 20);
+
+      let detailY = 30;
+      doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
+      doc.text('DOCENTES CON SOBRECARGA', 14, detailY); detailY += 6;
+      autoTable(doc, {
+        startY: detailY,
+        head:[['Docente','Horas Asignadas','Horas Máx.','% Carga']],
+        body: dashData?.docentesSobrecarga?.map((d:any)=>[
+          d.nombre, `${d.horas_asignadas}h`, `${d.horas_max_semana}h`, `${d.porcentaje_carga||0}%`
+        ])||[['Sin registros','-','-','-']],
+        theme:'striped',
+        headStyles:{fillColor:[226, 232, 240], textColor:[15, 23, 42], fontStyle:'bold'},
+        bodyStyles:{textColor:[51, 65, 85], fontSize:8},
+        columnStyles: { 1:{halign:'center'}, 2:{halign:'center'}, 3:{halign:'center'} },
+        margin:{left:14,right:14},
+      });
+      detailY = (doc as any).lastAutoTable.finalY + 8;
+
+      doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
+      doc.text('SOBRECUPO EN AMBIENTES', 14, detailY); detailY += 6;
+      autoTable(doc, {
+        startY: detailY,
+        head:[['Curso','Grupo','Ambiente','Capacidad','Inscritos']],
+        body: dashData?.capacidadExcedida?.map((c:any)=>[
+          c.curso, `G${c.numero_grupo}`, c.ambiente_codigo, c.capacidad, c.num_alumnos
+        ])||[['Sin registros','-','-','-','-']],
+        theme:'striped',
+        headStyles:{fillColor:[226, 232, 240], textColor:[15, 23, 42], fontStyle:'bold'},
+        bodyStyles:{textColor:[51, 65, 85], fontSize:8},
+        columnStyles: { 3:{halign:'center'}, 4:{halign:'center'} },
+        margin:{left:14,right:14},
+      });
 
       // Capture charts with html2canvas
       try {
@@ -123,10 +266,12 @@ export default function DashboardPage() {
         const chartDensidad = document.getElementById('chart-densidad');
         const chartCategoria = document.getElementById('chart-categoria');
         
-        if (chartDensidad && chartCategoria) {
+        const addChartPage = async (title: string, element: HTMLElement) => {
           doc.addPage();
           doc.setFontSize(14); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
           doc.text('GRÁFICOS ESTADÍSTICOS', 14, 20);
+          doc.setFontSize(11); doc.setFont('helvetica','normal'); doc.setTextColor(71, 85, 105);
+          doc.text(title, 14, 28);
 
           const captureFixedElement = async (el: HTMLElement) => {
             const clone = el.cloneNode(true) as HTMLElement;
@@ -154,18 +299,29 @@ export default function DashboardPage() {
             document.body.removeChild(clone);
             return canvas;
           };
-          
-          const canvas1 = await captureFixedElement(chartDensidad);
-          const img1 = canvas1.toDataURL('image/png');
-          doc.addImage(img1, 'PNG', 14, 30, 180, Math.min(100, (canvas1.height * 180) / canvas1.width));
-          
-          const canvas2 = await captureFixedElement(chartCategoria);
-          const img2 = canvas2.toDataURL('image/png');
-          doc.addImage(img2, 'PNG', 14, 140, 180, Math.min(100, (canvas2.height * 180) / canvas2.width));
+
+          const canvas = await captureFixedElement(element);
+          const img = canvas.toDataURL('image/png');
+          doc.addImage(img, 'PNG', 14, 36, 260, Math.min(140, (canvas.height * 260) / canvas.width));
+
+          doc.setFontSize(9);
+          doc.setTextColor(100, 116, 139);
+          doc.text('Documento generado por el Sistema de Horarios Académicos UNT. Uso interno.', 14, 200);
+        };
+
+        if (chartDensidad) {
+          await addChartPage('Densidad de clases por día', chartDensidad);
+        }
+        if (chartCategoria) {
+          await addChartPage('Participación por categoría docente', chartCategoria);
         }
       } catch (err) {
         console.warn('Could not export charts:', err);
       }
+
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text('Documento generado por el Sistema de Horarios Académicos UNT. Uso interno.', 14, 200);
 
       doc.save(`reporte-gestion-${ciclo?.nombre||'unt'}.pdf`);
     } catch (e) {
@@ -199,6 +355,27 @@ export default function DashboardPage() {
     porcentaje: parseFloat(a.porcentaje),
     tipo: a.tipo,
   })) || [];
+
+  const gruposTotal = data?.stats?.totalGrupos || 0;
+  const gruposConHorario = data?.stats?.gruposConHorario || 0;
+  const gruposSinHorario = data?.stats?.gruposSinHorario || 0;
+  const porcentajeGrupos = gruposTotal > 0 ? Math.round((gruposConHorario / gruposTotal) * 100) : 0;
+  const totalSlots = (data?.stats?.globalAmbientes || 0) * (data?.slots?.length || 0) * 5;
+  const ocupacionPromedio = totalSlots > 0 ? Math.round((data?.stats?.totalAsignaciones / totalSlots) * 100) : 0;
+
+  const asignacionesPorSlot = data?.asignacionesPorSlot?.map((s: any) => ({
+    name: `${formatTime(s.hora_inicio)}-${formatTime(s.hora_fin)}`,
+    cantidad: parseInt(s.cantidad),
+  })) || [];
+
+  const tiposSesion = data?.asignacionesPorTipo?.map((t: any) => ({
+    name: TIPO_SESION_LABELS[t.tipo] || t.tipo,
+    value: parseInt(t.cantidad),
+  })) || [];
+
+  const docentesSobrecarga = data?.docentesSobrecarga || [];
+  const capacidadExcedida = data?.capacidadExcedida || [];
+  const conflictosPendientes = data?.conflictosPendientes || 0;
 
   if (isDocente) {
     const miCarga = data?.cargaDocentes?.find((d: any) => d.nombre.toLowerCase().includes(user?.nombre?.toLowerCase()) || d.nombre.toLowerCase().includes(user?.apellidos?.toLowerCase()));
@@ -342,6 +519,126 @@ export default function DashboardPage() {
         )})}
       </div>
 
+      {/* Indicadores operativos */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))',gap:'16px',marginBottom:'24px'}}>
+        <div className="card" style={{padding:'18px',border:'1px solid #e2e8f0'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'8px'}}>
+            <span style={{fontSize:'13px',fontWeight:'600',color:'#64748b'}}>Cobertura de grupos</span>
+            <span style={{fontSize:'12px',fontWeight:'700',color:porcentajeGrupos >= 85 ? '#166534' : porcentajeGrupos >= 60 ? '#854d0e' : '#b91c1c'}}>{porcentajeGrupos}%</span>
+          </div>
+          <p style={{fontSize:'26px',fontWeight:'800',margin:'0 0 6px',color:'#0f172a'}}>{gruposConHorario} / {gruposTotal}</p>
+          <p style={{fontSize:'12px',color:'#94a3b8',margin:0}}>Grupos con horario asignado</p>
+        </div>
+
+        <div className="card" style={{padding:'18px',border:'1px solid #e2e8f0'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'8px'}}>
+            <span style={{fontSize:'13px',fontWeight:'600',color:'#64748b'}}>Ocupacion global</span>
+            <span style={{fontSize:'12px',fontWeight:'700',color:ocupacionPromedio >= 75 ? '#166534' : ocupacionPromedio >= 45 ? '#854d0e' : '#64748b'}}>{ocupacionPromedio}%</span>
+          </div>
+          <p style={{fontSize:'26px',fontWeight:'800',margin:'0 0 6px',color:'#0f172a'}}>{data?.stats?.totalAsignaciones || 0}</p>
+          <p style={{fontSize:'12px',color:'#94a3b8',margin:0}}>Asignaciones vs. {totalSlots || 0} slots disponibles</p>
+        </div>
+
+        <div className="card" style={{padding:'18px',border:'1px solid #e2e8f0'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'8px'}}>
+            <span style={{fontSize:'13px',fontWeight:'600',color:'#64748b'}}>Conflictos pendientes</span>
+            <span style={{fontSize:'12px',fontWeight:'700',color:conflictosPendientes > 0 ? '#b91c1c' : '#166534'}}>{conflictosPendientes}</span>
+          </div>
+          <p style={{fontSize:'26px',fontWeight:'800',margin:'0 0 6px',color:'#0f172a'}}>{conflictosPendientes}</p>
+          <p style={{fontSize:'12px',color:'#94a3b8',margin:0}}>Incidencias sin resolver</p>
+        </div>
+
+        <div className="card" style={{padding:'18px',border:'1px solid #e2e8f0'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'8px'}}>
+            <span style={{fontSize:'13px',fontWeight:'600',color:'#64748b'}}>Capacidad excedida</span>
+            <span style={{fontSize:'12px',fontWeight:'700',color:capacidadExcedida.length > 0 ? '#b45309' : '#166534'}}>{capacidadExcedida.length}</span>
+          </div>
+          <p style={{fontSize:'26px',fontWeight:'800',margin:'0 0 6px',color:'#0f172a'}}>{capacidadExcedida.length}</p>
+          <p style={{fontSize:'12px',color:'#94a3b8',margin:0}}>Asignaciones con sobrecupo</p>
+        </div>
+      </div>
+
+      {/* Alertas y acciones */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(360px, 1fr))',gap:'24px',marginBottom:'24px'}}>
+        <div className="card" style={{padding:'20px',border:'1px solid #e2e8f0'}}>
+          <h3 style={{fontSize:'16px',fontWeight:'600',color:'#1e293b',margin:'0 0 14px',display:'flex',alignItems:'center',gap:'8px'}}>
+            <span style={{background:'#fee2e2',padding:'6px',borderRadius:'8px',color:'#b91c1c'}}>⚠️</span> Alertas operativas
+          </h3>
+          <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',border:'1px solid #e2e8f0',borderRadius:'8px',background:'#f8fafc'}}>
+              <div>
+                <p style={{margin:'0 0 4px',fontSize:'13px',fontWeight:'600',color:'#0f172a'}}>Grupos sin horario</p>
+                <p style={{margin:0,fontSize:'12px',color:'#64748b'}}>Pendientes de asignar en el ciclo</p>
+              </div>
+              <span style={{fontSize:'14px',fontWeight:'700',color:gruposSinHorario > 0 ? '#b91c1c' : '#166534'}}>{gruposSinHorario}</span>
+            </div>
+
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',border:'1px solid #e2e8f0',borderRadius:'8px',background:'#f8fafc'}}>
+              <div>
+                <p style={{margin:'0 0 4px',fontSize:'13px',fontWeight:'600',color:'#0f172a'}}>Docentes sobrecargados</p>
+                <p style={{margin:0,fontSize:'12px',color:'#64748b'}}>Superan horas maximas</p>
+              </div>
+              <span style={{fontSize:'14px',fontWeight:'700',color:docentesSobrecarga.length > 0 ? '#b45309' : '#166534'}}>{docentesSobrecarga.length}</span>
+            </div>
+
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',border:'1px solid #e2e8f0',borderRadius:'8px',background:'#f8fafc'}}>
+              <div>
+                <p style={{margin:'0 0 4px',fontSize:'13px',fontWeight:'600',color:'#0f172a'}}>Capacidad excedida</p>
+                <p style={{margin:0,fontSize:'12px',color:'#64748b'}}>Aulas con sobrecupo</p>
+              </div>
+              <span style={{fontSize:'14px',fontWeight:'700',color:capacidadExcedida.length > 0 ? '#b45309' : '#166534'}}>{capacidadExcedida.length}</span>
+            </div>
+
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',border:'1px solid #e2e8f0',borderRadius:'8px',background:'#f8fafc'}}>
+              <div>
+                <p style={{margin:'0 0 4px',fontSize:'13px',fontWeight:'600',color:'#0f172a'}}>Conflictos pendientes</p>
+                <p style={{margin:0,fontSize:'12px',color:'#64748b'}}>Registros sin resolver</p>
+              </div>
+              <span style={{fontSize:'14px',fontWeight:'700',color:conflictosPendientes > 0 ? '#b91c1c' : '#166534'}}>{conflictosPendientes}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="card" style={{padding:'20px',border:'1px solid #e2e8f0'}}>
+          <h3 style={{fontSize:'16px',fontWeight:'600',color:'#1e293b',margin:'0 0 14px',display:'flex',alignItems:'center',gap:'8px'}}>
+            <span style={{background:'#e0f2fe',padding:'6px',borderRadius:'8px',color:'#0369a1'}}>📌</span> Detalles prioritarios
+          </h3>
+          <div style={{display:'grid',gridTemplateColumns:'1fr',gap:'12px'}}>
+            <div style={{border:'1px solid #e2e8f0',borderRadius:'10px',padding:'12px',background:'#f8fafc'}}>
+              <p style={{margin:'0 0 8px',fontSize:'13px',fontWeight:'600',color:'#0f172a'}}>Docentes sobrecarga</p>
+              {docentesSobrecarga.length > 0 ? (
+                <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+                  {docentesSobrecarga.slice(0, 4).map((d: any) => (
+                    <div key={d.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                      <span style={{fontSize:'12px',color:'#1e293b'}}>{d.nombre}</span>
+                      <span style={{fontSize:'12px',fontWeight:'600',color:'#b45309'}}>{d.horas_asignadas} / {d.horas_max_semana}h</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{margin:0,fontSize:'12px',color:'#94a3b8'}}>Sin sobrecargas detectadas.</p>
+              )}
+            </div>
+
+            <div style={{border:'1px solid #e2e8f0',borderRadius:'10px',padding:'12px',background:'#f8fafc'}}>
+              <p style={{margin:'0 0 8px',fontSize:'13px',fontWeight:'600',color:'#0f172a'}}>Aulas con sobrecupo</p>
+              {capacidadExcedida.length > 0 ? (
+                <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+                  {capacidadExcedida.slice(0, 4).map((c: any) => (
+                    <div key={c.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                      <span style={{fontSize:'12px',color:'#1e293b'}}>{c.curso} · G{c.numero_grupo}</span>
+                      <span style={{fontSize:'12px',fontWeight:'600',color:'#b45309'}}>{c.num_alumnos}/{c.capacidad}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{margin:0,fontSize:'12px',color:'#94a3b8'}}>Sin sobrecupo registrado.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Widget de Fases Activas */}
       {programaciones.filter((p: any) => p.estado !== 'cancelado').length > 0 && (
         <div className="card" style={{ marginBottom: '24px' }}>
@@ -424,6 +721,45 @@ export default function DashboardPage() {
                   paddingAngle={5}
                 >
                   {categoriaData.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />)}
+                </Pie>
+                <Tooltip contentStyle={{borderRadius:'12px',border:'none',boxShadow:'0 10px 15px -3px rgba(0,0,0,0.1)'}} />
+                <Legend iconType="circle" wrapperStyle={{fontSize:'12px', paddingTop:'10px'}} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : <p style={{color:'#94a3b8',fontSize:'14px',textAlign:'center',padding:'40px 0'}}>Sin datos</p>}
+        </div>
+      </div>
+
+      {/* Charts Row 2 */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(400px, 1fr))',gap:'24px',marginBottom:'24px'}}>
+        {/* Asignaciones por hora */}
+        <div className="card" style={{padding:'24px', border:'1px solid #e2e8f0', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.05)', backgroundColor:'white'}}>
+          <h3 style={{fontSize:'16px',fontWeight:'600',color:'#1e293b',margin:'0 0 20px', display:'flex', alignItems:'center', gap:'8px'}}>
+            <span style={{background:'#fef9c3', padding:'6px', borderRadius:'8px', color:'#a16207'}}>🕒</span> Asignaciones por Hora
+          </h3>
+          {asignacionesPorSlot.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={asignacionesPorSlot} margin={{top:10,right:10,left:-18,bottom:0}}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" tick={{fontSize:11,fill:'#64748b'}} axisLine={false} tickLine={false} angle={-20} textAnchor="end" height={50} />
+                <YAxis tick={{fontSize:12,fill:'#64748b'}} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{borderRadius:'12px',border:'none',boxShadow:'0 10px 15px -3px rgba(0,0,0,0.1)',fontSize:'13px',fontWeight:'500'}} />
+                <Bar dataKey="cantidad" name="Asignaciones" fill="#f59e0b" radius={[6,6,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <p style={{color:'#94a3b8',fontSize:'14px',textAlign:'center',padding:'40px 0'}}>Sin datos</p>}
+        </div>
+
+        {/* Tipos de sesion */}
+        <div className="card" style={{padding:'24px', border:'1px solid #e2e8f0', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.05)', backgroundColor:'white'}}>
+          <h3 style={{fontSize:'16px',fontWeight:'600',color:'#1e293b',margin:'0 0 20px', display:'flex', alignItems:'center', gap:'8px'}}>
+            <span style={{background:'#ecfdf5', padding:'6px', borderRadius:'8px', color:'#059669'}}>🧭</span> Tipos de Sesion
+          </h3>
+          {tiposSesion.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={tiposSesion} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" nameKey="name" paddingAngle={4}>
+                  {tiposSesion.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />)}
                 </Pie>
                 <Tooltip contentStyle={{borderRadius:'12px',border:'none',boxShadow:'0 10px 15px -3px rgba(0,0,0,0.1)'}} />
                 <Legend iconType="circle" wrapperStyle={{fontSize:'12px', paddingTop:'10px'}} />

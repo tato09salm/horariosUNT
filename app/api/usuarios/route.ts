@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession, hashPassword } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
 import { registrarAuditoria } from '@/lib/auditoria';
+import { enviarCredencialesUsuario } from '@/lib/email';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -83,7 +84,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const hash = await hashPassword(body.password || 'temporal123');
+    const rawPassword = body.password || 'temporal123';
+    const hash = await hashPassword(rawPassword);
     const usuario = await queryOne(
       `INSERT INTO usuarios (nombre, apellidos, email, password_hash, rol) 
        VALUES ($1, $2, $3, $4, $5) 
@@ -98,6 +100,20 @@ export async function POST(req: NextRequest) {
       registro_id: usuario?.id,
       descripcion: `Usuario creado: ${body.email}`,
     });
+
+    if (usuario?.email) {
+      try {
+        const nombre = `${usuario.nombre} ${usuario.apellidos}`.trim();
+        await enviarCredencialesUsuario({
+          nombre: nombre || 'Usuario',
+          email: usuario.email,
+          password: rawPassword,
+          rol: usuario.rol,
+        });
+      } catch (emailErr) {
+        console.error(`Error enviando email a ${usuario.email}:`, emailErr);
+      }
+    }
 
     return NextResponse.json({ data: usuario }, { status: 201 });
   } catch (error: any) {

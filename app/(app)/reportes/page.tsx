@@ -407,40 +407,6 @@ export default function ReportesPage() {
     doc.save(`${nombre}-${ciclo?.nombre||'unt'}.pdf`);
   }
 
-  async function exportarExcel() {
-    if (!cicloId) {
-      alert('Por favor seleccione un ciclo');
-      return;
-    }
-    setLoading(true);
-    try {
-      // 1. Encontrar la programación asociada al ciclo
-      const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`).then(r => r.json());
-      const publishedProg = progsRes.data?.find((p: any) => p.estado === 'publicado') || progsRes.data?.[0];
-      
-      if (!publishedProg) {
-        throw new Error('No se encontró ninguna programación para este ciclo.');
-      }
-      
-      // 2. Obtener los datos estructurados
-      const response = await fetch(`/api/horarios/programaciones/${publishedProg.id}/exportar`);
-      if (!response.ok) {
-        throw new Error('Error al obtener datos de exportación');
-      }
-      
-      const resData = await response.json();
-      
-      // 3. Generar y descargar el libro Excel premium
-      const { exportarHorariosExcel } = await import('@/lib/exportar/excel-horarios');
-      await exportarHorariosExcel(resData);
-    } catch (err: any) {
-      alert(err.message || 'Error al exportar a Excel');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function exportarExcelUNT() {
     if (!cicloId) {
       alert('Por favor seleccione un ciclo');
@@ -524,14 +490,23 @@ export default function ReportesPage() {
 
   return (
     <div style={{padding:'32px'}}>
-      <div style={{marginBottom:'24px'}}>
-        <h1 style={{fontSize:'24px',fontWeight:'700',color:'#1e293b',margin:'0 0 4px'}}>Reportes</h1>
-        <p style={{color:'#64748b',fontSize:'14px',margin:0}}>Generación de reportes operacionales y de gestión en PDF, Excel y CSV</p>
+      <div style={{marginBottom:'24px',display:'flex',flexWrap:'wrap',alignItems:'center',justifyContent:'space-between',gap:'12px'}}>
+        <div>
+          <h1 style={{fontSize:'24px',fontWeight:'700',color:'#1e293b',margin:'0 0 4px'}}>Reportes</h1>
+          <p style={{color:'#64748b',fontSize:'14px',margin:0}}>Crea reportes listos para impresión y exportación oficial</p>
+        </div>
+        <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
+          <div style={{background:'#e2e8f0',color:'#0f172a',padding:'6px 12px',borderRadius:'999px',fontSize:'12px',fontWeight:'600'}}>Formato UNT</div>
+          <div style={{background:'#f1f5f9',color:'#475569',padding:'6px 12px',borderRadius:'999px',fontSize:'12px',fontWeight:'600'}}>PDF profesional</div>
+        </div>
       </div>
 
       {/* Config Panel */}
-      <div className="card" style={{marginBottom:'20px'}}>
-        <h3 style={{fontSize:'16px',fontWeight:'600',margin:'0 0 16px'}}>Configuración del reporte</h3>
+      <div className="card" style={{marginBottom:'20px',border:'1px solid #e2e8f0'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'12px',marginBottom:'16px',flexWrap:'wrap'}}>
+          <h3 style={{fontSize:'16px',fontWeight:'600',margin:0}}>Configuración del reporte</h3>
+          <div style={{fontSize:'12px',color:'#64748b'}}>Define el alcance y luego previsualiza</div>
+        </div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(250px, 1fr))',gap:'16px',marginBottom:'20px'}}>
           <div className="form-group" style={{margin:0}}>
             <label className="form-label" style={{color:'#475569', fontWeight:'600'}}>Tipo de reporte</label>
@@ -586,33 +561,50 @@ export default function ReportesPage() {
             </div>
           )}
         </div>
-        <div style={{display:'flex',gap:'12px'}}>
-          <button className="btn-primary" onClick={generarReporte} disabled={loading}>
+        <div style={{display:'flex',gap:'12px',flexWrap:'wrap'}}>
+          <button className="btn-primary" onClick={generarReporte} disabled={loading} style={{minWidth:'160px',justifyContent:'center'}}>
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
             {loading ? 'Generando...' : 'Previsualizar'}
           </button>
-          {hasSearched && (Object.keys(porDocente).length > 0 || Object.keys(porAmbiente).length > 0 || tipoReporte === 'gestion') && (
-            <div style={{display:'flex',gap:'8px'}}>
-              <button className="btn-secondary" onClick={exportarPDF}>
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                PDF
-              </button>
-              <button className="btn-secondary" onClick={exportarExcel}>
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                Excel
-              </button>
-              <button className="btn-secondary" onClick={exportarExcelUNT} style={{ background: '#eef2ff', color: '#4f46e5', borderColor: '#c7d2fe' }}>
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                Excel Formato UNT
-              </button>
-              <button className="btn-secondary" onClick={exportarCSV}>
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                CSV
-              </button>
+          {loading && (
+            <div style={{fontSize:'12px',color:'#64748b',display:'flex',alignItems:'center',gap:'6px'}}>
+              <span style={{width:'6px',height:'6px',borderRadius:'50%',background:'#1a3a5c',display:'inline-block'}} />
+              Procesando datos...
             </div>
           )}
         </div>
       </div>
+
+      {hasSearched && (Object.keys(porDocente).length > 0 || Object.keys(porAmbiente).length > 0 || tipoReporte === 'gestion') && (
+        <div className="card" style={{marginBottom:'20px',border:'1px solid #e2e8f0',padding:'20px'}}>
+          <h3 style={{fontSize:'15px',fontWeight:'600',margin:'0 0 12px'}}>Formatos de descarga</h3>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))',gap:'12px'}}>
+            <button onClick={exportarPDF} className="btn-secondary" style={{justifyContent:'space-between',padding:'14px 16px',borderRadius:'12px',border:'1px solid #cbd5e1'}}>
+              <div style={{textAlign:'left'}}>
+                <div style={{fontWeight:'700',color:'#0f172a'}}>PDF institucional</div>
+                <div style={{fontSize:'12px',color:'#64748b'}}>Listo para impresión</div>
+              </div>
+              <span style={{fontSize:'20px'}}>📄</span>
+            </button>
+
+            <button onClick={exportarExcelUNT} className="btn-secondary" style={{justifyContent:'space-between',padding:'14px 16px',borderRadius:'12px',border:'1px solid #c7d2fe',background:'#eef2ff',color:'#3730a3'}}>
+              <div style={{textAlign:'left'}}>
+                <div style={{fontWeight:'700'}}>Excel Formato UNT</div>
+                <div style={{fontSize:'12px',color:'#4338ca'}}>Formato oficial</div>
+              </div>
+              <span style={{fontSize:'20px'}}>📊</span>
+            </button>
+
+            <button onClick={exportarCSV} className="btn-secondary" style={{justifyContent:'space-between',padding:'14px 16px',borderRadius:'12px',border:'1px solid #cbd5e1'}}>
+              <div style={{textAlign:'left'}}>
+                <div style={{fontWeight:'700',color:'#0f172a'}}>CSV de respaldo</div>
+                <div style={{fontSize:'12px',color:'#64748b'}}>Datos planos</div>
+              </div>
+              <span style={{fontSize:'20px'}}>📦</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Vista previa */}
       {hasSearched && tipoReporte !== 'gestion' && (
@@ -759,14 +751,10 @@ export default function ReportesPage() {
               </div>
             </div>
           </div>
-          <div style={{padding:'16px 20px',borderTop:'1px solid #e2e8f0',textAlign:'right',display:'flex',justifyContent:'flex-end',gap:'8px'}}>
+          <div style={{padding:'16px 20px',borderTop:'1px solid #e2e8f0',textAlign:'right',display:'flex',justifyContent:'flex-end',gap:'8px',flexWrap:'wrap'}}>
             <button className="btn-secondary" onClick={exportarCSV}>
               <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
               CSV
-            </button>
-            <button className="btn-secondary" onClick={exportarExcel}>
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              Excel
             </button>
             <button className="btn-secondary" onClick={exportarExcelUNT} style={{ background: '#eef2ff', color: '#4f46e5', borderColor: '#c7d2fe' }}>
               <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
