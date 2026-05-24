@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
             const userRes = await client.query(
               `INSERT INTO usuarios (nombre, apellidos, email, password_hash, rol)
                VALUES ($1, $2, $3, $4, 'docente') RETURNING id`,
-              [doc.nombre, doc.apellidos, doc.email, passwordHash]
+              [doc.nombre.toUpperCase(), doc.apellidos.toUpperCase(), doc.email, passwordHash]
             );
             usuarioId = userRes.rows[0].id;
             creados++;
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
           // Notificar por correo si se creó un nuevo usuario
           if (nuevoUsuario) {
             try {
-              await enviarCredencialesDocente(`${doc.nombre} ${doc.apellidos}`, doc.email, doc.dni);
+              await enviarCredencialesDocente(`${doc.nombre.toUpperCase()} ${doc.apellidos.toUpperCase()}`, doc.email, doc.dni);
             } catch (emailErr) {
               console.error(`Error enviando email a ${doc.email}:`, emailErr);
             }
@@ -128,13 +128,15 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana } = body;
+    const nombreUpper = nombre?.toUpperCase() || '';
+    const apellidosUpper = apellidos?.toUpperCase() || '';
 
     const result = await transaction(async (client) => {
       // 1. Crear el docente
       const docenteRes = await client.query(
         `INSERT INTO docentes (nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-        [nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana || 20]
+        [nombreUpper, apellidosUpper, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana || 20]
       );
       const docente = docenteRes.rows[0];
 
@@ -150,7 +152,7 @@ export async function POST(req: NextRequest) {
           const userRes = await client.query(
             `INSERT INTO usuarios (nombre, apellidos, email, password_hash, rol)
              VALUES ($1, $2, $3, $4, 'docente') RETURNING id`,
-            [nombre, apellidos, email, passwordHash]
+            [nombreUpper, apellidosUpper, email, passwordHash]
           );
           usuarioId = userRes.rows[0].id;
           nuevoUsuario = true;
@@ -165,7 +167,7 @@ export async function POST(req: NextRequest) {
         // 4. Notificar por correo
         if (nuevoUsuario) {
           try {
-            await enviarCredencialesDocente(`${nombre} ${apellidos}`, email, dni);
+            await enviarCredencialesDocente(`${nombreUpper} ${apellidosUpper}`, email, dni);
           } catch (emailErr) {
             console.error(`Error enviando email a ${email}:`, emailErr);
           }
@@ -182,7 +184,7 @@ export async function POST(req: NextRequest) {
       tabla_afectada: 'docentes',
       registro_id: result?.id,
       datos_nuevos: result,
-      descripcion: `Docente creado con usuario automático: ${nombre} ${apellidos}`,
+      descripcion: `Docente creado con usuario automático: ${nombreUpper} ${apellidosUpper}`,
     });
 
     return NextResponse.json({ data: result }, { status: 201 });

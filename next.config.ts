@@ -3,6 +3,9 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   turbopack: {},
   serverExternalPackages: ['pg'],
+  images: {
+    unoptimized: true,
+  },
   async rewrites() {
     return [
       {

@@ -160,8 +160,8 @@ export default function HorariosPage() {
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'24px'}}>
         <div>
-          <h1 style={{fontSize:'24px',fontWeight:'700',color:'#1e293b',margin:'0 0 4px'}}>Horarios</h1>
-          <p style={{color:'#64748b',fontSize:'14px',margin:0}}>Gestión de horarios académicos por fases</p>
+          <h1 style={{fontSize:'24px',fontWeight:'700',margin:'0 0 4px'}}>Horarios</h1>
+          <p style={{color:'var(--text-secondary)',fontSize:'14px',margin:0}}>Gestión de horarios académicos por fases</p>
         </div>
         <div style={{display:'flex',gap:'10px'}}>
           <div style={{display:'flex',borderRadius:'8px',overflow:'hidden',border:'1px solid #e2e8f0'}}>

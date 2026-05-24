@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTheme } from '@/lib/theme';
 
 interface Grupo {
   id: string;
@@ -36,6 +37,7 @@ const emptyGrupo = {
 };
 
 export default function GruposPage() {
+  const { darkMode } = useTheme();
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [ciclos, setCiclos] = useState<Ciclo[]>([]);
   const [cursos, setCursos] = useState<Curso[]>([]);
@@ -159,8 +161,8 @@ export default function GruposPage() {
     <div className="page-container">
       <div className="header-responsive" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', margin: '0 0 4px' }}>Grupos</h1>
-          <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Gestión de grupos por ciclo y curso</p>
+          <h1 style={{ fontSize: '24px', fontWeight: '700', color: darkMode ? '#fff' : '#1e293b', margin: '0 0 4px' }}>Grupos</h1>
+          <p style={{ color: darkMode ? '#94a3b8' : '#64748b', fontSize: '14px', margin: 0 }}>Gestión de grupos por ciclo y curso</p>
         </div>
         <button className="btn-primary" onClick={nuevo}>
           <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -212,7 +214,7 @@ export default function GruposPage() {
                       <div style={{ fontWeight: '500' }}>{g.curso_codigo || '-'}</div>
                       <div className="hide-sm" style={{ fontSize: '12px', color: '#94a3b8' }}>{g.curso_nombre || ''}</div>
                     </td>
-                    <td style={{ textAlign: 'center' }}><span className="badge" style={{ background: '#e2e8f0', padding: '4px 10px', borderRadius: '20px' }}>{g.numero_grupo}</span></td>
+                    <td style={{ textAlign: 'center' }}><span className="badge" style={{ background: darkMode ? 'rgba(52,211,153,0.2)' : '#d1fae5', color: darkMode ? '#34d399' : '#065f46', padding: '4px 10px', borderRadius: '50%', width: '36px', height: '36px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700' }}>{g.numero_grupo}</span></td>
                     <td className="hide-sm" style={{ textAlign: 'center' }}>{g.max_alumnos}</td>
                     <td className="hide-sm" style={{ textAlign: 'center' }}>{g.num_alumnos}</td>
                     <td>
@@ -240,20 +242,20 @@ export default function GruposPage() {
 
         {/* Paginación */}
         {!loading && total > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderTop: '1px solid #e2e8f0' }}>
-            <div style={{ fontSize: '14px', color: '#64748b' }}>
-              Mostrando <span style={{ fontWeight: '600', color: '#1e293b' }}>{(pagina - 1) * limit + 1}</span> a{' '}
-              <span style={{ fontWeight: '600', color: '#1e293b' }}>{Math.min(pagina * limit, total)}</span> de{' '}
-              <span style={{ fontWeight: '600', color: '#1e293b' }}>{total}</span> grupos
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderTop: '1px solid ' + (darkMode ? '#374151' : '#e2e8f0') }}>
+            <div style={{ fontSize: '14px', color: darkMode ? '#94a3b8' : '#64748b' }}>
+              Mostrando <span style={{ fontWeight: '600', color: darkMode ? '#00A6FF' : '#1e293b' }}>{(pagina - 1) * limit + 1}</span> a{' '}
+              <span style={{ fontWeight: '600', color: darkMode ? '#00A6FF' : '#1e293b' }}>{Math.min(pagina * limit, total)}</span> de{' '}
+              <span style={{ fontWeight: '600', color: darkMode ? '#00A6FF' : '#1e293b' }}>{total}</span> grupos
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="btn-secondary" style={{ padding: '6px 12px' }} disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>
+              <button className="btn-secondary" style={{ padding: '6px 12px', color: darkMode ? '#00A6FF' : undefined }} disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>
                 Anterior
               </button>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: '14px', fontWeight: '600', color: '#1e293b' }}>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: '14px', fontWeight: '600', color: darkMode ? '#00A6FF' : '#1e293b' }}>
                 Página {pagina} de {Math.ceil(total / limit)}
               </div>
-              <button className="btn-secondary" style={{ padding: '6px 12px' }} disabled={pagina >= Math.ceil(total / limit)} onClick={() => setPagina(p => p + 1)}>
+              <button className="btn-secondary" style={{ padding: '6px 12px', color: darkMode ? '#00A6FF' : undefined }} disabled={pagina >= Math.ceil(total / limit)} onClick={() => setPagina(p => p + 1)}>
                 Siguiente
               </button>
             </div>
