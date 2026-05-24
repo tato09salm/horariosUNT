@@ -75,16 +75,18 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
+    const codigoUpper = body.codigo?.toUpperCase() || '';
+    const nombreUpper = body.nombre?.toUpperCase() || '';
     const curso = await queryOne(
       `INSERT INTO cursos (escuela_id, codigo, nombre, creditos, horas_teoria, horas_practica, ciclo_plan)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [body.escuela_id, body.codigo, body.nombre, body.creditos, body.horas_teoria, body.horas_practica, body.ciclo_plan]
+      [body.escuela_id, codigoUpper, nombreUpper, body.creditos, body.horas_teoria, body.horas_practica, body.ciclo_plan]
     );
 
     await registrarAuditoria({
       usuario_id: session.id,
       accion: 'CREATE', tabla_afectada: 'cursos', registro_id: curso?.id,
-      datos_nuevos: curso, descripcion: `Curso creado: ${body.nombre}`,
+      datos_nuevos: curso, descripcion: `Curso creado: ${nombreUpper}`,
     });
 
     return NextResponse.json({ data: curso }, { status: 201 });

@@ -2,11 +2,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useTheme } from '@/lib/theme';
 
 interface Usuario { id:string; nombre:string; apellidos:string; email:string; rol:string; activo:boolean; created_at:string; }
 
 export default function UsuariosPage() {
+  const { darkMode } = useTheme();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [countsByRole, setCountsByRole] = useState<Record<string, number>>({ admin: 0, secretaria: 0, docente: 0 });
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<any>({ nombre:'', apellidos:'', email:'', password:'', rol:'secretaria' });
@@ -32,6 +35,7 @@ export default function UsuariosPage() {
       .then(d => {
         setUsuarios(d.data || []);
         setTotal(d.total || 0);
+        setCountsByRole(d.countsByRole || { admin: 0, secretaria: 0, docente: 0 });
       })
       .catch(() => setMsg({ type: 'error', text: 'Error al cargar usuarios' }))
       .finally(() => setLoading(false));
@@ -95,7 +99,7 @@ export default function UsuariosPage() {
 
       const tableData = usuariosFull.map((u: Usuario, i: number) => [
         i + 1,
-        `${u.nombre} ${u.apellidos}`,
+        `${u.nombre.toUpperCase()} ${u.apellidos.toUpperCase()}`,
         u.email,
         u.rol === 'admin' ? 'ADMINISTRADOR' : u.rol === 'secretaria' ? 'SECRETARIA' : 'DOCENTE',
         u.activo ? 'ACTIVO' : 'INACTIVO',
@@ -137,8 +141,8 @@ export default function UsuariosPage() {
     <div className="page-container">
       <div className="header-responsive" style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'24px',flexWrap:'wrap',gap:'16px'}}>
         <div>
-          <h1 style={{fontSize:'24px',fontWeight:'700',color:'#1e293b',margin:'0 0 4px'}}>Usuarios del sistema</h1>
-          <p style={{color:'#64748b',fontSize:'14px',margin:0}}>Gestión de accesos y roles</p>
+          <h1 style={{fontSize:'24px',fontWeight:'700',color: darkMode ? '#fff' : '#1e293b',margin:'0 0 4px'}}>Usuarios del sistema</h1>
+          <p style={{color: darkMode ? '#94a3b8' : '#64748b',fontSize:'14px',margin:0}}>Gestión de accesos y roles</p>
         </div>
         <div className="header-actions" style={{display:'flex',gap:'12px'}}>
           <button className="btn-primary" onClick={generarReporte}>
@@ -159,18 +163,27 @@ export default function UsuariosPage() {
       {/* Resumen roles - mostrando totales de la página actual */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'12px',marginBottom:'20px'}}>
         {['admin','secretaria','docente'].map(rol=>{
-          const count = usuarios.filter(u=>u.rol===rol).length;
-          const colors = (rolColor[rol]||'#f1f5f9|#475569').split('|');
+          const count = countsByRole[rol] || 0;
+          const brightColors: Record<string, string> = {
+            admin: darkMode ? '#f472b6' : '#991b1b',
+            secretaria: darkMode ? '#60a5fa' : '#1e40af',
+            docente: darkMode ? '#34d399' : '#065f46'
+          };
+          const brightBg: Record<string, string> = {
+            admin: darkMode ? 'rgba(244,114,182,0.1)' : '#fee2e2',
+            secretaria: darkMode ? 'rgba(96,165,250,0.1)' : '#dbeafe',
+            docente: darkMode ? 'rgba(52,211,153,0.1)' : '#d1fae5'
+          };
           return (
-            <div key={rol} className="card" style={{padding:'16px',display:'flex',alignItems:'center',gap:'12px'}}>
-              <div style={{width:'40px',height:'40px',borderRadius:'10px',background:colors[0],display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                <svg width="20" height="20" fill="none" stroke={colors[1]} viewBox="0 0 24 24">
+            <div key={rol} className="card" style={{padding:'16px',display:'flex',alignItems:'center',gap:'12px', background: darkMode ? 'var(--bg-card)' : 'white'}}>
+              <div style={{width:'40px',height:'40px',borderRadius:'10px',background:brightBg[rol],display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <svg width="20" height="20" fill="none" stroke={brightColors[rol]} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </div>
               <div>
-                <p style={{fontSize:'22px',fontWeight:'700',color:colors[1],margin:'0 0 2px'}}>{count}</p>
-                <p style={{fontSize:'12px',color:'#64748b',margin:0,textTransform:'capitalize'}}>{rol}s</p>
+                <p style={{fontSize:'22px',fontWeight:'700',color: brightColors[rol],margin:'0 0 2px'}}>{count}</p>
+                <p style={{fontSize:'12px',color: darkMode ? '#94a3b8' : '#64748b',margin:0,textTransform:'capitalize'}}>{rol}s</p>
               </div>
             </div>
           );
@@ -216,33 +229,42 @@ export default function UsuariosPage() {
                 </td></tr>
               ) : (
                 usuarios.map((u,i)=>{
-                  const colors = (rolColor[u.rol]||'#f1f5f9|#475569').split('|');
+                  const brightColors: Record<string, string> = {
+                    admin: darkMode ? '#f472b6' : '#991b1b',
+                    secretaria: darkMode ? '#60a5fa' : '#1e40af',
+                    docente: darkMode ? '#34d399' : '#065f46'
+                  };
+                  const brightBg: Record<string, string> = {
+                    admin: darkMode ? 'rgba(244,114,182,0.1)' : '#fee2e2',
+                    secretaria: darkMode ? 'rgba(96,165,250,0.1)' : '#dbeafe',
+                    docente: darkMode ? 'rgba(52,211,153,0.1)' : '#d1fae5'
+                  };
                   const numero = (pagina - 1) * limit + i + 1;
                   return (
                     <tr key={u.id}>
-                      <td className="hide-sm" style={{color:'#94a3b8',fontSize:'12px',fontWeight:'600'}}>{numero}</td>
+                      <td className="hide-sm" style={{color: darkMode ? '#94a3b8' : '#94a3b8',fontSize:'12px',fontWeight:'600'}}>{numero}</td>
                       <td>
                         <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
-                          <div style={{width:'32px',height:'32px',borderRadius:'50%',background:colors[0],display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                            <span style={{fontSize:'12px',fontWeight:'600',color:colors[1]}}>{u.nombre?.[0]}{u.apellidos?.[0]}</span>
+                          <div style={{width:'32px',height:'32px',borderRadius:'50%',background:brightBg[u.rol]||'#f1f5f9',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                            <span style={{fontSize:'12px',fontWeight:'600',color:brightColors[u.rol]||'#475569'}}>{u.nombre?.[0]}{u.apellidos?.[0]}</span>
                           </div>
                           <div>
-                            <div style={{fontWeight:'500'}}>{u.nombre} {u.apellidos}</div>
+                            <div style={{fontWeight:'500', color: darkMode ? '#e2e8f0' : '#1e293b'}}>{u.nombre.toUpperCase()} {u.apellidos.toUpperCase()}</div>
                           </div>
                         </div>
                       </td>
-                      <td style={{color:'#64748b',fontSize:'13px'}}>{u.email}</td>
+                      <td style={{color: darkMode ? '#94a3b8' : '#64748b',fontSize:'13px'}}>{u.email}</td>
                       <td>
-                        <span style={{display:'inline-flex',alignItems:'center',padding:'2px 10px',borderRadius:'9999px',fontSize:'11px',fontWeight:'600',background:colors[0],color:colors[1],textTransform:'capitalize'}}>
+                        <span style={{display:'inline-flex',alignItems:'center',padding:'2px 10px',borderRadius:'9999px',fontSize:'11px',fontWeight:'600',background:brightBg[u.rol]||'#f1f5f9',color:brightColors[u.rol]||'#475569',textTransform:'capitalize'}}>
                           {u.rol === 'admin' ? 'Administrador' : u.rol === 'secretaria' ? 'Secretaria' : 'Docente'}
                         </span>
                       </td>
                       <td>
-                        <span style={{display:'inline-flex',alignItems:'center',padding:'2px 8px',borderRadius:'9999px',fontSize:'11px',fontWeight:'600',background:u.activo?'#dcfce7':'#fee2e2',color:u.activo?'#166534':'#991b1b'}}>
+                        <span style={{display:'inline-flex',alignItems:'center',padding:'2px 8px',borderRadius:'9999px',fontSize:'11px',fontWeight:'600',background:u.activo?(darkMode?'rgba(22,101,52,0.2)':'#dcfce7'):(darkMode?'rgba(153,27,27,0.2)':'#fee2e2'),color:u.activo?(darkMode?'#34d399':'#166534'):(darkMode?'#f87171':'#991b1b')}}>
                           {u.activo ? '● Activo' : '○ Inactivo'}
                         </span>
                       </td>
-                      <td className="hide-sm" style={{fontSize:'12px',color:'#94a3b8'}}>{new Date(u.created_at).toLocaleDateString('es-PE')}</td>
+                      <td className="hide-sm" style={{fontSize:'12px',color: darkMode ? '#94a3b8' : '#94a3b8'}}>{new Date(u.created_at).toLocaleDateString('es-PE')}</td>
                     </tr>
                   );
                 })
@@ -253,16 +275,16 @@ export default function UsuariosPage() {
 
         {/* Paginación */}
         {!loading && total > limit && (
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px',borderTop:'1px solid #e2e8f0',flexWrap:'wrap',gap:'12px'}}>
-            <div style={{fontSize:'14px',color:'#64748b'}}>
-              Mostrando <span style={{fontWeight:'600',color:'#1e293b'}}>{(pagina-1)*limit + 1}</span> a{' '}
-              <span style={{fontWeight:'600',color:'#1e293b'}}>{Math.min(pagina*limit, total)}</span> de{' '}
-              <span style={{fontWeight:'600',color:'#1e293b'}}>{total}</span> usuarios
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px',borderTop:'1px solid ' + (darkMode ? '#374151' : '#e2e8f0'),flexWrap:'wrap',gap:'12px'}}>
+            <div style={{fontSize:'14px',color: darkMode ? '#94a3b8' : '#64748b'}}>
+              Mostrando <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{(pagina-1)*limit + 1}</span> a{' '}
+              <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{Math.min(pagina*limit, total)}</span> de{' '}
+              <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{total}</span> usuarios
             </div>
             <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
-              <button className="btn-secondary" style={{padding:'6px 12px'}} disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>◀ Anterior</button>
-              <span style={{fontSize:'14px',fontWeight:'600',color:'#1e293b'}}>Página {pagina} de {Math.ceil(total / limit)}</span>
-              <button className="btn-secondary" style={{padding:'6px 12px'}} disabled={pagina >= Math.ceil(total / limit)} onClick={() => setPagina(p => p + 1)}>Siguiente ▶</button>
+              <button className="btn-secondary" style={{padding:'6px 12px', color: darkMode ? '#00A6FF' : undefined}} disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>◀ Anterior</button>
+              <span style={{fontSize:'14px',fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>Página {pagina} de {Math.ceil(total / limit)}</span>
+              <button className="btn-secondary" style={{padding:'6px 12px', color: darkMode ? '#00A6FF' : undefined}} disabled={pagina >= Math.ceil(total / limit)} onClick={() => setPagina(p => p + 1)}>Siguiente ▶</button>
             </div>
           </div>
         )}
@@ -281,8 +303,8 @@ export default function UsuariosPage() {
             <div className="modal-body">
               {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
               <div className="responsive-grid">
-                <div className="form-group"><label className="form-label">Nombre *</label><input className="form-input" value={form.nombre||''} onChange={e=>setForm((p:any)=>({...p,nombre:e.target.value}))}/></div>
-                <div className="form-group"><label className="form-label">Apellidos *</label><input className="form-input" value={form.apellidos||''} onChange={e=>setForm((p:any)=>({...p,apellidos:e.target.value}))}/></div>
+                <div className="form-group"><label className="form-label">Nombre *</label><input className="form-input" value={form.nombre||''} onChange={e=>setForm((p:any)=>({...p,nombre:e.target.value.toUpperCase()}))}/></div>
+                <div className="form-group"><label className="form-label">Apellidos *</label><input className="form-input" value={form.apellidos||''} onChange={e=>setForm((p:any)=>({...p,apellidos:e.target.value.toUpperCase()}))}/></div>
                 <div className="form-group"><label className="form-label">Email *</label><input className="form-input" type="email" value={form.email||''} onChange={e=>setForm((p:any)=>({...p,email:e.target.value}))}/></div>
                 <div className="form-group"><label className="form-label">Contraseña inicial</label><input className="form-input" type="password" value={form.password||''} onChange={e=>setForm((p:any)=>({...p,password:e.target.value}))}/></div>
                 <div className="form-group" style={{gridColumn:'1/-1'}}>

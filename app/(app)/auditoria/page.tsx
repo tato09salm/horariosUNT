@@ -1,5 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import { useTheme } from '@/lib/theme';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const ACCIONES = ['LOGIN','LOGOUT','CREATE','UPDATE','DELETE','ASSIGN','UNASSIGN','GENERATE_SCHEDULE','EXPORT_REPORT'];
 const TABLAS = ['docentes','cursos','ambientes','asignaciones','usuarios','ciclos'];
@@ -13,14 +16,93 @@ const colorAccion: Record<string,string> = {
 };
 
 export default function AuditoriaPage() {
+  const { darkMode } = useTheme();
   const [logs, setLogs] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [pagina, setPagina] = useState(1);
   const [filtros, setFiltros] = useState({ accion:'', tabla:'', desde:'', hasta:'' });
   const [detalle, setDetalle] = useState<any>(null);
+  const [exporting, setExporting] = useState(false);
 
   const limite = 25;
+
+  async function generarReporte() {
+    try {
+      setExporting(true);
+      const q = new URLSearchParams();
+      if (filtros.accion) q.set('accion', filtros.accion);
+      if (filtros.tabla) q.set('tabla', filtros.tabla);
+      if (filtros.desde) q.set('desde', filtros.desde);
+      if (filtros.hasta) q.set('hasta', filtros.hasta + 'T23:59:59');
+      
+      const res = await fetch(`/api/auditoria?${q}&pagina=1&limite=10000`);
+      const data = await res.json();
+      const logsFull = data.data || [];
+      
+      if (logsFull.length === 0) {
+        alert('No hay registros para generar el reporte');
+        return;
+      }
+
+      const doc = new jsPDF();
+      
+      doc.setFontSize(16);
+      doc.setTextColor(30, 41, 59);
+      doc.text('UNIVERSIDAD NACIONAL DE TRUJILLO', 105, 20, { align: 'center' });
+      doc.setFontSize(12);
+      doc.text('Escuela de Ingeniería de Sistemas', 105, 28, { align: 'center' });
+      doc.setDrawColor(226, 232, 240);
+      doc.line(14, 35, 196, 35);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('REPORTE DE AUDITORÍA DEL SISTEMA', 14, 45);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Fecha de emisión: ${new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' })}`, 14, 52);
+      
+      let filtrosTexto = '';
+      if (filtros.accion) filtrosTexto += ` | Acción: ${filtros.accion}`;
+      if (filtros.tabla) filtrosTexto += ` | Tabla: ${filtros.tabla}`;
+      if (filtros.desde) filtrosTexto += ` | Desde: ${filtros.desde}`;
+      if (filtros.hasta) filtrosTexto += ` | Hasta: ${filtros.hasta}`;
+      doc.text(`Total de registros: ${logsFull.length}${filtrosTexto}`, 14, 57);
+
+      const tableData = logsFull.map((l: any, i: number) => [
+        i + 1,
+        new Date(l.created_at).toLocaleString('es-PE'),
+        l.usuario_nombre || '—',
+        l.usuario_email || '—',
+        l.accion,
+        l.tabla_afectada || '—',
+        l.descripcion || '—',
+        l.ip_address || '—'
+      ]);
+
+      autoTable(doc, {
+        startY: 65,
+        head: [['#', 'FECHA/HORA', 'USUARIO', 'EMAIL', 'ACCIÓN', 'TABLA', 'DESCRIPCIÓN', 'IP']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold', halign: 'center' },
+        bodyStyles: { fontSize: 7, textColor: [51, 65, 85] },
+        columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 7: { cellWidth: 35 } },
+        didDrawPage: (data) => {
+          const str = 'Página ' + doc.internal.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.setTextColor(148, 163, 184);
+          doc.text(str, 196, doc.internal.pageSize.height - 10, { align: 'right' });
+          doc.text('Sistema de Gestión de Horarios - UNT', 14, doc.internal.pageSize.height - 10);
+        }
+      });
+      doc.save(`reporte_auditoria_${new Date().getTime()}.pdf`);
+    } catch (error) {
+      alert('Error al generar el reporte');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const cargar = useCallback(() => {
     setLoading(true);
@@ -45,22 +127,28 @@ export default function AuditoriaPage() {
 
   return (
     <div style={{padding:'32px'}}>
-      <div style={{marginBottom:'24px'}}>
-        <h1 style={{fontSize:'24px',fontWeight:'700',color:'#1e293b',margin:'0 0 4px'}}>Auditoría del Sistema</h1>
-        <p style={{color:'#64748b',fontSize:'14px',margin:0}}>Registro completo de acciones — Solo administradores</p>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'24px',flexWrap:'wrap',gap:'16px'}}>
+        <div>
+          <h1 style={{fontSize:'24px',fontWeight:'700',color: darkMode ? '#fff' : '#1e293b',margin:'0 0 4px'}}>Auditoría del Sistema</h1>
+          <p style={{color: darkMode ? '#94a3b8' : '#64748b',fontSize:'14px',margin:0}}>Registro completo de acciones — Solo administradores</p>
+        </div>
+        <button className="btn-primary" onClick={generarReporte} disabled={exporting} style={{display:'flex',alignItems:'center',gap:'8px'}}>
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          {exporting ? 'Generando...' : 'Reporte'}
+        </button>
       </div>
 
       {/* Stats rápidos */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'12px',marginBottom:'20px'}}>
         {[
-          {label:'Total registros', value:total, color:'#1a3a5c'},
-          {label:'Esta página', value:logs.length, color:'#065f46'},
-          {label:'Página actual', value:`${pagina}/${totalPaginas||1}`, color:'#92400e'},
-          {label:'Por página', value:limite, color:'#6b21a8'},
+          {label:'Total registros', value:total, color: darkMode ? '#60a5fa' : '#1a3a5c'},
+          {label:'Esta página', value:logs.length, color: darkMode ? '#34d399' : '#065f46'},
+          {label:'Página actual', value:`${pagina}/${totalPaginas||1}`, color: darkMode ? '#fbbf24' : '#92400e'},
+          {label:'Por página', value:limite, color: darkMode ? '#a78bfa' : '#6b21a8'},
         ].map((s,i)=>(
-          <div key={i} className="card" style={{padding:'16px',textAlign:'center'}}>
+          <div key={i} className="card" style={{padding:'16px',textAlign:'center', background: darkMode ? 'var(--bg-card)' : 'white'}}>
             <p style={{fontSize:'22px',fontWeight:'700',color:s.color,margin:'0 0 4px'}}>{s.value}</p>
-            <p style={{fontSize:'12px',color:'#64748b',margin:0}}>{s.label}</p>
+            <p style={{fontSize:'12px',color: darkMode ? '#94a3b8' : '#64748b',margin:0}}>{s.label}</p>
           </div>
         ))}
       </div>
@@ -135,16 +223,16 @@ export default function AuditoriaPage() {
       {/* Paginación */}
       {totalPaginas > 1 && (
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:'16px'}}>
-          <p style={{fontSize:'13px',color:'#64748b',margin:0}}>Mostrando {((pagina-1)*limite)+1}–{Math.min(pagina*limite,total)} de {total} registros</p>
+          <p style={{fontSize:'13px',color: darkMode ? '#94a3b8' : '#64748b',margin:0}}>Mostrando <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{((pagina-1)*limite)+1}</span>–<span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{Math.min(pagina*limite,total)}</span> de <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{total}</span> registros</p>
           <div style={{display:'flex',gap:'6px'}}>
-            <button className="btn-secondary" style={{padding:'6px 12px',fontSize:'13px'}} disabled={pagina<=1} onClick={()=>setPagina(p=>p-1)}>← Anterior</button>
+            <button className="btn-secondary" style={{padding:'6px 12px',fontSize:'13px', color: darkMode ? '#00A6FF' : undefined}} disabled={pagina<=1} onClick={()=>setPagina(p=>p-1)}>← Anterior</button>
             {Array.from({length:Math.min(totalPaginas,5)}).map((_,i)=>{
               const p = Math.max(1, Math.min(pagina-2,totalPaginas-4)) + i;
               return (
-                <button key={p} className={pagina===p?'btn-primary':'btn-secondary'} style={{padding:'6px 12px',fontSize:'13px'}} onClick={()=>setPagina(p)}>{p}</button>
+                <button key={p} className={pagina===p?'btn-primary':'btn-secondary'} style={{padding:'6px 12px',fontSize:'13px', color: (pagina!==p && darkMode) ? '#00A6FF' : undefined}} onClick={()=>setPagina(p)}>{p}</button>
               );
             })}
-            <button className="btn-secondary" style={{padding:'6px 12px',fontSize:'13px'}} disabled={pagina>=totalPaginas} onClick={()=>setPagina(p=>p+1)}>Siguiente →</button>
+            <button className="btn-secondary" style={{padding:'6px 12px',fontSize:'13px', color: darkMode ? '#00A6FF' : undefined}} disabled={pagina>=totalPaginas} onClick={()=>setPagina(p=>p+1)}>Siguiente →</button>
           </div>
         </div>
       )}

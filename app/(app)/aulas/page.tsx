@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useTheme } from '@/lib/theme';
 
 interface Ambiente { id:string; codigo:string; nombre:string; tipo:string; capacidad:number; piso:number; edificio:string; disponible:boolean; }
 const empty: Partial<Ambiente> = { codigo:'', nombre:'', tipo:'aula', capacidad:30, piso:1, edificio:'', disponible:true };
@@ -16,6 +17,7 @@ export default function AulasPage() {
   const [pagina, setPagina] = useState(1);
   const [total, setTotal] = useState(0);
   const [stats, setStats] = useState({ aulas: 0, laboratorios: 0, otros: 0 });
+  const { darkMode } = useTheme();
   const limit = 10;
   const [showModal, setShowModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -109,12 +111,17 @@ export default function AulasPage() {
   }
 
   function toggleEstado(a: Ambiente) {
-    setAmbienteAToggle({id: a.id, nombre: a.nombre, disponible: a.disponible});
+    setAmbienteAToggle({id: a.id, nombre: a.nombre.toUpperCase(), disponible: a.disponible});
     setShowConfirm(true);
   }
 
   function editar(a: Ambiente) {
-    setForm({...a});
+    setForm({
+      ...a,
+      codigo: a.codigo.toUpperCase(),
+      nombre: a.nombre.toUpperCase(),
+      edificio: a.edificio.toUpperCase()
+    });
     setShowModal(true);
     setMsg(null);
   }
@@ -197,8 +204,8 @@ export default function AulasPage() {
     <div className="page-container">
       <div className="header-responsive" style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'24px',flexWrap:'wrap',gap:'16px'}}>
         <div>
-          <h1 style={{fontSize:'24px',fontWeight:'700',color:'#1e293b',margin:'0 0 4px'}}>Aulas y Laboratorios</h1>
-          <p style={{color:'#64748b',fontSize:'14px',margin:0}}>Gestión de ambientes académicos</p>
+          <h1 style={{fontSize:'24px',fontWeight:'700',color: darkMode ? '#fff' : '#1e293b',margin:'0 0 4px'}}>Aulas y Laboratorios</h1>
+          <p style={{color: darkMode ? '#94a3b8' : '#64748b',fontSize:'14px',margin:0}}>Gestión de ambientes académicos</p>
         </div>
         <div className="header-actions">
           <button className="btn-primary" onClick={generarReporte}>
@@ -218,11 +225,11 @@ export default function AulasPage() {
       {/* Stats */}
       <div style={{display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'12px', marginBottom:'24px'}}>
         {[
-          {label:'Aulas',count:stats.aulas,color:'#1a3a5c',bg:'#dbeafe'},
-          {label:'Laboratorios',count:stats.laboratorios,color:'#065f46',bg:'#d1fae5'},
-          {label:'Otros',count:stats.otros,color:'#92400e',bg:'#fef3c7'},
+          {label:'Aulas',count:stats.aulas,color: darkMode ? '#60a5fa' : '#1a3a5c',bg: darkMode ? 'rgba(96,165,250,0.1)' : '#dbeafe'},
+          {label:'Laboratorios',count:stats.laboratorios,color: darkMode ? '#34d399' : '#065f46',bg: darkMode ? 'rgba(52,211,153,0.1)' : '#d1fae5'},
+          {label:'Otros',count:stats.otros,color: darkMode ? '#fbbf24' : '#92400e',bg: darkMode ? 'rgba(251,191,36,0.1)' : '#fef3c7'},
         ].map((s,i) => (
-          <div key={i} className="stat-card" style={{padding: '16px 12px', gap: '10px'}}>
+          <div key={i} className="stat-card" style={{padding: '16px 12px', gap: '10px', background: darkMode ? 'var(--bg-card)' : 'white'}}>
             <div className="stat-icon" style={{background:s.bg, width:'36px', height:'36px'}}>
               <svg width="20" height="20" fill="none" stroke={s.color} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -230,7 +237,7 @@ export default function AulasPage() {
             </div>
             <div style={{minWidth: 0}}>
               <p style={{fontSize:'20px',fontWeight:'700',color:s.color,margin:'0'}}>{s.count}</p>
-              <p style={{fontSize:'11px',color:'#64748b',margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{s.label}</p>
+              <p style={{fontSize:'11px',color: darkMode ? '#94a3b8' : '#64748b',margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{s.label}</p>
             </div>
           </div>
         ))}
@@ -283,12 +290,12 @@ export default function AulasPage() {
                 <tr><td colSpan={8} style={{textAlign:'center',padding:'40px',color:'#94a3b8'}}>No se encontraron ambientes</td></tr>
               ) : items.map(a => (
                 <tr key={a.id}>
-                  <td style={{fontWeight:'600',color:'#475569',fontFamily:'monospace'}}>{a.codigo}</td>
-                  <td style={{fontWeight:'500'}}>{a.nombre}</td>
-                  <td className="hide-sm"><span className={`badge badge-${a.tipo}`}>{a.tipo}</span></td>
+                  <td style={{fontWeight:'600',color:'#475569',fontFamily:'monospace'}}>{a.codigo.toUpperCase()}</td>
+                  <td style={{fontWeight:'500'}}>{a.nombre.toUpperCase()}</td>
+                  <td className="hide-sm"><span className={`badge badge-${a.tipo}`}>{a.tipo.toUpperCase()}</span></td>
                   <td className="hide-sm" style={{textAlign:'center'}}>{a.capacidad} alumnos</td>
                   <td className="hide-sm" style={{textAlign:'center'}}>{a.piso}°</td>
-                  <td className="hide-sm" style={{color:'#64748b'}}>{a.edificio}</td>
+                  <td className="hide-sm" style={{color:'#64748b'}}>{a.edificio.toUpperCase()}</td>
                   <td>
                     <span style={{display:'inline-flex',alignItems:'center',gap:'4px',padding:'2px 8px',borderRadius:'9999px',fontSize:'11px',fontWeight:'600',background:a.disponible?'#dcfce7':'#fee2e2',color:a.disponible?'#166534':'#991b1b'}}>
                       {a.disponible ? '● Disponible' : '○ Inactivo'}
@@ -320,14 +327,14 @@ export default function AulasPage() {
 
         {/* Paginación */}
         {!loading && total > 0 && (
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px',borderTop:'1px solid #e2e8f0'}}>
-            <div style={{fontSize:'14px',color:'#64748b'}}>
-              Mostrando <span style={{fontWeight:'600',color:'#1e293b'}}>{(pagina-1)*limit + 1}</span> a <span style={{fontWeight:'600',color:'#1e293b'}}>{Math.min(pagina*limit, total)}</span> de <span style={{fontWeight:'600',color:'#1e293b'}}>{total}</span> ambientes
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px',borderTop:'1px solid ' + (darkMode ? '#374151' : '#e2e8f0')}}>
+            <div style={{fontSize:'14px',color: darkMode ? '#94a3b8' : '#64748b'}}>
+              Mostrando <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{(pagina-1)*limit + 1}</span> a <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{Math.min(pagina*limit, total)}</span> de <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{total}</span> ambientes
             </div>
             <div style={{display:'flex',gap:'8px'}}>
-              <button className="btn-secondary" style={{padding:'6px 12px'}} disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>Anterior</button>
-              <div style={{display:'flex',alignItems:'center',padding:'0 12px',fontSize:'14px',fontWeight:'600',color:'#1e293b'}}>Página {pagina} de {Math.ceil(total / limit)}</div>
-              <button className="btn-secondary" style={{padding:'6px 12px'}} disabled={pagina >= Math.ceil(total / limit)} onClick={() => setPagina(p => p + 1)}>Siguiente</button>
+              <button className="btn-secondary" style={{padding:'6px 12px', color: darkMode ? '#00A6FF' : undefined}} disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>Anterior</button>
+              <div style={{display:'flex',alignItems:'center',padding:'0 12px',fontSize:'14px',fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>Página {pagina} de {Math.ceil(total / limit)}</div>
+              <button className="btn-secondary" style={{padding:'6px 12px', color: darkMode ? '#00A6FF' : undefined}} disabled={pagina >= Math.ceil(total / limit)} onClick={() => setPagina(p => p + 1)}>Siguiente</button>
             </div>
           </div>
         )}
@@ -346,13 +353,13 @@ export default function AulasPage() {
             <div className="modal-body">
               {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
               <div className="responsive-grid">
-                <div className="form-group"><label className="form-label">Código *</label><input className="form-input" value={form.codigo||''} onChange={e=>setForm(p=>({...p,codigo:e.target.value}))}/></div>
+                <div className="form-group"><label className="form-label">Código *</label><input className="form-input" value={form.codigo||''} onChange={e=>setForm(p=>({...p,codigo:e.target.value.toUpperCase()}))}/></div>
                 <div className="form-group"><label className="form-label">Tipo *</label>
                   <select className="form-input" value={form.tipo||'aula'} onChange={e=>setForm(p=>({...p,tipo:e.target.value}))}>
                     <option value="aula">Aula</option><option value="laboratorio">Laboratorio</option><option value="auditorio">Auditorio</option>
                   </select>
                 </div>
-                <div className="form-group" style={{gridColumn:'1/-1'}}><label className="form-label">Nombre *</label><input className="form-input" value={form.nombre||''} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))}/></div>
+                <div className="form-group" style={{gridColumn:'1/-1'}}><label className="form-label">Nombre *</label><input className="form-input" value={form.nombre||''} onChange={e=>setForm(p=>({...p,nombre:e.target.value.toUpperCase()}))}/></div>
                 <div className="form-group">
                   <label className="form-label">Capacidad</label>
                   <input 
@@ -371,7 +378,7 @@ export default function AulasPage() {
                   <input 
                     className="form-input" 
                     value={form.edificio||''} 
-                    onChange={e=>setForm(p=>({...p,edificio:e.target.value}))}
+                    onChange={e=>setForm(p=>({...p,edificio:e.target.value.toUpperCase()}))}
                     autoComplete="off"
                   />
                   {historialEdificios.length > 0 && (

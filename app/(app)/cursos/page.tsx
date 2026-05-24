@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useTheme } from '@/lib/theme';
 
 interface Curso { id:string; codigo:string; nombre:string; creditos:number; horas_teoria:number; horas_practica:number; ciclo_plan:number; escuela_id:string; escuela_nombre:string; activo:boolean; }
 const empty: Partial<Curso> = { codigo:'', nombre:'', creditos:3, horas_teoria:3, horas_practica:0, ciclo_plan:1, activo: true };
@@ -15,6 +16,7 @@ export default function CursosPage() {
   const [pagina, setPagina] = useState(1);
   const [total, setTotal] = useState(0);
   const [stats, setStats] = useState({ total_cursos:0, total_creditos:0, total_teoria:0, total_practica:0 });
+  const { darkMode } = useTheme();
   const limit = 10;
   
   const [escuelas, setEscuelas] = useState<any[]>([]);
@@ -97,12 +99,12 @@ export default function CursosPage() {
   }
 
   function toggleEstado(c: Curso) {
-    setCursoAToggle({id: c.id, nombre: c.nombre, activo: c.activo});
+    setCursoAToggle({id: c.id, nombre: c.nombre.toUpperCase(), activo: c.activo});
     setShowConfirm(true);
   }
 
   function editar(c: Curso) {
-    setForm({...c});
+    setForm({...c, nombre: c.nombre.toUpperCase(), codigo: c.codigo.toUpperCase()});
     setShowModal(true);
     setMsg(null);
   }
@@ -188,8 +190,8 @@ export default function CursosPage() {
     <div className="page-container">
       <div className="header-responsive" style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'24px',flexWrap:'wrap',gap:'16px'}}>
         <div>
-          <h1 style={{fontSize:'24px',fontWeight:'700',color:'#1e293b',margin:'0 0 4px'}}>Cursos</h1>
-          <p style={{color:'#64748b',fontSize:'14px',margin:0}}>Plan de estudios — Ingeniería de Sistemas</p>
+          <h1 style={{fontSize:'24px',fontWeight:'700',margin:'0 0 4px'}}>Cursos</h1>
+          <p style={{color:'var(--text-secondary)',fontSize:'14px',margin:0}}>Plan de estudios — Ingeniería de Sistemas</p>
         </div>
         <div className="header-actions">
           <button className="btn-primary" onClick={generarReporte}>
@@ -209,15 +211,15 @@ export default function CursosPage() {
       {/* Stats */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'12px',marginBottom:'24px'}}>
         {[
-          {label:'Total cursos', value:stats.total_cursos, color:'#1a3a5c', bg:'#dbeafe'},
-          {label:'Créditos total', value:stats.total_creditos, color:'#065f46', bg:'#d1fae5'},
-          {label:'Hrs. teoría/sem', value:stats.total_teoria, color:'#92400e', bg:'#fef3c7'},
-          {label:'Hrs. práctica/sem', value:stats.total_practica, color:'#6b21a8', bg:'#f3e8ff'},
+          {label:'Total cursos', value:stats.total_cursos, color: darkMode ? '#60a5fa' : '#1a3a5c', bg: darkMode ? 'rgba(96,165,250,0.1)' : '#dbeafe'},
+          {label:'Créditos total', value:stats.total_creditos, color: darkMode ? '#34d399' : '#065f46', bg: darkMode ? 'rgba(52,211,153,0.1)' : '#d1fae5'},
+          {label:'Hrs. teoría/sem', value:stats.total_teoria, color: darkMode ? '#fbbf24' : '#92400e', bg: darkMode ? 'rgba(251,191,36,0.1)' : '#fef3c7'},
+          {label:'Hrs. práctica/sem', value:stats.total_practica, color: darkMode ? '#a78bfa' : '#6b21a8', bg: darkMode ? 'rgba(167,139,250,0.1)' : '#f3e8ff'},
         ].map((s,i)=>(
-          <div key={i} className="stat-card" style={{padding: '16px 12px', gap: '10px'}}>
+          <div key={i} className="stat-card" style={{padding: '16px 12px', gap: '10px', background: darkMode ? 'var(--bg-card)' : 'white'}}>
             <div style={{minWidth: 0}}>
               <p style={{fontSize:'20px',fontWeight:'700',color:s.color,margin:'0'}}>{s.value}</p>
-              <p style={{fontSize:'11px',color:'#64748b',margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{s.label}</p>
+              <p style={{fontSize:'11px',color: darkMode ? '#94a3b8' : '#64748b',margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{s.label}</p>
             </div>
           </div>
         ))}
@@ -265,8 +267,8 @@ export default function CursosPage() {
               ) : cursos.map((c:Curso)=>(
                 <tr key={c.id}>
                   <td className="hide-sm" style={{textAlign:'center'}}><span style={{background:'#1a3a5c',color:'white',borderRadius:'6px',padding:'2px 8px',fontSize:'11px',fontWeight:'600'}}>{c.ciclo_plan}</span></td>
-                  <td style={{fontWeight:'600',color:'#475569',fontFamily:'monospace',fontSize:'13px'}}>{c.codigo}</td>
-                  <td style={{fontWeight:'500'}}>{c.nombre}</td>
+                  <td style={{fontWeight:'600',color:'#475569',fontFamily:'monospace',fontSize:'13px'}}>{c.codigo.toUpperCase()}</td>
+                  <td style={{fontWeight:'500'}}>{c.nombre.toUpperCase()}</td>
                   <td className="hide-sm" style={{textAlign:'center'}}><span style={{background:'#f1f5f9',color:'#374151',padding:'2px 8px',borderRadius:'6px',fontSize:'12px',fontWeight:'600'}}>{c.creditos} cr.</span></td>
                   <td className="hide-sm" style={{textAlign:'center'}}><span className="badge badge-teoria">{c.horas_teoria}h</span></td>
                   <td className="hide-sm" style={{textAlign:'center'}}>{c.horas_practica > 0 ? <span className="badge badge-laboratorio">{c.horas_practica}h</span> : <span style={{color:'#94a3b8',fontSize:'12px'}}>—</span>}</td>
@@ -301,14 +303,14 @@ export default function CursosPage() {
 
         {/* Paginación */}
         {!loading && total > 0 && (
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px',borderTop:'1px solid #e2e8f0'}}>
-            <div style={{fontSize:'14px',color:'#64748b'}}>
-              Mostrando <span style={{fontWeight:'600',color:'#1e293b'}}>{(pagina-1)*limit + 1}</span> a <span style={{fontWeight:'600',color:'#1e293b'}}>{Math.min(pagina*limit, total)}</span> de <span style={{fontWeight:'600',color:'#1e293b'}}>{total}</span> cursos
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px',borderTop:'1px solid ' + (darkMode ? '#374151' : '#e2e8f0')}}>
+            <div style={{fontSize:'14px',color: darkMode ? '#94a3b8' : '#64748b'}}>
+              Mostrando <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{(pagina-1)*limit + 1}</span> a <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{Math.min(pagina*limit, total)}</span> de <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{total}</span> cursos
             </div>
             <div style={{display:'flex',gap:'8px'}}>
-              <button className="btn-secondary" style={{padding:'6px 12px'}} disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>Anterior</button>
-              <div style={{display:'flex',alignItems:'center',padding:'0 12px',fontSize:'14px',fontWeight:'600',color:'#1e293b'}}>Página {pagina} de {Math.ceil(total / limit)}</div>
-              <button className="btn-secondary" style={{padding:'6px 12px'}} disabled={pagina >= Math.ceil(total / limit)} onClick={() => setPagina(p => p + 1)}>Siguiente</button>
+              <button className="btn-secondary" style={{padding:'6px 12px', color: darkMode ? '#00A6FF' : undefined}} disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>Anterior</button>
+              <div style={{display:'flex',alignItems:'center',padding:'0 12px',fontSize:'14px',fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>Página {pagina} de {Math.ceil(total / limit)}</div>
+              <button className="btn-secondary" style={{padding:'6px 12px', color: darkMode ? '#00A6FF' : undefined}} disabled={pagina >= Math.ceil(total / limit)} onClick={() => setPagina(p => p + 1)}>Siguiente</button>
             </div>
           </div>
         )}
@@ -327,9 +329,9 @@ export default function CursosPage() {
             <div className="modal-body">
               {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
               <div className="responsive-grid">
-                <div className="form-group"><label className="form-label">Código *</label><input className="form-input" value={form.codigo||''} onChange={e=>setForm((p:any)=>({...p,codigo:e.target.value}))}/></div>
+                <div className="form-group"><label className="form-label">Código *</label><input className="form-input" value={form.codigo||''} onChange={e=>setForm((p:any)=>({...p,codigo:e.target.value.toUpperCase()}))}/></div>
                 <div className="form-group"><label className="form-label">Ciclo del plan</label><input className="form-input" type="number" min={1} max={10} value={form.ciclo_plan||1} onChange={e=>setForm((p:any)=>({...p,ciclo_plan:parseInt(e.target.value)}))}/></div>
-                <div className="form-group" style={{gridColumn:'1/-1'}}><label className="form-label">Nombre *</label><input className="form-input" value={form.nombre||''} onChange={e=>setForm((p:any)=>({...p,nombre:e.target.value}))}/></div>
+                <div className="form-group" style={{gridColumn:'1/-1'}}><label className="form-label">Nombre *</label><input className="form-input" value={form.nombre||''} onChange={e=>setForm((p:any)=>({...p,nombre:e.target.value.toUpperCase()}))}/></div>
                 <div className="form-group"><label className="form-label">Escuela</label>
                   <select className="form-input" value={form.escuela_id||''} onChange={e=>setForm((p:any)=>({...p,escuela_id:e.target.value}))}>
                     <option value="">Seleccionar...</option>

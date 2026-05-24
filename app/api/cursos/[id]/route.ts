@@ -23,11 +23,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const body = await req.json();
     const anterior = await queryOne(`SELECT * FROM cursos WHERE id = $1`, [id]);
+    
+    const codigoUpper = body.codigo?.toUpperCase() || '';
+    const nombreUpper = body.nombre?.toUpperCase() || '';
 
     const curso = await queryOne(
       `UPDATE cursos SET escuela_id=$1, codigo=$2, nombre=$3, creditos=$4, horas_teoria=$5, horas_practica=$6, ciclo_plan=$7, activo=$8
        WHERE id=$9 RETURNING *`,
-      [body.escuela_id, body.codigo, body.nombre, body.creditos, body.horas_teoria, body.horas_practica, body.ciclo_plan, body.activo, id]
+      [body.escuela_id, codigoUpper, nombreUpper, body.creditos, body.horas_teoria, body.horas_practica, body.ciclo_plan, body.activo, id]
     );
 
     await registrarAuditoria({
@@ -37,7 +40,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       registro_id: id,
       datos_anteriores: anterior,
       datos_nuevos: curso,
-      descripcion: `Curso actualizado: ${body.nombre}`,
+      descripcion: `Curso actualizado: ${nombreUpper}`,
     });
 
     return NextResponse.json({ data: curso });
