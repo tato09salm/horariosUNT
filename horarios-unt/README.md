@@ -16,12 +16,13 @@ Admin:      admin@unt.edu.pe      / password
 Secretaria: secretaria@unt.edu.pe / password
 
 ## VARIABLES DE ENTORNO (.env.local)
+Copy these to a local `.env.local` file and fill with your own secrets. Do NOT commit secrets.
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=horariosUNT
 DB_USER=postgres
-DB_PASSWORD=sa
-JWT_SECRET=jwt-horarios-unt-2024
+DB_PASSWORD=your_db_password_here
+JWT_SECRET=change_this_to_a_random_secret
 
 ## MÓDULOS
 1. Dashboard     - KPIs + gráficos dinámicos (Recharts)
