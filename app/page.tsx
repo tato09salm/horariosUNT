@@ -34,11 +34,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center"
-      style={{background: darkMode ? 'linear-gradient(135deg, #020617 0%, #0f172a 50%, #020617 100%)' : 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)'}}
-      suppressHydrationWarning
-    >
+    <div className="min-h-screen flex items-center justify-center" style={{background: darkMode ? 'linear-gradient(135deg, #020617 0%, #0f172a 50%, #020617 100%)' : 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)'}}>
       <motion.div 
         className={`w-full max-w-6xl mx-3 rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
         initial={{ opacity: 0, y: 30 }}
