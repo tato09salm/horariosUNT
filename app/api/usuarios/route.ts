@@ -63,12 +63,22 @@ export async function GET(req: NextRequest) {
     );
     const total = parseInt(totalResult[0]?.total || '0');
 
+    const countsResult = await query(
+      `SELECT rol, COUNT(*) as count FROM usuarios WHERE 1=1 ${whereConditions} GROUP BY rol`,
+      params
+    );
+    const countsByRole: Record<string, number> = {};
+    countsResult.forEach((r: any) => {
+      countsByRole[r.rol] = parseInt(r.count);
+    });
+
     return NextResponse.json({
       data: usuarios,
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit)
+      totalPages: Math.ceil(total / limit),
+      countsByRole
     });
   } catch (error) {
     console.error('Error GET usuarios:', error);
@@ -90,7 +100,7 @@ export async function POST(req: NextRequest) {
       `INSERT INTO usuarios (nombre, apellidos, email, password_hash, rol) 
        VALUES ($1, $2, $3, $4, $5) 
        RETURNING id, nombre, apellidos, email, rol`,
-      [body.nombre, body.apellidos, body.email, hash, body.rol]
+      [body.nombre.toUpperCase(), body.apellidos.toUpperCase(), body.email, hash, body.rol]
     );
 
     await registrarAuditoria({

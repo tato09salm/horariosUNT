@@ -26,12 +26,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const body = await req.json();
     const anterior = await queryOne(`SELECT * FROM docentes WHERE id = $1`, [id]);
+    
+    const nombreUpper = body.nombre?.toUpperCase() || '';
+    const apellidosUpper = body.apellidos?.toUpperCase() || '';
 
     const docente = await queryOne(
       `UPDATE docentes SET nombre=$1, apellidos=$2, email=$3, telefono=$4, categoria=$5,
        condicion=$6, fecha_ingreso=$7, grado_academico=$8, horas_max_semana=$9, activo=$10, updated_at=NOW()
        WHERE id=$11 RETURNING *`,
-      [body.nombre, body.apellidos, body.email, body.telefono, body.categoria,
+      [nombreUpper, apellidosUpper, body.email, body.telefono, body.categoria,
        body.condicion, body.fecha_ingreso, body.grado_academico, body.horas_max_semana, body.activo, id]
     );
 
@@ -43,7 +46,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       registro_id: id,
       datos_anteriores: anterior,
       datos_nuevos: docente,
-      descripcion: `Docente actualizado: ${body.nombre} ${body.apellidos}`,
+      descripcion: `Docente actualizado: ${nombreUpper} ${apellidosUpper}`,
     });
 
     return NextResponse.json({ data: docente });

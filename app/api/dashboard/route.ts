@@ -44,6 +44,8 @@ export async function GET(req: NextRequest) {
     globalCur,
     globalAmb,
     horasPorCategoria,
+    docentesPorCategoria,
+    aulasPorTipo,
     ocupacionAmbientes,
     cargaDocentes,
     distribucionDias,
@@ -80,6 +82,24 @@ export async function GET(req: NextRequest) {
       GROUP BY d.categoria, d.condicion
       ORDER BY d.categoria
     `, [cid]) : Promise.resolve([]),
+
+    // Docentes por categoría y condición
+    query(`
+      SELECT d.categoria, d.condicion, COUNT(DISTINCT d.id) as docentes
+      FROM docentes d
+      WHERE d.activo = true
+      GROUP BY d.categoria, d.condicion
+      ORDER BY docentes DESC
+    `),
+
+    // Aulas por tipo
+    query(`
+      SELECT tipo, COUNT(DISTINCT id) as ambientes
+      FROM ambientes
+      WHERE disponible = true
+      GROUP BY tipo
+      ORDER BY ambientes DESC
+    `),
 
     // Ocupación de ambientes (% de slots usados)
     cid ? query(`
@@ -193,7 +213,7 @@ export async function GET(req: NextRequest) {
       totalDocentes: parseInt(totalDocentes?.count || '0'),
       totalCursos: parseInt(totalCursos?.count || '0'),
       totalAmbientes: parseInt(totalAmbientes?.count || '0'),
-      totalAsignaciones: parseInt((totalAsignaciones as any)?.count || '0'),
+      totalAsignaciones: parseInt((totalAsignaciones as any)?.count || '0'),    
       globalDocentes: parseInt((globalDoc as any)?.count || '0'),
       globalCursos: parseInt((globalCur as any)?.count || '0'),
       globalAmbientes: parseInt((globalAmb as any)?.count || '0'),
@@ -202,6 +222,8 @@ export async function GET(req: NextRequest) {
       gruposSinHorario: Math.max(0, parseInt((totalGrupos as any)?.count || '0') - parseInt((gruposConHorario as any)?.count || '0')),
     },
     horasPorCategoria,
+    docentesPorCategoria,
+    aulasPorTipo,
     ocupacionAmbientes,
     cargaDocentes,
     distribucionDias,

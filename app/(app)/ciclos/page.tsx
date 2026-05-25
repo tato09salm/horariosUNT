@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useTheme } from '@/lib/theme';
 
 interface Ciclo {
   id: string;
@@ -25,6 +26,7 @@ const emptyCiclo: Partial<Ciclo> = {
 };
 
 export default function CiclosPage() {
+  const { darkMode } = useTheme();
   const [ciclos, setCiclos] = useState<Ciclo[]>([]);
   const [loading, setLoading] = useState(true);
   const [buscar, setBuscar] = useState('');
@@ -208,8 +210,8 @@ export default function CiclosPage() {
     <div className="page-container">
       <div className="header-responsive" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', margin: '0 0 4px' }}>Ciclos Académicos</h1>
-          <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Gestión de períodos académicos</p>
+          <h1 style={{ fontSize: '24px', fontWeight: '700', margin: '0 0 4px' }}>Ciclos Académicos</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>Gestión de períodos académicos</p>
         </div>
         <div className="header-actions" style={{ display: 'flex', gap: '12px' }}>
           <button className="btn-primary" onClick={generarReporte}>
@@ -315,16 +317,16 @@ export default function CiclosPage() {
 
         {/* Paginación */}
         {!loading && total > limit && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderTop: '1px solid #e2e8f0' }}>
-            <div style={{ fontSize: '14px', color: '#64748b' }}>
-              Mostrando <span style={{ fontWeight: '600', color: '#1e293b' }}>{(pagina - 1) * limit + 1}</span> a{' '}
-              <span style={{ fontWeight: '600', color: '#1e293b' }}>{Math.min(pagina * limit, total)}</span> de{' '}
-              <span style={{ fontWeight: '600', color: '#1e293b' }}>{total}</span> ciclos
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderTop: '1px solid ' + (darkMode ? '#374151' : '#e2e8f0') }}>
+            <div style={{ fontSize: '14px', color: darkMode ? '#94a3b8' : '#64748b' }}>
+              Mostrando <span style={{ fontWeight: '600', color: darkMode ? '#00A6FF' : '#1e293b' }}>{(pagina - 1) * limit + 1}</span> a{' '}
+              <span style={{ fontWeight: '600', color: darkMode ? '#00A6FF' : '#1e293b' }}>{Math.min(pagina * limit, total)}</span> de{' '}
+              <span style={{ fontWeight: '600', color: darkMode ? '#00A6FF' : '#1e293b' }}>{total}</span> ciclos
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="btn-secondary" style={{ padding: '6px 12px' }} disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>Anterior</button>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: '14px', fontWeight: '600', color: '#1e293b' }}>Página {pagina} de {Math.ceil(total / limit)}</div>
-              <button className="btn-secondary" style={{ padding: '6px 12px' }} disabled={pagina >= Math.ceil(total / limit)} onClick={() => setPagina(p => p + 1)}>Siguiente</button>
+              <button className="btn-secondary" style={{ padding: '6px 12px', color: darkMode ? '#00A6FF' : undefined }} disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>Anterior</button>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: '14px', fontWeight: '600', color: darkMode ? '#00A6FF' : '#1e293b' }}>Página {pagina} de {Math.ceil(total / limit)}</div>
+              <button className="btn-secondary" style={{ padding: '6px 12px', color: darkMode ? '#00A6FF' : undefined }} disabled={pagina >= Math.ceil(total / limit)} onClick={() => setPagina(p => p + 1)}>Siguiente</button>
             </div>
           </div>
         )}

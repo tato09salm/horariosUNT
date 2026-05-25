@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useTheme } from '@/lib/theme';
 
 const categorias = ['principal', 'asociado', 'auxiliar', 'jefe_practica'];
 const condiciones = ['nombrado', 'contratado'];
@@ -21,6 +22,7 @@ const emptyDocente: Partial<Docente> = {
 };
 
 export default function DocentesPage() {
+  const { darkMode } = useTheme();
   const [docentes, setDocentes] = useState<Docente[]>([]);
   const [loading, setLoading] = useState(true);
   const [buscar, setBuscar] = useState('');
@@ -104,12 +106,12 @@ export default function DocentesPage() {
   }
 
   function toggleEstado(d: Docente) {
-    setDocenteAToggle({id: d.id, nombre: `${d.apellidos}, ${d.nombre}`, activo: d.activo});
+    setDocenteAToggle({id: d.id, nombre: `${d.apellidos.toUpperCase()} ${d.nombre.toUpperCase()}`, activo: d.activo});
     setShowConfirm(true);
   }
 
   function nuevo() { setEditando({...emptyDocente}); setShowModal(true); setMsg(null); }
-  function editar(d: Docente) { setEditando({...d}); setShowModal(true); setMsg(null); }
+  function editar(d: Docente) { setEditando({...d, nombre: d.nombre.toUpperCase(), apellidos: d.apellidos.toUpperCase()}); setShowModal(true); setMsg(null); }
 
   async function generarReporte() {
     setLoading(true);
@@ -149,7 +151,7 @@ export default function DocentesPage() {
 
       const tableData = todosLosDocentes.map((d: Docente, i: number) => [
         i + 1,
-        `${d.apellidos.toUpperCase()}, ${d.nombre}`,
+        `${d.apellidos.toUpperCase()} ${d.nombre.toUpperCase()}`,
         d.dni,
         d.categoria.replace('_', ' ').toUpperCase(),
         d.condicion.toUpperCase(),
@@ -205,8 +207,8 @@ export default function DocentesPage() {
     <div className="page-container">
       <div className="header-responsive" style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'24px',flexWrap:'wrap',gap:'16px'}}>
         <div>
-          <h1 style={{fontSize:'24px',fontWeight:'700',color:'#1e293b',margin:'0 0 4px'}}>Docentes</h1>
-          <p style={{color:'#64748b',fontSize:'14px',margin:0}}>Gestión del cuerpo docente</p>
+          <h1 style={{fontSize:'24px',fontWeight:'700',margin:'0 0 4px'}}>Docentes</h1>
+          <p style={{color:'var(--text-secondary)',fontSize:'14px',margin:0}}>Gestión del cuerpo docente</p>
         </div>
         <div className="header-actions">
           <button className="btn-primary" onClick={generarReporte}>
@@ -267,7 +269,7 @@ export default function DocentesPage() {
                 <tr key={d.id}>
                   <td className="hide-sm" style={{color:'#94a3b8',fontSize:'12px',fontWeight:'600'}}>{(pagina-1)*limit + i+1}</td>
                   <td>
-                    <div style={{fontWeight:'500'}}>{d.apellidos}, {d.nombre}</div>
+                    <div style={{fontWeight:'500'}}>{d.apellidos.toUpperCase()} {d.nombre.toUpperCase()}</div>
                     <div className="hide-sm" style={{fontSize:'12px',color:'#94a3b8'}}>{d.email}</div>
                   </td>
                   <td style={{fontFamily:'monospace'}}>{d.dni}</td>
@@ -307,25 +309,25 @@ export default function DocentesPage() {
         
         {/* Paginación */}
         {!loading && total > 0 && (
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px',borderTop:'1px solid #e2e8f0'}}>
-            <div style={{fontSize:'14px',color:'#64748b'}}>
-              Mostrando <span style={{fontWeight:'600',color:'#1e293b'}}>{(pagina-1)*limit + 1}</span> a <span style={{fontWeight:'600',color:'#1e293b'}}>{Math.min(pagina*limit, total)}</span> de <span style={{fontWeight:'600',color:'#1e293b'}}>{total}</span> docentes
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px',borderTop:'1px solid ' + (darkMode ? '#374151' : '#e2e8f0')}}>
+            <div style={{fontSize:'14px',color: darkMode ? '#94a3b8' : '#64748b'}}>
+              Mostrando <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{(pagina-1)*limit + 1}</span> a <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{Math.min(pagina*limit, total)}</span> de <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{total}</span> docentes
             </div>
             <div style={{display:'flex',gap:'8px'}}>
               <button 
                 className="btn-secondary" 
-                style={{padding:'6px 12px'}} 
+                style={{padding:'6px 12px', color: darkMode ? '#00A6FF' : undefined}} 
                 disabled={pagina === 1}
                 onClick={() => setPagina(p => p - 1)}
               >
                 Anterior
               </button>
-              <div style={{display:'flex',alignItems:'center',padding:'0 12px',fontSize:'14px',fontWeight:'600',color:'#1e293b'}}>
+              <div style={{display:'flex',alignItems:'center',padding:'0 12px',fontSize:'14px',fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>
                 Página {pagina} de {Math.ceil(total / limit)}
               </div>
               <button 
                 className="btn-secondary" 
-                style={{padding:'6px 12px'}} 
+                style={{padding:'6px 12px', color: darkMode ? '#00A6FF' : undefined}} 
                 disabled={pagina >= Math.ceil(total / limit)}
                 onClick={() => setPagina(p => p + 1)}
               >
@@ -363,11 +365,11 @@ export default function DocentesPage() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Nombre *</label>
-                  <input className="form-input" value={editando.nombre||''} onChange={e => setEditando(p => ({...p,nombre:e.target.value}))} />
+                  <input className="form-input" value={editando.nombre||''} onChange={e => setEditando(p => ({...p,nombre:e.target.value.toUpperCase()}))} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Apellidos *</label>
-                  <input className="form-input" value={editando.apellidos||''} onChange={e => setEditando(p => ({...p,apellidos:e.target.value}))} />
+                  <input className="form-input" value={editando.apellidos||''} onChange={e => setEditando(p => ({...p,apellidos:e.target.value.toUpperCase()}))} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Email</label>
