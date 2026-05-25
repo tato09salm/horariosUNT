@@ -354,13 +354,12 @@ horariosUNT/
 ## 10. Variables de Entorno
 
 ```env
-# Copy this file to `.env.local` and fill values locally (DO NOT commit secrets)
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=horariosUNT
 DB_USER=postgres
-DB_PASSWORD=your_db_password_here
-JWT_SECRET=change_this_to_a_random_secret
+DB_PASSWORD=sa
+JWT_SECRET=jwt-horarios-unt-2024
 ```
 
 ---
