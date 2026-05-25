@@ -48,10 +48,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   if (loading) return (
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background: darkMode ? '#0f172a' : '#f1f5f9'}}>
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg-main)'}}>
       <div style={{textAlign:'center'}}>
         <div style={{width:'40px',height:'40px',border:'3px solid #e2e8f0',borderTop:'3px solid #1a3a5c',borderRadius:'50%',animation:'spin 0.7s linear infinite',margin:'0 auto 12px'}} />
-        <p style={{color: darkMode ? '#94a3b8' : '#64748b',fontSize:'14px'}}>Cargando...</p>
+        <p style={{color:'var(--text-secondary)',fontSize:'14px'}}>Cargando...</p>
       </div>
     </div>
   );

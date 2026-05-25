@@ -1,6 +1,6 @@
-/** URL de cursos asignados a una programación (evita segmento /cursos por conflicto Turbopack). */
+/** URL de cursos asignados a una programación. */
 export function programacionCursosApiUrl(programacionId: string): string {
-  return `/api/horarios/programaciones/${programacionId}/programacion-cursos`;
+  return `/api/horarios/programaciones/${programacionId}/cursos`;
 }
 
 export async function fetchProgramacionCursos(programacionId: string) {

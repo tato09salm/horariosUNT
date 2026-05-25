@@ -176,6 +176,29 @@ export default function ProgramarPage() {
     } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
   };
 
+  const retrocederFase = async () => {
+    if (!window.confirm('¿Deseas volver a la Fase 2? Se mantendrán los datos generados.')) return;
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fase: 2 }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      window.location.href = `/horarios/${progId}/disponibilidad`;
+    } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
+  };
+
+  const cancelarProgramacion = async () => {
+    if (!window.confirm('¿Seguro que deseas cancelar esta programación?')) return;
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      window.location.href = '/horarios';
+    } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
+  };
+
   const asignacionesVisibles = useMemo(() => {
     if (docentesConCarga.size === 0) return asignaciones;
     return asignaciones.filter(
@@ -197,12 +220,18 @@ export default function ProgramarPage() {
           <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', margin: '0 0 4px' }}>{prog.nombre}</h1>
           <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Fase 3: Programación (Motor CSP)</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button className="btn-secondary" onClick={() => ejecutarMotor(false)} disabled={resolving || prog.fase !== 3}>
             {resolving ? '⚙️ Resolviendo...' : asignacionesVisibles.length > 0 ? '🔄 Reejecutar CSP' : '⚙️ Ejecutar Auto-Asignación'}
           </button>
+          <button className="btn-secondary" onClick={retrocederFase} disabled={prog.fase !== 3}>
+            ← Volver a Fase 2
+          </button>
           <button className="btn-primary" onClick={avanzarFase} disabled={prog.fase !== 3}>
             Avanzar a Fase 4 →
+          </button>
+          <button className="btn-danger" onClick={cancelarProgramacion} disabled={prog.fase !== 3}>
+            Cancelar
           </button>
         </div>
       </div>

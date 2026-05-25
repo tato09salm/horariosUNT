@@ -307,6 +307,18 @@ export default function CrearHorarioPage() {
     }
   };
 
+  const cancelarProgramacion = async () => {
+    if (!window.confirm('¿Seguro que deseas cancelar esta programación?')) return;
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      window.location.href = '/horarios';
+    } catch (e: any) {
+      setMsg({ type: 'error', text: e.message });
+    }
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const importarCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -437,7 +449,7 @@ export default function CrearHorarioPage() {
             {lastSaved && <span style={{ marginLeft: '12px', color: '#10b981' }}>✔ Guardado</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Currícula Base:</label>
             <select className="form-input" style={{ padding: '6px 12px', fontSize: '13px' }} value={curriculaActual} onChange={e => setCurriculaActual(e.target.value)}>
@@ -453,6 +465,9 @@ export default function CrearHorarioPage() {
           </button>
           <button className="btn-primary" onClick={avanzarFase} disabled={saving || alerts.length > 0 || cursosFiltrados.length === 0} title={alerts.length > 0 ? "Existen errores por corregir" : ""}>
             {saving ? 'Avanzando...' : 'Avanzar a Fase 2 →'}
+          </button>
+          <button className="btn-danger" onClick={cancelarProgramacion}>
+            Cancelar
           </button>
         </div>
       </div>

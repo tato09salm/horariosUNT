@@ -1,18 +1,82 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useUser } from '../layout';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useTheme } from '@/lib/theme';
-import { Calendar, Users, Building2, BookOpen, Clock, CheckCircle2 } from 'lucide-react';
+import { Users, Building2, BookOpen, Clock, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444'];
-const GRADIENTS = [
-  { id: 'colorBlue', from: '#60a5fa', to: '#3b82f6' },
-  { id: 'colorPurple', from: '#a78bfa', to: '#8b5cf6' },
-  { id: 'colorPink', from: '#f472b6', to: '#ec4899' },
-  { id: 'colorOrange', from: '#fbbf24', to: '#f59e0b' },
-];
+
+type DashboardCargaDocente = {
+  nombre: string;
+  categoria: string;
+  condicion: string;
+  horas_max_semana: number;
+  horas_asignadas: number;
+  porcentaje_carga: number;
+};
+
+type DashboardOcupacion = {
+  nombre: string;
+  tipo: string;
+  codigo: string;
+  horas_usadas: number;
+  porcentaje: number;
+};
+
+type DashboardCategoria = {
+  categoria: string;
+  condicion: string;
+  docentes: number | string;
+};
+
+type DashboardAulaTipo = {
+  tipo: string;
+  ambientes: number | string;
+};
+
+type DashboardStats = {
+  totalDocentes?: number;
+  totalCursos?: number;
+  totalAmbientes?: number;
+  totalAsignaciones?: number;
+  globalDocentes?: number;
+  globalCursos?: number;
+  globalAmbientes?: number;
+  totalGrupos?: number;
+  gruposConHorario?: number;
+  gruposSinHorario?: number;
+};
+
+type DashboardCiclo = { id: string; nombre: string; activo?: boolean };
+type DashboardSlot = { hora_inicio: string; hora_fin: string };
+type DashboardDistribucion = { dia: string; cantidad: number };
+type DashboardAsignacion = { hora_inicio: string; hora_fin: string; cantidad: number };
+type DashboardSesion = { tipo: string; cantidad: number };
+type DashboardSobrecarga = { id?: string; nombre: string; horas_asignadas: number; horas_max_semana: number; porcentaje_carga?: number };
+type DashboardCapacidad = { id?: string; curso: string; numero_grupo: number; ambiente_codigo: string; capacidad: number; num_alumnos: number };
+type DashboardProgramacion = { id: string; nombre: string; estado: string; fase: number };
+
+type DashboardData = {
+  ciclo?: DashboardCiclo;
+  ciclos?: DashboardCiclo[];
+  slots?: DashboardSlot[];
+  stats?: DashboardStats;
+  cargaDocentes?: DashboardCargaDocente[];
+  ocupacionAmbientes?: DashboardOcupacion[];
+  distribucionDias?: DashboardDistribucion[];
+  asignacionesPorSlot?: DashboardAsignacion[];
+  asignacionesPorTipo?: DashboardSesion[];
+  docentesSobrecarga?: DashboardSobrecarga[];
+  capacidadExcedida?: DashboardCapacidad[];
+  docentesPorCategoria?: DashboardCategoria[];
+  aulasPorTipo?: DashboardAulaTipo[];
+  conflictosPendientes?: number;
+};
+
+type DashboardApiResponse = DashboardData & { error?: string };
+type ProgramacionesApiResponse = { data?: DashboardProgramacion[] };
 
 const TIPO_SESION_LABELS: Record<string, string> = {
   teoria: 'Teoria',
@@ -26,11 +90,11 @@ function formatTime(value?: string) {
 }
 
 export default function DashboardPage() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [cicloId, setCicloId] = useState('');
-  const [programaciones, setProgramaciones] = useState<any[]>([]);
+  const [programaciones, setProgramaciones] = useState<DashboardProgramacion[]>([]);
 
   const user = useUser();
   const isDocente = user?.rol === 'docente';
@@ -50,17 +114,97 @@ export default function DashboardPage() {
           setCicloId('');
           return;
         }
-        let payload: any = null;
+        let payload: DashboardApiResponse | null = null;
         try {
-          payload = JSON.parse(text);
-        } catch (parseErr) {
+          payload = JSON.parse(text) as DashboardApiResponse;
+        } catch {
           throw new Error('Respuesta no valida del servidor');
         }
         if (!res.ok) {
           throw new Error(payload?.error || 'No se pudo cargar el dashboard');
         }
-        setData(payload);
-        setCicloId(payload.ciclo?.id || '');
+        let finalPayload = payload;
+
+        const statsEmpty = (payload?.stats?.totalAsignaciones || 0) === 0;
+        if (statsEmpty && payload?.ciclo?.id) {
+          try {
+            const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${payload.ciclo.id}`).then(r => r.json() as Promise<ProgramacionesApiResponse>);
+            const progs = progsRes.data || [];
+            const selectedProg = progs.find((p) => p.estado === 'publicado') || progs[0];
+            if (selectedProg) {
+              const exportRes = await fetch(`/api/horarios/programaciones/${selectedProg.id}/exportar`);
+              if (exportRes.ok) {
+                const exportData = await exportRes.json();
+                const asignaciones = exportData.asignaciones || [];
+
+                if (asignaciones.length > 0) {
+                  const totalSlots = (payload?.slots?.length || 0) * 5 || 1;
+
+                  const docenteMap = new Map<string, DashboardCargaDocente>();
+                  const cursosSet = new Set<string>();
+                  const ambientesMap = new Map<string, DashboardOcupacion>();
+                  const diasMap = new Map<string, number>();
+                  const tipoMap = new Map<string, number>();
+                  const slotMap = new Map<string, number>();
+
+                  asignaciones.forEach((a: { docente_id?: string; docente_nombre?: string; curso_codigo?: string; aula?: string; dia?: string; tipo_sesion?: string; tipo?: string; hora_inicio?: string; hora_fin?: string; }) => {
+                    if (a.docente_id) {
+                      const current: DashboardCargaDocente = docenteMap.get(a.docente_id) || {
+                        nombre: a.docente_nombre || 'Docente',
+                        categoria: 'auxiliar',
+                        condicion: 'contratado',
+                        horas_max_semana: 20,
+                        horas_asignadas: 0,
+                        porcentaje_carga: 0,
+                      };
+                      current.horas_asignadas += 1;
+                      current.porcentaje_carga = Math.round((current.horas_asignadas * 100) / (current.horas_max_semana || 1));
+                      docenteMap.set(a.docente_id, current);
+                    }
+                    if (a.curso_codigo) cursosSet.add(a.curso_codigo);
+                    if (a.aula) {
+                      const amb: DashboardOcupacion = ambientesMap.get(a.aula) || { nombre: a.aula, tipo: 'aula', codigo: a.aula, horas_usadas: 0, porcentaje: 0 };
+                      amb.horas_usadas += 1;
+                      amb.porcentaje = Math.round((amb.horas_usadas * 1000) / totalSlots) / 10;
+                      ambientesMap.set(a.aula, amb);
+                    }
+                    if (a.dia) diasMap.set(a.dia, (diasMap.get(a.dia) || 0) + 1);
+                    const tipo = a.tipo_sesion || a.tipo || 'teoria';
+                    tipoMap.set(tipo, (tipoMap.get(tipo) || 0) + 1);
+                    if (a.hora_inicio && a.hora_fin) {
+                      const key = `${a.hora_inicio}-${a.hora_fin}`;
+                      slotMap.set(key, (slotMap.get(key) || 0) + 1);
+                    }
+                  });
+
+                  finalPayload = {
+                    ...payload,
+                    stats: {
+                      ...payload.stats,
+                      totalDocentes: docenteMap.size,
+                      totalCursos: cursosSet.size,
+                      totalAmbientes: ambientesMap.size,
+                      totalAsignaciones: asignaciones.length,
+                    },
+                    cargaDocentes: Array.from(docenteMap.values()).sort((a, b) => (b.porcentaje_carga || 0) - (a.porcentaje_carga || 0)),
+                    ocupacionAmbientes: Array.from(ambientesMap.values()).sort((a, b) => (b.porcentaje || 0) - (a.porcentaje || 0)),
+                    distribucionDias: Array.from(diasMap.entries()).map(([dia, cantidad]) => ({ dia, cantidad })),
+                    asignacionesPorTipo: Array.from(tipoMap.entries()).map(([tipo, cantidad]) => ({ tipo, cantidad })),
+                    asignacionesPorSlot: Array.from(slotMap.entries()).map(([key, cantidad]) => {
+                      const [hora_inicio, hora_fin] = key.split('-');
+                      return { hora_inicio, hora_fin, cantidad };
+                    }),
+                  };
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('Fallback dashboard export failed', err);
+          }
+        }
+
+        setData(finalPayload);
+        setCicloId(finalPayload.ciclo?.id || '');
       } catch (err) {
         console.error(err);
         alert('No se pudo cargar el dashboard. Revisa tu sesion e intenta nuevamente.');
@@ -74,10 +218,10 @@ export default function DashboardPage() {
         const res = await fetch('/api/horarios/programaciones');
         const text = await res.text();
         if (!text) return;
-        let payload: any = null;
+        let payload: ProgramacionesApiResponse | null = null;
         try {
-          payload = JSON.parse(text);
-        } catch (parseErr) {
+          payload = JSON.parse(text) as ProgramacionesApiResponse;
+        } catch {
           return;
         }
         if (res.ok) {
@@ -106,12 +250,13 @@ export default function DashboardPage() {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       const ciclo = data?.ciclo;
       const dashData = data;
+      const reportStats = dashData?.stats ?? {};
 
       const fechaEmision = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
       const horaEmision = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
-      const coberturaGrupos = dashData?.stats?.totalGrupos ? Math.round((dashData?.stats?.gruposConHorario / dashData?.stats?.totalGrupos) * 100) : 0;
-      const ocupacionGlobal = dashData?.stats?.globalAmbientes && dashData?.slots?.length
-        ? Math.round((dashData?.stats?.totalAsignaciones / (dashData?.stats?.globalAmbientes * dashData?.slots?.length * 5)) * 100)
+      const coberturaGrupos = reportStats.totalGrupos ? Math.round(((reportStats.gruposConHorario ?? 0) / reportStats.totalGrupos) * 100) : 0;
+      const ocupacionGlobal = reportStats.globalAmbientes && dashData?.slots?.length
+        ? Math.round(((reportStats.totalAsignaciones ?? 0) / (reportStats.globalAmbientes * dashData.slots.length * 5)) * 100)
         : 0;
 
       doc.setFillColor(15, 23, 42);
@@ -144,12 +289,12 @@ export default function DashboardPage() {
 
       doc.setFontSize(9); doc.setFont('helvetica','normal');
       const stats = [
-        ['Docentes programados', `${dashData?.stats?.totalDocentes} de ${dashData?.stats?.globalDocentes||0} (${Math.round((dashData?.stats?.totalDocentes / (dashData?.stats?.globalDocentes||1))*100)}%)`],
-        ['Cursos programados', `${dashData?.stats?.totalCursos} de ${dashData?.stats?.globalCursos||0} (${Math.round((dashData?.stats?.totalCursos / (dashData?.stats?.globalCursos||1))*100)}%)`],
-        ['Ambientes usados', `${dashData?.stats?.totalAmbientes} de ${dashData?.stats?.globalAmbientes||0} (${Math.round((dashData?.stats?.totalAmbientes / (dashData?.stats?.globalAmbientes||1))*100)}%)`],
-        ['Cobertura de grupos', `${dashData?.stats?.gruposConHorario || 0} de ${dashData?.stats?.totalGrupos || 0} (${coberturaGrupos}%)`],
+        ['Docentes programados', `${reportStats.totalDocentes ?? 0} de ${reportStats.globalDocentes||0} (${Math.round(((reportStats.totalDocentes ?? 0) / (reportStats.globalDocentes||1))*100)}%)`],
+        ['Cursos programados', `${reportStats.totalCursos ?? 0} de ${reportStats.globalCursos||0} (${Math.round(((reportStats.totalCursos ?? 0) / (reportStats.globalCursos||1))*100)}%)`],
+        ['Ambientes usados', `${reportStats.totalAmbientes ?? 0} de ${reportStats.globalAmbientes||0} (${Math.round(((reportStats.totalAmbientes ?? 0) / (reportStats.globalAmbientes||1))*100)}%)`],
+        ['Cobertura de grupos', `${reportStats.gruposConHorario || 0} de ${reportStats.totalGrupos || 0} (${coberturaGrupos}%)`],
         ['Ocupación global', `${ocupacionGlobal}%`],
-        ['Total asignaciones', `${dashData?.stats?.totalAsignaciones}`],
+        ['Total asignaciones', `${reportStats.totalAsignaciones ?? 0}`],
       ];
       autoTable(doc, {
         startY: y, head:[['Indicador','Valor']],
@@ -159,7 +304,8 @@ export default function DashboardPage() {
         margin:{left:14,right:14},
         tableWidth: 120,
       });
-      y = (doc as any).lastAutoTable.finalY + 8;
+      const reportDoc = doc as typeof doc & { lastAutoTable?: { finalY?: number } };
+      y = (reportDoc.lastAutoTable?.finalY || y) + 8;
 
       doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
       doc.text('ALERTAS Y OBSERVACIONES', 14, y); y += 6;
@@ -167,7 +313,7 @@ export default function DashboardPage() {
         startY: y,
         head:[['Indicador','Detalle']],
         body: [
-          ['Grupos sin horario', `${dashData?.stats?.gruposSinHorario || 0}`],
+          ['Grupos sin horario', `${reportStats.gruposSinHorario || 0}`],
           ['Docentes sobrecargados', `${dashData?.docentesSobrecarga?.length || 0}`],
           ['Capacidad excedida', `${dashData?.capacidadExcedida?.length || 0}`],
           ['Conflictos pendientes', `${dashData?.conflictosPendientes || 0}`],
@@ -178,16 +324,16 @@ export default function DashboardPage() {
         margin:{left:14,right:14},
         tableWidth: 120,
       });
-      y = (doc as any).lastAutoTable.finalY + 10;
+      y = (reportDoc.lastAutoTable?.finalY || y) + 10;
 
       doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
       doc.text('CARGA HORARIA POR DOCENTE', 14, y); y += 6;
       autoTable(doc, {
         startY: y,
         head:[['Docente','Categoría','Condición','Horas Asignadas','Horas Máx.','% Carga']],
-        body: dashData?.cargaDocentes?.map((d:any)=>[
-          d.nombre, d.categoria.replace('_',' '), d.condicion,
-          `${d.horas_asignadas}h`, `${d.horas_max_semana}h`, `${d.porcentaje_carga||0}%`
+        body: (dashData?.cargaDocentes || []).map((d) => [
+          d.nombre || '', d.categoria ? d.categoria.replace('_',' ') : '', d.condicion || '',
+          `${d.horas_asignadas ?? 0}h`, `${d.horas_max_semana ?? 0}h`, `${d.porcentaje_carga||0}%`
         ])||[],
         theme:'striped', 
         headStyles:{fillColor:[30, 41, 59], textColor:[255, 255, 255], fontStyle:'bold', halign:'center'},
@@ -195,15 +341,15 @@ export default function DashboardPage() {
         columnStyles: { 3:{halign:'center'}, 4:{halign:'center'}, 5:{halign:'center'} },
         margin:{left:14,right:14},
       });
-      y = (doc as any).lastAutoTable.finalY + 10;
+      y = (reportDoc.lastAutoTable?.finalY || y) + 10;
 
       doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
       doc.text('OCUPACIÓN DE AMBIENTES', 14, y); y += 6;
       autoTable(doc, {
         startY: y,
         head:[['Ambiente','Tipo','Horas Usadas','% Ocupación']],
-        body: dashData?.ocupacionAmbientes?.map((a:any)=>[
-          a.nombre, a.tipo, `${a.horas_usadas}h`, `${a.porcentaje}%`
+        body: (dashData?.ocupacionAmbientes || []).map((a) => [
+          a.nombre || '', a.tipo || '', `${a.horas_usadas ?? 0}h`, `${a.porcentaje ?? 0}%`
         ])||[],
         theme:'striped',
         headStyles:{fillColor:[30, 41, 59], textColor:[255, 255, 255], fontStyle:'bold', halign:'center'},
@@ -211,14 +357,14 @@ export default function DashboardPage() {
         columnStyles: { 2:{halign:'center'}, 3:{halign:'center'} },
         margin:{left:14,right:14},
       });
-      y = (doc as any).lastAutoTable.finalY + 10;
+      y = (reportDoc.lastAutoTable?.finalY || y) + 10;
 
       doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
       doc.text('DISTRIBUCIÓN POR DÍA', 14, y); y += 6;
       autoTable(doc, {
         startY: y,
         head:[['Día','Asignaciones']],
-        body: dashData?.distribucionDias?.map((d:any)=>[
+        body: dashData?.distribucionDias?.map((d) => [
           d.dia, d.cantidad
         ])||[],
         theme:'striped',
@@ -238,7 +384,7 @@ export default function DashboardPage() {
       autoTable(doc, {
         startY: detailY,
         head:[['Docente','Horas Asignadas','Horas Máx.','% Carga']],
-        body: dashData?.docentesSobrecarga?.map((d:any)=>[
+        body: dashData?.docentesSobrecarga?.map((d) => [
           d.nombre, `${d.horas_asignadas}h`, `${d.horas_max_semana}h`, `${d.porcentaje_carga||0}%`
         ])||[['Sin registros','-','-','-']],
         theme:'striped',
@@ -247,14 +393,14 @@ export default function DashboardPage() {
         columnStyles: { 1:{halign:'center'}, 2:{halign:'center'}, 3:{halign:'center'} },
         margin:{left:14,right:14},
       });
-      detailY = (doc as any).lastAutoTable.finalY + 8;
+      detailY = (reportDoc.lastAutoTable?.finalY || detailY) + 8;
 
       doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
       doc.text('SOBRECUPO EN AMBIENTES', 14, detailY); detailY += 6;
       autoTable(doc, {
         startY: detailY,
         head:[['Curso','Grupo','Ambiente','Capacidad','Inscritos']],
-        body: dashData?.capacidadExcedida?.map((c:any)=>[
+        body: dashData?.capacidadExcedida?.map((c) => [
           c.curso, `G${c.numero_grupo}`, c.ambiente_codigo, c.capacidad, c.num_alumnos
         ])||[['Sin registros','-','-','-','-']],
         theme:'striped',
@@ -268,8 +414,8 @@ export default function DashboardPage() {
       try {
         const html2canvas = (await import('html2canvas')).default;
         const chartDensidad = document.getElementById('chart-densidad');
-        const chartCategoria = document.getElementById('chart-categoria');
-        
+
+
         const addChartPage = async (title: string, element: HTMLElement) => {
           doc.addPage();
           doc.setFontSize(14); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59);
@@ -316,9 +462,6 @@ export default function DashboardPage() {
         if (chartDensidad) {
           await addChartPage('Densidad de clases por día', chartDensidad);
         }
-        if (chartCategoria) {
-          await addChartPage('Participación por categoría docente', chartCategoria);
-        }
       } catch (err) {
         console.warn('Could not export charts:', err);
       }
@@ -343,52 +486,51 @@ export default function DashboardPage() {
     </div>
   );
 
-  const categoriaData = data?.docentesPorCategoria?.map((h: any) => ({
+  const categoriaData = data?.docentesPorCategoria?.map((h) => ({
     name: `${h.categoria.replace('_', ' ')} (${h.condicion})`,
-    horas: parseInt(h.docentes),
+    horas: Number(h.docentes || 0),
     condicion: h.condicion,
   })) || [];
 
-  const aulasData = data?.aulasPorTipo?.map((a: any) => ({
+  const aulasData = data?.aulasPorTipo?.map((a) => ({
     name: a.tipo,
-    cantidad: parseInt(a.ambientes),
+    cantidad: Number(a.ambientes),
   })) || [];
 
-  const diasData = data?.distribucionDias?.map((d: any) => ({
-    name: d.dia.substring(0, 3).toUpperCase(),
-    cantidad: parseInt(d.cantidad),
-  })) || [];
-
-  const ocupacionTop = data?.ocupacionAmbientes?.slice(0, 6).map((a: any) => ({
+  const ocupacionTop = data?.ocupacionAmbientes?.slice(0, 6).map((a) => ({
     name: a.codigo,
-    porcentaje: parseFloat(a.porcentaje),
+    porcentaje: Number(a.porcentaje),
     tipo: a.tipo,
   })) || [];
 
-  const gruposTotal = data?.stats?.totalGrupos || 0;
-  const gruposConHorario = data?.stats?.gruposConHorario || 0;
-  const gruposSinHorario = data?.stats?.gruposSinHorario || 0;
+  const dashboardStats = data?.stats ?? {};
+  const gruposTotal = dashboardStats.totalGrupos || 0;
+  const gruposConHorario = dashboardStats.gruposConHorario || 0;
+  const gruposSinHorario = dashboardStats.gruposSinHorario || 0;
   const porcentajeGrupos = gruposTotal > 0 ? Math.round((gruposConHorario / gruposTotal) * 100) : 0;
-  const totalSlots = (data?.stats?.globalAmbientes || 0) * (data?.slots?.length || 0) * 5;
-  const ocupacionPromedio = totalSlots > 0 ? Math.round((data?.stats?.totalAsignaciones / totalSlots) * 100) : 0;
+  const totalSlots = (dashboardStats.globalAmbientes || 0) * (data?.slots?.length || 0) * 5;
+  const ocupacionPromedio = totalSlots > 0 ? Math.round(((dashboardStats.totalAsignaciones || 0) / totalSlots) * 100) : 0;
 
-  const asignacionesPorSlot = data?.asignacionesPorSlot?.map((s: any) => ({
+  const cargaDocentes = data?.cargaDocentes ?? [];
+  const ciclos = data?.ciclos ?? [];
+  const docentesSobrecargaLista = data?.docentesSobrecarga ?? [];
+  const capacidadExcedidaLista = data?.capacidadExcedida ?? [];
+
+  const asignacionesPorSlot = data?.asignacionesPorSlot?.map((s) => ({
     name: `${formatTime(s.hora_inicio)}-${formatTime(s.hora_fin)}`,
-    cantidad: parseInt(s.cantidad),
+    cantidad: Number(s.cantidad),
   })) || [];
 
-  const tiposSesion = data?.asignacionesPorTipo?.map((t: any) => ({
+  const tiposSesion = data?.asignacionesPorTipo?.map((t) => ({
     name: TIPO_SESION_LABELS[t.tipo] || t.tipo,
-    value: parseInt(t.cantidad),
+    value: Number(t.cantidad),
   })) || [];
 
-  const docentesSobrecarga = data?.docentesSobrecarga || [];
-  const capacidadExcedida = data?.capacidadExcedida || [];
   const conflictosPendientes = data?.conflictosPendientes || 0;
 
   if (isDocente) {
-    const miCarga = data?.cargaDocentes?.find((d: any) => d.nombre.toLowerCase().includes(user?.nombre?.toLowerCase()) || d.nombre.toLowerCase().includes(user?.apellidos?.toLowerCase()));
-    const programacionesActivas = programaciones.filter((p: any) => p.estado !== 'publicado' && p.estado !== 'cancelado');
+    const miCarga = data?.cargaDocentes?.find((d) => d.nombre?.toLowerCase().includes(user?.nombre?.toLowerCase() || '') || d.nombre?.toLowerCase().includes(user?.apellidos?.toLowerCase() || ''));
+    const programacionesActivas = programaciones.filter((p) => p.estado !== 'publicado' && p.estado !== 'cancelado');
 
     return (
       <div style={{padding:'32px'}}>
@@ -444,7 +586,7 @@ export default function DashboardPage() {
             </h3>
             {programacionesActivas.length > 0 ? (
               <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
-                {programacionesActivas.map((p: any) => (
+                {programacionesActivas.map((p) => (
                   <div key={p.id} style={{padding:'12px',background: darkMode ? 'rgba(31,41,55,1)' : '#f8fafc',borderRadius:'8px',border:'1px solid ' + (darkMode ? '#374151' : '#e2e8f0'),display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div>
                       <h4 style={{margin:'0 0 4px',fontSize:'14px',fontWeight:'600',color: darkMode ? '#e2e8f0' : '#0f172a'}}>{p.nombre}</h4>
@@ -477,7 +619,7 @@ export default function DashboardPage() {
         </div>
         <div style={{display:'flex',alignItems:'center',gap:'12px', flexWrap:'wrap'}}>
           <select className="form-input" style={{width:'auto',minWidth:'180px'}} value={cicloId} onChange={e => recargar(e.target.value)}>
-            {data?.ciclos?.map((c: any) => (
+            {ciclos.map((c) => (
               <option key={c.id} value={c.id}>{c.nombre} {c.activo ? '(Activo)' : ''}</option>
             ))}
           </select>
@@ -508,7 +650,8 @@ export default function DashboardPage() {
           { label: 'Ambientes usados', value: data?.stats?.totalAmbientes, global: data?.stats?.globalAmbientes, color: darkMode ? '#fbbf24' : '#f59e0b', grad: 'colorOrange', bg: darkMode ? 'rgba(251,191,36,0.1)' : '#fffbeb', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
           { label: 'Total Asignaciones', value: data?.stats?.totalAsignaciones, global: null, color: darkMode ? '#f472b6' : '#ec4899', grad: 'colorPink', bg: darkMode ? 'rgba(244,114,182,0.1)' : '#fdf2f8', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
         ].map((stat, i) => {
-          const pct = stat.global ? Math.round((stat.value / stat.global) * 100) || 0 : null;
+          const statValue = stat.value ?? 0;
+          const pct = stat.global ? Math.round((statValue / stat.global) * 100) || 0 : null;
           return (
           <motion.div 
             key={i} 
@@ -573,9 +716,9 @@ export default function DashboardPage() {
         <div className="card" style={{padding:'18px',border:'1px solid #e2e8f0'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'8px'}}>
             <span style={{fontSize:'13px',fontWeight:'600',color:'#64748b'}}>Capacidad excedida</span>
-            <span style={{fontSize:'12px',fontWeight:'700',color:capacidadExcedida.length > 0 ? '#b45309' : '#166534'}}>{capacidadExcedida.length}</span>
+            <span style={{fontSize:'12px',fontWeight:'700',color:capacidadExcedidaLista.length > 0 ? '#b45309' : '#166534'}}>{capacidadExcedidaLista.length}</span>
           </div>
-          <p style={{fontSize:'26px',fontWeight:'800',margin:'0 0 6px',color:'#0f172a'}}>{capacidadExcedida.length}</p>
+          <p style={{fontSize:'26px',fontWeight:'800',margin:'0 0 6px',color:'#0f172a'}}>{capacidadExcedidaLista.length}</p>
           <p style={{fontSize:'12px',color:'#94a3b8',margin:0}}>Asignaciones con sobrecupo</p>
         </div>
       </div>
@@ -600,7 +743,7 @@ export default function DashboardPage() {
                 <p style={{margin:'0 0 4px',fontSize:'13px',fontWeight:'600',color:'#0f172a'}}>Docentes sobrecargados</p>
                 <p style={{margin:0,fontSize:'12px',color:'#64748b'}}>Superan horas maximas</p>
               </div>
-              <span style={{fontSize:'14px',fontWeight:'700',color:docentesSobrecarga.length > 0 ? '#b45309' : '#166534'}}>{docentesSobrecarga.length}</span>
+              <span style={{fontSize:'14px',fontWeight:'700',color:docentesSobrecargaLista.length > 0 ? '#b45309' : '#166534'}}>{docentesSobrecargaLista.length}</span>
             </div>
 
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',border:'1px solid #e2e8f0',borderRadius:'8px',background:'#f8fafc'}}>
@@ -608,7 +751,7 @@ export default function DashboardPage() {
                 <p style={{margin:'0 0 4px',fontSize:'13px',fontWeight:'600',color:'#0f172a'}}>Capacidad excedida</p>
                 <p style={{margin:0,fontSize:'12px',color:'#64748b'}}>Aulas con sobrecupo</p>
               </div>
-              <span style={{fontSize:'14px',fontWeight:'700',color:capacidadExcedida.length > 0 ? '#b45309' : '#166534'}}>{capacidadExcedida.length}</span>
+              <span style={{fontSize:'14px',fontWeight:'700',color:capacidadExcedidaLista.length > 0 ? '#b45309' : '#166534'}}>{capacidadExcedidaLista.length}</span>
             </div>
 
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',border:'1px solid #e2e8f0',borderRadius:'8px',background:'#f8fafc'}}>
@@ -628,9 +771,9 @@ export default function DashboardPage() {
           <div style={{display:'grid',gridTemplateColumns:'1fr',gap:'12px'}}>
             <div style={{border:'1px solid #e2e8f0',borderRadius:'10px',padding:'12px',background:'#f8fafc'}}>
               <p style={{margin:'0 0 8px',fontSize:'13px',fontWeight:'600',color:'#0f172a'}}>Docentes sobrecarga</p>
-              {docentesSobrecarga.length > 0 ? (
+              {docentesSobrecargaLista.length > 0 ? (
                 <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
-                  {docentesSobrecarga.slice(0, 4).map((d: any) => (
+                  {docentesSobrecargaLista.slice(0, 4).map((d) => (
                     <div key={d.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                       <span style={{fontSize:'12px',color:'#1e293b'}}>{d.nombre}</span>
                       <span style={{fontSize:'12px',fontWeight:'600',color:'#b45309'}}>{d.horas_asignadas} / {d.horas_max_semana}h</span>
@@ -644,9 +787,9 @@ export default function DashboardPage() {
 
             <div style={{border:'1px solid #e2e8f0',borderRadius:'10px',padding:'12px',background:'#f8fafc'}}>
               <p style={{margin:'0 0 8px',fontSize:'13px',fontWeight:'600',color:'#0f172a'}}>Aulas con sobrecupo</p>
-              {capacidadExcedida.length > 0 ? (
+              {capacidadExcedidaLista.length > 0 ? (
                 <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
-                  {capacidadExcedida.slice(0, 4).map((c: any) => (
+                  {capacidadExcedidaLista.slice(0, 4).map((c) => (
                     <div key={c.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                       <span style={{fontSize:'12px',color:'#1e293b'}}>{c.curso} · G{c.numero_grupo}</span>
                       <span style={{fontSize:'12px',fontWeight:'600',color:'#b45309'}}>{c.num_alumnos}/{c.capacidad}</span>
@@ -662,7 +805,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Widget de Fases Activas */}
-      {programaciones.filter((p: any) => p.estado !== 'cancelado').length > 0 && (
+      {programaciones.filter((p) => p.estado !== 'cancelado').length > 0 && (
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -674,7 +817,7 @@ export default function DashboardPage() {
             <BookOpen size={18} strokeWidth={2} /> Programaciones Activas
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {programaciones.filter((p: any) => p.estado !== 'cancelado').map((p: any, idx) => {
+            {programaciones.filter((p) => p.estado !== 'cancelado').map((p, idx) => {
               const faseBadge: Record<number, { label: string; color: string; bg: string; url: string }> = {
                 1: { label: 'Fase 1 · Carga', color: darkMode ? '#60a5fa' : '#1d4ed8', bg: darkMode ? 'rgba(59,130,246,0.1)' : '#dbeafe', url: `/horarios/crear` },
                 2: { label: 'Fase 2 · Disponibilidad', color: darkMode ? '#a78bfa' : '#7c3aed', bg: darkMode ? 'rgba(139,92,246,0.1)' : '#ede9fe', url: `/horarios/${p.id}/disponibilidad` },
@@ -761,7 +904,7 @@ export default function DashboardPage() {
                   nameKey="name" 
                   paddingAngle={5}
                 >
-                  {categoriaData.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />)}
+                  {categoriaData.map((_, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />)}
                 </Pie>
                 <Tooltip contentStyle={{borderRadius:'12px',border:'none',boxShadow:'0 10px 15px -3px rgba(0,0,0,0.1)', background: darkMode ? '#1f2937' : 'white', color: darkMode ? '#e2e8f0' : '#1e293b'}} />
                 <Legend iconType="circle" wrapperStyle={{fontSize:'12px', paddingTop:'10px', color: darkMode ? '#94a3b8' : '#64748b'}} />
@@ -800,7 +943,7 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie data={tiposSesion} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" nameKey="name" paddingAngle={4}>
-                  {tiposSesion.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />)}
+                  {tiposSesion.map((_, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />)}
                 </Pie>
                 <Tooltip contentStyle={{borderRadius:'12px',border:'none',boxShadow:'0 10px 15px -3px rgba(0,0,0,0.1)'}} />
                 <Legend iconType="circle" wrapperStyle={{fontSize:'12px', paddingTop:'10px'}} />
@@ -827,7 +970,7 @@ export default function DashboardPage() {
             <span style={{background: darkMode ? 'rgba(251,191,36,0.1)' : '#fffbeb', padding:'6px', borderRadius:'8px', color: darkMode ? '#fbbf24' : '#f59e0b'}}><Building2 size={18} strokeWidth={2} /></span> Ambientes más utilizados
           </h3>
           <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
-            {ocupacionTop.length > 0 ? ocupacionTop.map((a: any, i: number) => (
+            {ocupacionTop.length > 0 ? ocupacionTop.map((a, i: number) => (
               <motion.div 
                 key={i} 
                 style={{background: darkMode ? 'rgba(31,41,55,1)' : '#f8fafc', padding:'12px', borderRadius:'12px', border:'1px solid ' + (darkMode ? '#60a5fa' : '#f1f5f9')}}
@@ -857,8 +1000,8 @@ export default function DashboardPage() {
             <span style={{background: darkMode ? 'rgba(16,185,129,0.1)' : '#f0fdf4', padding:'6px', borderRadius:'8px', color: darkMode ? '#34d399' : '#10b981'}}><Users size={18} strokeWidth={2} /></span> Docentes con mayor carga horaria
           </h3>
           <div style={{display:'flex',flexDirection:'column',gap:'12px',maxHeight:'320px',overflowY:'auto', paddingRight:'8px'}}>
-            {data?.cargaDocentes?.length > 0 ? data.cargaDocentes.slice(0, 10).map((d: any, i: number) => {
-              const pct = parseFloat(d.porcentaje_carga);
+            {cargaDocentes.length > 0 ? cargaDocentes.slice(0, 10).map((d, i: number) => {
+              const pct = Number(d.porcentaje_carga || 0);
               return (
               <motion.div 
                 key={i} 

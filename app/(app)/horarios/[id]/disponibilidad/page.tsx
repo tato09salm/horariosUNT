@@ -186,6 +186,29 @@ export default function DisponibilidadPage() {
     } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
   };
 
+  const retrocederFase = async () => {
+    if (!window.confirm('¿Deseas volver a la Fase 1? Se mantendrán los datos cargados.')) return;
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fase: 1 }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      window.location.href = `/horarios/crear?id=${progId}`;
+    } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
+  };
+
+  const cancelarProgramacion = async () => {
+    if (!window.confirm('¿Seguro que deseas cancelar esta programación?')) return;
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      window.location.href = '/horarios';
+    } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
+  };
+
   const contarPrioridad = (p: PrioridadSlot) =>
     Object.values(disponibilidad).filter(v => v === p).length;
 
@@ -203,13 +226,15 @@ export default function DisponibilidadPage() {
           <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Fase 2: Disponibilidad Docente (doble prioridad)</p>
         </div>
         {isAdminOrSec && (
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <input type="file" accept=".csv" ref={fileInputRef} style={{ display: 'none' }} onChange={importarCSV} />
             <button className="btn-secondary" style={{ background: '#fff', border: '1px solid #cbd5e1' }} onClick={() => fileInputRef.current?.click()} disabled={saving || loading}>
               📥 Importar CSV
             </button>
             <button className="btn-secondary" onClick={notificarDocentes}>Notificar Docentes</button>
+            <button className="btn-secondary" onClick={retrocederFase}>← Volver a Fase 1</button>
             <button className="btn-primary" onClick={avanzarFase}>Avanzar a Fase 3</button>
+            <button className="btn-danger" onClick={cancelarProgramacion}>Cancelar</button>
           </div>
         )}
       </div>

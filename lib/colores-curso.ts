@@ -20,6 +20,53 @@ const PALETA_COLORES: ColorCurso[] = [
   { bg: '#FBCFE8', border: '#DB2777', name: 'rosa' }
 ];
 
+function hashTexto(texto: string): number {
+  let hash = 0;
+  for (let i = 0; i < texto.length; i++) {
+    hash = (hash * 31 + texto.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const sat = s / 100;
+  const light = l / 100;
+  const c = (1 - Math.abs(2 * light - 1)) * sat;
+  const hp = h / 60;
+  const x = c * (1 - Math.abs((hp % 2) - 1));
+  let [r1, g1, b1] = [0, 0, 0];
+
+  if (hp >= 0 && hp < 1) [r1, g1, b1] = [c, x, 0];
+  else if (hp < 2) [r1, g1, b1] = [x, c, 0];
+  else if (hp < 3) [r1, g1, b1] = [0, c, x];
+  else if (hp < 4) [r1, g1, b1] = [0, x, c];
+  else if (hp < 5) [r1, g1, b1] = [x, 0, c];
+  else [r1, g1, b1] = [c, 0, x];
+
+  const m = light - c / 2;
+  const toHex = (value: number) => {
+    const n = Math.round((value + m) * 255);
+    return n.toString(16).padStart(2, '0');
+  };
+
+  return `#${toHex(r1)}${toHex(g1)}${toHex(b1)}`.toUpperCase();
+}
+
+function colorCursoDesdeTexto(texto: string, indice: number): ColorCurso {
+  const hash = hashTexto(texto);
+  const hue = (hash + indice * 37) % 360;
+  return {
+    bg: hslToHex(hue, 74, 87),
+    border: hslToHex(hue, 82, 42),
+    name: texto
+  };
+}
+
+function colorDeReserva(cursoCodigo: string, ciclo?: number | string | null): ColorCurso {
+  const semilla = `${ciclo || 'x'}-${cursoCodigo || 'curso'}`;
+  return colorCursoDesdeTexto(semilla, 0);
+}
+
 /**
  * Asigna colores únicos a cursos dentro de cada ciclo.
  * Mismo curso = mismo color (incluso si es T, P o L).
@@ -45,18 +92,7 @@ export function generarMapaColores(asignaciones: any[]): Map<string, ColorCurso>
     const cursosOrdenados = Array.from(cursos).sort();
     
     cursosOrdenados.forEach((cursoCodigo, index) => {
-      let color: ColorCurso;
-      if (index < PALETA_COLORES.length) {
-        color = { ...PALETA_COLORES[index] };
-      } else {
-        const hue = (index * 137.5) % 360;
-        color = {
-          bg: `hsl(${hue}, 80%, 92%)`,
-          border: `hsl(${hue}, 80%, 45%)`,
-          name: `procedural-${index}`,
-          patron: 'rayado'
-        };
-      }
+      const color = colorCursoDesdeTexto(`${ciclo}-${cursoCodigo}`, index);
       const key = `${ciclo}-${cursoCodigo}`;
       mapaColores.set(key, color);
     });
@@ -84,8 +120,14 @@ export function obtenerColorCurso(
 
   const c = ciclo || 0;
   if (!c || !cursoCodigo) {
-    return PALETA_COLORES[0];
+    return colorDeReserva(cursoCodigo || 'sin-codigo', ciclo);
   }
   const key = `${c}-${cursoCodigo}`;
-  return mapaColores.get(key) || PALETA_COLORES[0];
+  const exacta = mapaColores.get(key);
+  if (exacta) return exacta;
+
+  const porCurso = Array.from(mapaColores.entries()).find(([k]) => k.endsWith(`-${cursoCodigo}`));
+  if (porCurso) return porCurso[1];
+
+  return colorDeReserva(cursoCodigo, ciclo);
 }

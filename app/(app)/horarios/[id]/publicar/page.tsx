@@ -59,6 +59,29 @@ export default function PublicarPage() {
     }
   };
 
+  const retrocederFase = async () => {
+    if (!window.confirm('¿Deseas volver a la Fase 3? Se mantendrá el borrador actual.')) return;
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fase: 3 }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      window.location.href = `/horarios/${progId}/programar`;
+    } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
+  };
+
+  const cancelarProgramacion = async () => {
+    if (!window.confirm('¿Seguro que deseas cancelar esta programación?')) return;
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      window.location.href = '/horarios';
+    } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
+  };
+
   const exportarCSV = async () => {
     const res = await fetch(`/api/horarios/exportar?programacion_id=${progId}&formato=csv`);
     const blob = await res.blob();
@@ -218,7 +241,13 @@ export default function PublicarPage() {
           <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', margin: '0 0 4px' }}>{prog.nombre}</h1>
           <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Fase 4: Revisión y Publicación</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {!publicado && (
+            <>
+              <button className="btn-secondary" onClick={retrocederFase}>← Volver a Fase 3</button>
+              <button className="btn-danger" onClick={cancelarProgramacion}>Cancelar</button>
+            </>
+          )}
           {asignaciones.length > 0 && <BotonExportarFormatoUNT programacionId={progId} />}
           <button className="btn-secondary" onClick={exportarCSV} disabled={!asignaciones.length}>
             📥 Exportar CSV
