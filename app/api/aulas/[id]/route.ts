@@ -23,11 +23,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const body = await req.json();
     const anterior = await queryOne(`SELECT * FROM ambientes WHERE id = $1`, [id]);
+    
+    const codigoUpper = body.codigo?.toUpperCase() || '';
+    const nombreUpper = body.nombre?.toUpperCase() || '';
+    const edificioUpper = body.edificio?.toUpperCase() || '';
 
     const ambiente = await queryOne(
       `UPDATE ambientes SET codigo=$1, nombre=$2, tipo=$3, capacidad=$4, piso=$5, edificio=$6, disponible=$7
        WHERE id=$8 RETURNING *`,
-      [body.codigo, body.nombre, body.tipo, body.capacidad, body.piso, body.edificio, body.disponible, id]
+      [codigoUpper, nombreUpper, body.tipo, body.capacidad, body.piso, edificioUpper, body.disponible, id]
     );
 
     await registrarAuditoria({
@@ -37,7 +41,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       registro_id: id,
       datos_anteriores: anterior,
       datos_nuevos: ambiente,
-      descripcion: `Ambiente actualizado: ${body.nombre}`,
+      descripcion: `Ambiente actualizado: ${nombreUpper}`,
     });
 
     return NextResponse.json({ data: ambiente });

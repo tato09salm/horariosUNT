@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useUser } from '@/app/(app)/layout';
+import { useTheme } from '@/lib/theme';
 import GrillaHorarios from '@/components/horarios/GrillaHorarios';
 import { BotonExportarExcel } from '@/components/exportar/BotonExportarExcel';
 import { BotonExportarFormatoUNT } from '@/components/exportar/BotonExportarFormatoUNT';
@@ -24,6 +25,7 @@ const ESTADO_STYLES: Record<string, { bg: string; color: string }> = {
 };
 
 export default function HorariosPage() {
+  const { darkMode } = useTheme();
   const [ciclos, setCiclos] = useState<any[]>([]);
   const [cicloId, setCicloId] = useState('');
   const [programaciones, setProgramaciones] = useState<any[]>([]);
@@ -85,7 +87,47 @@ export default function HorariosPage() {
   // Cargar asignaciones para vista de horario publicado
   const cargarHorario = useCallback(() => {
     if (!cicloId) return;
-    fetch(`/api/horarios?ciclo_id=${cicloId}`).then(r => r.json()).then(d => setAsignaciones(d.data || []));
+    fetch(`/api/horarios?ciclo_id=${cicloId}`)
+      .then(r => r.json())
+      .then(async d => {
+        let data = d.data || [];
+        if (data.length === 0) {
+          const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`).then(r => r.json());
+          const progs = progsRes.data || [];
+          const selectedProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
+          if (selectedProg) {
+            const exportRes = await fetch(`/api/horarios/programaciones/${selectedProg.id}/exportar`);
+            if (exportRes.ok) {
+              const exportData = await exportRes.json();
+              const slotByTime = new Map(
+                (slots || []).map((s: any) => [`${s.hora_inicio}-${s.hora_fin}`, s])
+              );
+              const ambienteByCodigo = new Map(
+                (ambientes || []).map((a: any) => [a.codigo, a])
+              );
+              data = (exportData.asignaciones || []).map((a: any) => ({
+                id: a.id,
+                dia: a.dia,
+                slot_id: a.slot_id || slotByTime.get(`${a.hora_inicio}-${a.hora_fin}`)?.id || null,
+                hora_inicio: a.hora_inicio,
+                hora_fin: a.hora_fin,
+                curso_nombre: a.curso_nombre,
+                curso_codigo: a.curso_codigo,
+                ciclo_plan: a.ciclo,
+                numero_grupo: parseInt(String(a.grupo || '').replace('G', ''), 10) || 1,
+                tipo: a.tipo_sesion || a.tipo,
+                docente_id: a.docente_id || null,
+                docente_nombre: a.docente_nombre || '',
+                ambiente_id: ambienteByCodigo.get(a.aula || '')?.id || null,
+                ambiente_nombre: ambienteByCodigo.get(a.aula || '')?.nombre || a.aula || '',
+                ambiente_codigo: ambienteByCodigo.get(a.aula || '')?.codigo || a.aula || '',
+                ambiente_tipo: ambienteByCodigo.get(a.aula || '')?.tipo || '',
+              }));
+            }
+          }
+        }
+        setAsignaciones(data);
+      });
   }, [cicloId]);
 
   useEffect(() => { if (vista === 'horario') cargarHorario(); }, [vista, cargarHorario]);
@@ -156,35 +198,35 @@ export default function HorariosPage() {
   );
 
   return (
-    <div style={{padding:'32px'}}>
+    <div style={{padding:'32px', color: darkMode ? 'var(--text-primary)' : 'var(--text-primary)'}}>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'24px'}}>
         <div>
-          <h1 style={{fontSize:'24px',fontWeight:'700',color:'#1e293b',margin:'0 0 4px'}}>Horarios</h1>
-          <p style={{color:'#64748b',fontSize:'14px',margin:0}}>Gestión de horarios académicos por fases</p>
+          <h1 style={{fontSize:'24px',fontWeight:'700',margin:'0 0 4px', color:'var(--text-primary)'}}>Horarios</h1>
+          <p style={{color:'var(--text-secondary)',fontSize:'14px',margin:0}}>Gestión de horarios académicos por fases</p>
         </div>
         <div style={{display:'flex',gap:'10px'}}>
-          <div style={{display:'flex',borderRadius:'8px',overflow:'hidden',border:'1px solid #e2e8f0'}}>
+          <div style={{display:'flex',borderRadius:'8px',overflow:'hidden',border:'1px solid var(--border-color)'}}>
             {!isDocente && (
               <button
-                style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',background:vista==='programaciones'?'#1a3a5c':'white',color:vista==='programaciones'?'white':'#475569'}}
+                style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',background:vista==='programaciones'?'#1a3a5c':'var(--bg-card)',color:vista==='programaciones'?'white':'var(--text-secondary)'}}
                 onClick={() => setVista('programaciones')}
               >📋 Programaciones</button>
             )}
             {isDocente && (
               <>
                 <button
-                  style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',background:vista==='programaciones'?'#1a3a5c':'white',color:vista==='programaciones'?'white':'#475569'}}
+                  style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',background:vista==='programaciones'?'#1a3a5c':'var(--bg-card)',color:vista==='programaciones'?'white':'var(--text-secondary)'}}
                   onClick={() => setVista('programaciones')}
                 >📋 Mis Programaciones (Disponibilidad)</button>
                 <button
-                  style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderLeft:'1px solid #e2e8f0',background:vista==='mi-horario'?'#1a3a5c':'white',color:vista==='mi-horario'?'white':'#475569'}}
+                  style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderLeft:'1px solid var(--border-color)',background:vista==='mi-horario'?'#1a3a5c':'var(--bg-card)',color:vista==='mi-horario'?'white':'var(--text-secondary)'}}
                   onClick={() => setVista('mi-horario')}
                 >👤 Mi Horario</button>
               </>
             )}
             <button
-              style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderLeft:'1px solid #e2e8f0',background:vista==='horario'?'#1a3a5c':'white',color:vista==='horario'?'white':'#475569'}}
+              style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderLeft:'1px solid var(--border-color)',background:vista==='horario'?'#1a3a5c':'var(--bg-card)',color:vista==='horario'?'white':'var(--text-secondary)'}}
               onClick={() => setVista('horario')}
             >📅 Horario General</button>
           </div>
@@ -217,8 +259,8 @@ export default function HorariosPage() {
           {programaciones.length === 0 ? (
             <div className="card" style={{textAlign:'center',padding:'60px 24px'}}>
               <div style={{fontSize:'48px',marginBottom:'12px',opacity:0.4}}>📋</div>
-              <h3 style={{fontSize:'18px',fontWeight:'600',color:'#475569',margin:'0 0 8px'}}>No hay programaciones para este ciclo</h3>
-              <p style={{color:'#94a3b8',fontSize:'14px',margin:'0 0 20px'}}>Crea una nueva programación para comenzar el proceso de asignación de horarios.</p>
+              <h3 style={{fontSize:'18px',fontWeight:'600',color:'var(--text-primary)',margin:'0 0 8px'}}>No hay programaciones para este ciclo</h3>
+              <p style={{color:'var(--text-secondary)',fontSize:'14px',margin:'0 0 20px'}}>Crea una nueva programación para comenzar el proceso de asignación de horarios.</p>
               {isAdminOrSec && (
                 <button className="btn-primary" onClick={() => setShowCrear(true)}>
                   <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
@@ -236,7 +278,7 @@ export default function HorariosPage() {
                     {/* Barra de progreso de fases */}
                     <div style={{display:'flex',height:'4px'}}>
                       {[1,2,3,4].map(f => (
-                        <div key={f} style={{flex:1,background:f <= prog.fase ? '#1a3a5c' : '#e2e8f0',transition:'background 0.3s'}} />
+                        <div key={f} style={{flex:1,background:f <= prog.fase ? '#1a3a5c' : 'var(--border-color)',transition:'background 0.3s'}} />
                       ))}
                     </div>
                     <div style={{padding:'20px 24px'}}>
@@ -244,8 +286,8 @@ export default function HorariosPage() {
                         <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
                           <div style={{fontSize:'24px'}}>{faseInfo.icon}</div>
                           <div>
-                            <h3 style={{fontSize:'18px',fontWeight:'700',color:'#1e293b',margin:'0 0 2px'}}>{prog.nombre}</h3>
-                            <p style={{fontSize:'13px',color:'#64748b',margin:0}}>
+                            <h3 style={{fontSize:'18px',fontWeight:'700',color:'var(--text-primary)',margin:'0 0 2px'}}>{prog.nombre}</h3>
+                            <p style={{fontSize:'13px',color:'var(--text-secondary)',margin:0}}>
                               Creado por {prog.creador_nombre} • {new Date(prog.created_at).toLocaleDateString('es-PE')}
                             </p>
                           </div>
@@ -270,9 +312,9 @@ export default function HorariosPage() {
                           { label: 'Fase actual', value: `${prog.fase}/4`, color: '#92400e' },
                           { label: 'Ciclo', value: prog.ciclo_nombre, color: '#6b21a8' },
                         ].map((s, i) => (
-                          <div key={i} style={{background:'#f8fafc',borderRadius:'8px',padding:'12px',textAlign:'center'}}>
+                          <div key={i} style={{background:'var(--bg-card-hover)',borderRadius:'8px',padding:'12px',textAlign:'center',border:'1px solid var(--border-color)'}}>
                             <p style={{fontSize:'18px',fontWeight:'700',color:s.color,margin:'0 0 2px'}}>{s.value}</p>
-                            <p style={{fontSize:'11px',color:'#64748b',margin:0}}>{s.label}</p>
+                            <p style={{fontSize:'11px',color:'var(--text-secondary)',margin:0}}>{s.label}</p>
                           </div>
                         ))}
                       </div>
@@ -284,7 +326,7 @@ export default function HorariosPage() {
                           const activa = f === prog.fase;
                           const completada = f < prog.fase;
                           return (
-                            <div key={f} style={{flex:1,display:'flex',alignItems:'center',gap:'8px',padding:'8px 12px',borderRadius:f===1?'8px 0 0 8px':f===4?'0 8px 8px 0':'0',background:activa?fi.bg:completada?'#f0fdf4':'#f8fafc',borderRight:f<4?'1px solid #e2e8f0':'none'}}>
+                            <div key={f} style={{flex:1,display:'flex',alignItems:'center',gap:'8px',padding:'8px 12px',borderRadius:f===1?'8px 0 0 8px':f===4?'0 8px 8px 0':'0',background:activa?fi.bg:completada?'#f0fdf4':'var(--bg-card-hover)',borderRight:f<4?'1px solid var(--border-color)':'none'}}>
                               <span style={{fontSize:'14px'}}>{completada ? '✅' : activa ? fi.icon : '○'}</span>
                               <span style={{fontSize:'11px',fontWeight:activa?'600':'400',color:activa?fi.color:'#94a3b8'}}>{fi.label}</span>
                             </div>
@@ -326,13 +368,13 @@ export default function HorariosPage() {
       {vista === 'mi-horario' && isDocente && (
         <div className="card" style={{padding:'16px',overflowX:'auto'}}>
           <div style={{marginBottom:'16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <h3 style={{fontSize:'18px',fontWeight:'600',color:'#1e293b',margin:0}}>Mi Horario Asignado</h3>
-            <span style={{background:'#dcfce7',color:'#166534',padding:'4px 12px',borderRadius:'9999px',fontSize:'12px',fontWeight:'600'}}>
+            <h3 style={{fontSize:'18px',fontWeight:'600',color:'var(--text-primary)',margin:0}}>Mi Horario Asignado</h3>
+            <span style={{background:'rgba(34,197,94,0.14)',color:'var(--text-primary)',padding:'4px 12px',borderRadius:'9999px',fontSize:'12px',fontWeight:'600',border:'1px solid var(--border-color)'}}>
               Total: {miHorario.length} horas
             </span>
           </div>
           {loadingMiHorario ? (
-            <p style={{textAlign:'center',padding:'40px',color:'#64748b'}}>Cargando mi horario...</p>
+            <p style={{textAlign:'center',padding:'40px',color:'var(--text-secondary)'}}>Cargando mi horario...</p>
           ) : (
             <div className="horario-grid" style={{minWidth:'900px'}}>
               <div className="horario-header">Hora</div>

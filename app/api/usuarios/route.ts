@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession, hashPassword } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
 import { registrarAuditoria } from '@/lib/auditoria';
+import { enviarCredencialesUsuario } from '@/lib/email';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -62,12 +63,22 @@ export async function GET(req: NextRequest) {
     );
     const total = parseInt(totalResult[0]?.total || '0');
 
+    const countsResult = await query(
+      `SELECT rol, COUNT(*) as count FROM usuarios WHERE 1=1 ${whereConditions} GROUP BY rol`,
+      params
+    );
+    const countsByRole: Record<string, number> = {};
+    countsResult.forEach((r: any) => {
+      countsByRole[r.rol] = parseInt(r.count);
+    });
+
     return NextResponse.json({
       data: usuarios,
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit)
+      totalPages: Math.ceil(total / limit),
+      countsByRole
     });
   } catch (error) {
     console.error('Error GET usuarios:', error);
@@ -83,12 +94,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const hash = await hashPassword(body.password || 'temporal123');
+    const rawPassword = body.password || 'temporal123';
+    const hash = await hashPassword(rawPassword);
     const usuario = await queryOne(
       `INSERT INTO usuarios (nombre, apellidos, email, password_hash, rol) 
        VALUES ($1, $2, $3, $4, $5) 
        RETURNING id, nombre, apellidos, email, rol`,
-      [body.nombre, body.apellidos, body.email, hash, body.rol]
+      [body.nombre.toUpperCase(), body.apellidos.toUpperCase(), body.email, hash, body.rol]
     );
 
     await registrarAuditoria({
@@ -98,6 +110,20 @@ export async function POST(req: NextRequest) {
       registro_id: usuario?.id,
       descripcion: `Usuario creado: ${body.email}`,
     });
+
+    if (usuario?.email) {
+      try {
+        const nombre = `${usuario.nombre} ${usuario.apellidos}`.trim();
+        await enviarCredencialesUsuario({
+          nombre: nombre || 'Usuario',
+          email: usuario.email,
+          password: rawPassword,
+          rol: usuario.rol,
+        });
+      } catch (emailErr) {
+        console.error(`Error enviando email a ${usuario.email}:`, emailErr);
+      }
+    }
 
     return NextResponse.json({ data: usuario }, { status: 201 });
   } catch (error: any) {

@@ -87,15 +87,18 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
+    const codigoUpper = body.codigo?.toUpperCase() || '';
+    const nombreUpper = body.nombre?.toUpperCase() || '';
+    const edificioUpper = body.edificio?.toUpperCase() || '';
     const ambiente = await queryOne(
       `INSERT INTO ambientes (codigo, nombre, tipo, capacidad, piso, edificio, equipamiento)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [body.codigo, body.nombre, body.tipo, body.capacidad, body.piso, body.edificio, body.equipamiento || []]
+      [codigoUpper, nombreUpper, body.tipo, body.capacidad, body.piso, edificioUpper, body.equipamiento || []]
     );
 
     await registrarAuditoria({
       usuario_id: session.id, accion: 'CREATE', tabla_afectada: 'ambientes',
-      registro_id: ambiente?.id, datos_nuevos: ambiente, descripcion: `Ambiente creado: ${body.nombre}`,
+      registro_id: ambiente?.id, datos_nuevos: ambiente, descripcion: `Ambiente creado: ${nombreUpper}`,
     });
 
     return NextResponse.json({ data: ambiente }, { status: 201 });

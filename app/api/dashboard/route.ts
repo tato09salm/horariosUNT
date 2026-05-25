@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
 
+type CountRow = { count: string };
+type CicloRow = { id?: string | null };
+
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
@@ -10,7 +13,7 @@ export async function GET(req: NextRequest) {
   const ciclo_id = searchParams.get('ciclo_id');
 
   // Ciclo activo si no se especifica
-  let ciclo: any = null;
+  let ciclo: CicloRow | null = null;
   if (ciclo_id) {
     ciclo = await queryOne(`SELECT * FROM ciclos WHERE id = $1`, [ciclo_id]);
   } else {
@@ -28,16 +31,18 @@ export async function GET(req: NextRequest) {
     globalCur,
     globalAmb,
     horasPorCategoria,
+    docentesPorCategoria,
+    aulasPorTipo,
     ocupacionAmbientes,
     cargaDocentes,
     distribucionDias,
     ciclos,
     slots,
   ] = await Promise.all([
-    cid ? queryOne<{count:string}>(`SELECT COUNT(DISTINCT docente_id) as count FROM asignaciones WHERE ciclo_id = $1 AND estado = 'activo'`, [cid]) : Promise.resolve({count:'0'}),
-    cid ? queryOne<{count:string}>(`SELECT COUNT(DISTINCT g.curso_id) as count FROM grupos g JOIN programaciones p ON p.id = g.programacion_id WHERE p.ciclo_id = $1`, [cid]) : Promise.resolve({count:'0'}),
-    cid ? queryOne<{count:string}>(`SELECT COUNT(DISTINCT ambiente_id) as count FROM asignaciones WHERE ciclo_id = $1 AND estado = 'activo'`, [cid]) : Promise.resolve({count:'0'}),
-    cid ? queryOne<{count:string}>(`SELECT COUNT(*) as count FROM asignaciones WHERE ciclo_id = $1 AND estado = 'activo'`, [cid]) : Promise.resolve({count:'0'}),
+    cid ? queryOne<CountRow>(`SELECT COUNT(DISTINCT docente_id) as count FROM asignaciones WHERE ciclo_id = $1 AND estado = 'activo'`, [cid]) : Promise.resolve({count:'0'}),
+    cid ? queryOne<CountRow>(`SELECT COUNT(DISTINCT g.curso_id) as count FROM grupos g JOIN programaciones p ON p.id = g.programacion_id WHERE p.ciclo_id = $1`, [cid]) : Promise.resolve({count:'0'}),
+    cid ? queryOne<CountRow>(`SELECT COUNT(DISTINCT ambiente_id) as count FROM asignaciones WHERE ciclo_id = $1 AND estado = 'activo'`, [cid]) : Promise.resolve({count:'0'}),
+    cid ? queryOne<CountRow>(`SELECT COUNT(*) as count FROM asignaciones WHERE ciclo_id = $1 AND estado = 'activo'`, [cid]) : Promise.resolve({count:'0'}),
 
     queryOne<{count:string}>(`SELECT COUNT(*) as count FROM docentes WHERE activo = true`),
     queryOne<{count:string}>(`SELECT COUNT(*) as count FROM cursos WHERE activo = true`),
@@ -52,6 +57,24 @@ export async function GET(req: NextRequest) {
       GROUP BY d.categoria, d.condicion
       ORDER BY d.categoria
     `, [cid]) : Promise.resolve([]),
+
+    // Docentes por categoría y condición
+    query(`
+      SELECT d.categoria, d.condicion, COUNT(DISTINCT d.id) as docentes
+      FROM docentes d
+      WHERE d.activo = true
+      GROUP BY d.categoria, d.condicion
+      ORDER BY docentes DESC
+    `),
+
+    // Aulas por tipo
+    query(`
+      SELECT tipo, COUNT(DISTINCT id) as ambientes
+      FROM ambientes
+      WHERE disponible = true
+      GROUP BY tipo
+      ORDER BY ambientes DESC
+    `),
 
     // Ocupación de ambientes (% de slots usados)
     cid ? query(`
@@ -95,6 +118,8 @@ export async function GET(req: NextRequest) {
     query(`SELECT * FROM slots_tiempo ORDER BY orden`),
   ]);
 
+  const totalAsignacionesCount = parseInt(totalAsignaciones?.count || '0');
+
   return NextResponse.json({
     ciclo,
     ciclos,
@@ -103,12 +128,14 @@ export async function GET(req: NextRequest) {
       totalDocentes: parseInt(totalDocentes?.count || '0'),
       totalCursos: parseInt(totalCursos?.count || '0'),
       totalAmbientes: parseInt(totalAmbientes?.count || '0'),
-      totalAsignaciones: parseInt((totalAsignaciones as any)?.count || '0'),
-      globalDocentes: parseInt((globalDoc as any)?.count || '0'),
-      globalCursos: parseInt((globalCur as any)?.count || '0'),
-      globalAmbientes: parseInt((globalAmb as any)?.count || '0'),
+      totalAsignaciones: totalAsignacionesCount,
+      globalDocentes: parseInt(globalDoc?.count || '0'),
+      globalCursos: parseInt(globalCur?.count || '0'),
+      globalAmbientes: parseInt(globalAmb?.count || '0'),
     },
     horasPorCategoria,
+    docentesPorCategoria,
+    aulasPorTipo,
     ocupacionAmbientes,
     cargaDocentes,
     distribucionDias,

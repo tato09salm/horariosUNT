@@ -17,6 +17,7 @@ npm run dev   →   http://localhost:3000
 ## CREDENCIALES
 Admin:      admin@unt.edu.pe      / password
 Secretaria: secretaria@unt.edu.pe / password
+Docentes:   Su correo institucional / DNI
 
 ## VARIABLES DE ENTORNO (.env.local)
 DB_HOST=localhost

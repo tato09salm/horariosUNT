@@ -152,7 +152,7 @@ export default function GrillaHorarios({
     if (asigGrilla.length === 0) return null;
     return (
       <div key={key} style={{ marginBottom: '40px' }}>
-        <h4 style={{ fontSize: '15px', color: '#0f172a', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px', marginBottom: '16px', fontWeight: '600' }}>
+        <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', borderBottom: '2px solid var(--border-color)', paddingBottom: '8px', marginBottom: '16px', fontWeight: '600' }}>
           {titulo}
         </h4>
         <div className={`horario-grid horario-grid--responsive${isMobile ? ' horario-grid--mobile-one-day' : ''}`}>
@@ -208,7 +208,7 @@ export default function GrillaHorarios({
       <LeyendaHorarios mapaColores={mapaColores} asignaciones={asignacionesVisibles} />
 
       {asignacionesVisibles.length > 0 && (
-        <div className="card programar-toolbar" style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px', padding: '16px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+        <div className="card programar-toolbar" style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px', padding: '16px', background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
           <button className={vista === 'aula' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('aula')}>Por aula</button>
           <button className={vista === 'general' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('general')}>General</button>
           <button className={vista === 'ciclo' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('ciclo')}>Por ciclo</button>
@@ -232,7 +232,7 @@ export default function GrillaHorarios({
         </div>
       )}
 
-      <div className="card" style={{ overflowX: 'auto', padding: '24px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+      <div className="card" style={{ overflowX: 'auto', padding: '24px', background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
         <div className="programar-dia-tabs">
           {DIAS.map(d => (
             <button
@@ -247,12 +247,12 @@ export default function GrillaHorarios({
         </div>
 
         {asignacionesVisibles.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
             No hay asignaciones en este horario.
           </div>
         ) : (
           <div>
-            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 20px', fontStyle: 'italic' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 20px', fontStyle: 'italic' }}>
               {vista === 'aula' && 'Una grilla por aula o laboratorio utilizado en este horario.'}
               {vista === 'general' && 'Todas las asignaciones por franja horaria. Labs en paralelo (distintos ambientes) aparecen en la misma celda.'}
               {vista === 'ciclo' && 'Por ciclo del plan de estudios (II, IV, VI…). Distintas secciones (G1, G2…) pueden coincidir en horario.'}

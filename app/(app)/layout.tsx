@@ -2,6 +2,7 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { useTheme } from '@/lib/theme';
 
 interface User { id: string; nombre: string; apellidos: string; email: string; rol: string; }
 const UserContext = createContext<User | null>(null);
@@ -15,10 +16,9 @@ const navItems = [
   { href: '/aulas', label: 'Aulas y Labs', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', roles: ['admin','secretaria'] },
   { href: '/reportes', label: 'Reportes', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', roles: ['admin','secretaria'] },
   { href: '/usuarios', label: 'Usuarios', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', roles: ['admin'] },
-  { href: '/auditoria', label: 'Auditoría', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01', roles: ['admin'] },
+  { href: '/auditoria', label: 'Auditoría', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01', roles: ['admin'] },
   { href: '/ciclos', label: 'Ciclos', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', roles: ['admin','secretaria'] },
   { href: '/grupos', label: ' Grupos', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', roles: ['admin','secretaria'] },
-
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -27,6 +27,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { darkMode, toggleDarkMode } = useTheme();
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -47,10 +48,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   if (loading) return (
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f1f5f9'}}>
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg-main)'}}>
       <div style={{textAlign:'center'}}>
         <div style={{width:'40px',height:'40px',border:'3px solid #e2e8f0',borderTop:'3px solid #1a3a5c',borderRadius:'50%',animation:'spin 0.7s linear infinite',margin:'0 auto 12px'}} />
-        <p style={{color:'#64748b',fontSize:'14px'}}>Cargando...</p>
+        <p style={{color:'var(--text-secondary)',fontSize:'14px'}}>Cargando...</p>
       </div>
     </div>
   );
@@ -60,18 +61,34 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <UserContext.Provider value={user}>
       <div>
-        {/* Mobile Header */}
-        <header className="mobile-header">
-          <button 
-            onClick={() => setSidebarOpen(true)}
-            style={{background:'none',border:'none',color:'#475569',padding:'8px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
-          >
-            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <div style={{marginLeft:'12px',fontWeight:'700',fontSize:'16px',color:'#1e293b'}}>SiHorarios UNT</div>
-        </header>
+          {/* Mobile Header */}
+          <header className="mobile-header">
+            <button 
+              onClick={() => setSidebarOpen(true)}
+              style={{background:'none',border:'none',color:'var(--text-secondary)',padding:'8px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
+            >
+              <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div style={{flex:1, marginLeft:'12px',fontWeight:'700',fontSize:'16px',color:'var(--text-primary)'}}>SiHorarios UNT</div>
+            <button
+              onClick={toggleDarkMode}
+              style={{background:'none',border:'none',color:'var(--text-secondary)',padding:'8px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'8px',transition:'background 0.2s'}}
+              onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-card-hover)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              {darkMode ? (
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+              )}
+            </button>
+          </header>
 
         {/* Overlay para mobile */}
         <div 
@@ -91,16 +108,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
               <span style={{color:'white',fontWeight:'700',fontSize:'16px',letterSpacing:'-0.025em'}}>SiHorarios</span>
             </div>
-            {/* Botón cerrar solo visible en mobile */}
-            <button 
-              className="show-sm"
-              onClick={() => setSidebarOpen(false)}
-              style={{background:'rgba(255,255,255,0.1)',border:'none',color:'#94a3b8',padding:'6px',borderRadius:'6px',cursor:'pointer'}}
-            >
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+              {/* Botón modo oscuro */}
+              <button
+                onClick={toggleDarkMode}
+                style={{background:'rgba(255,255,255,0.05)',border:'none',color:'#94a3b8',padding:'6px',borderRadius:'6px',cursor:'pointer',transition:'background 0.2s'}}
+                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+              >
+                {darkMode ? (
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                  </svg>
+                )}
+              </button>
+              {/* Botón cerrar solo visible en mobile */}
+              <button 
+                className="show-sm"
+                onClick={() => setSidebarOpen(false)}
+                style={{background:'rgba(255,255,255,0.1)',border:'none',color:'#94a3b8',padding:'6px',borderRadius:'6px',cursor:'pointer'}}
+              >
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Nav con Scroll */}
