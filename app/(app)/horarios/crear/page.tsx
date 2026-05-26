@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fetchProgramacionCursos, programacionCursosApiUrl } from '@/lib/fetch-programacion-cursos';
+import { useTheme } from '@/lib/theme';
 
 // Helper para Romanos
 const toRoman = (num: number) => {
@@ -13,6 +14,7 @@ const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u03
 export default function CrearHorarioPage() {
   const searchParams = useSearchParams();
   const progId = searchParams.get('id');
+  const { darkMode } = useTheme();
 
   const [prog, setProg] = useState<any>(null);
 
