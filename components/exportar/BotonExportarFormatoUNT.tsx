@@ -42,9 +42,9 @@ export function BotonExportarFormatoUNT({
     <button
       onClick={handleExportar}
       disabled={cargando}
-      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 hover:text-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+      className="btn-exportar-formato-unt"
     >
-      <FileSpreadsheet className="w-4 h-4 text-indigo-500" />
+      <FileSpreadsheet className="btn-exportar-formato-unt__icon" />
       {cargando ? '⏳ Generando UNT...' : '📋 Exportar Formato Oficial UNT'}
     </button>
   );

@@ -255,12 +255,12 @@ export default function UsuariosPage() {
                       </td>
                       <td style={{color: darkMode ? '#94a3b8' : '#64748b',fontSize:'13px'}}>{u.email}</td>
                       <td>
-                        <span style={{display:'inline-flex',alignItems:'center',padding:'2px 10px',borderRadius:'9999px',fontSize:'11px',fontWeight:'600',background:brightBg[u.rol]||'#f1f5f9',color:brightColors[u.rol]||'#475569',textTransform:'capitalize'}}>
-                          {u.rol === 'admin' ? 'Administrador' : u.rol === 'secretaria' ? 'Secretaria' : 'Docente'}
+                        <span style={{display:'inline-flex',alignItems:'center',padding:'2px 10px',borderRadius:'9999px',fontSize:'11px',fontWeight:'600',background:brightBg[u.rol]||'#f1f5f9',color:brightColors[u.rol]||'#475569',textTransform:'uppercase'}}>
+                          {u.rol === 'admin' ? 'ADMINISTRADOR' : u.rol === 'secretaria' ? 'SECRETARIA' : 'DOCENTE'}
                         </span>
                       </td>
                       <td>
-                        <span style={{display:'inline-flex',alignItems:'center',padding:'2px 8px',borderRadius:'9999px',fontSize:'11px',fontWeight:'600',background:u.activo?(darkMode?'rgba(22,101,52,0.2)':'#dcfce7'):(darkMode?'rgba(153,27,27,0.2)':'#fee2e2'),color:u.activo?(darkMode?'#34d399':'#166534'):(darkMode?'#f87171':'#991b1b')}}>
+                        <span className={`docentes-status-badge ${u.activo ? 'docentes-status-badge--activo' : 'docentes-status-badge--inactivo'}`}>
                           {u.activo ? '● Activo' : '○ Inactivo'}
                         </span>
                       </td>

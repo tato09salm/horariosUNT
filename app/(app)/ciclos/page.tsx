@@ -400,19 +400,19 @@ export default function CiclosPage() {
                   <td className="hide-sm" style={{ fontSize: '12px', color: '#64748b' }}>{c.fecha_inicio?.split('T')[0] || '-'}</td>
                   <td className="hide-sm" style={{ fontSize: '12px', color: '#64748b' }}>{c.fecha_fin?.split('T')[0] || '-'}</td>
                   <td>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: '600', background: c.activo ? '#dcfce7' : '#fee2e2', color: c.activo ? '#166534' : '#991b1b' }}>
+                    <span className={`docentes-status-badge ${c.activo ? 'docentes-status-badge--activo' : 'docentes-status-badge--inactivo'}`}>
                       {c.activo ? '● Activo' : '○ Inactivo'}
                     </span>
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <button className="btn-secondary" style={{ padding: '5px 10px', fontSize: '12px' }} onClick={() => editar(c)}>
+                      <button className="btn-secondary btn-crud-edit" style={{ padding: '5px 10px', fontSize: '12px' }} onClick={() => editar(c)}>
                         <span className="hide-sm">Editar</span>
                         <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                       </button>
-                      <button className="btn-danger" style={{ padding: '5px 10px', fontSize: '12px' }} onClick={() => handleEliminar(c)}>
-                        <span className="hide-sm">Eliminar</span>
-                        <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      <button className="btn-secondary btn-crud-deactivate" style={{ padding: '5px 10px', fontSize: '12px' }} onClick={() => handleEliminar(c)}>
+                        <span className="hide-sm">Desactivar</span>
+                        <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
                       </button>
                     </div>
                   </td>

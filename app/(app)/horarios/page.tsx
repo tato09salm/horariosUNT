@@ -9,20 +9,26 @@ import { BotonExportarFormatoUNT } from '@/components/exportar/BotonExportarForm
 const DIAS = ['lunes','martes','miercoles','jueves','viernes','sabado'];
 const DIAS_LABEL: Record<string,string> = {lunes:'Lunes',martes:'Martes',miercoles:'Miérc.',jueves:'Jueves',viernes:'Viernes',sabado:'Sábado'};
 
-const FASE_INFO: Record<number, { label: string; color: string; bg: string; icon: string }> = {
-  1: { label: 'Carga de Información', color: '#1e40af', bg: '#dbeafe', icon: '📋' },
-  2: { label: 'Disponibilidad Docente', color: '#065f46', bg: '#d1fae5', icon: '🕐' },
-  3: { label: 'Programación', color: '#92400e', bg: '#fef3c7', icon: '⚡' },
-  4: { label: 'Publicado', color: '#166534', bg: '#dcfce7', icon: '✅' },
-};
+function getFaseInfo(fase: number, darkMode: boolean) {
+  const palette: Record<number, { label: string; color: string; bg: string; icon: string }> = {
+    1: { label: 'Carga de Información', color: darkMode ? '#93c5fd' : '#1e40af', bg: darkMode ? 'rgba(59,130,246,0.14)' : '#dbeafe', icon: '📋' },
+    2: { label: 'Disponibilidad Docente', color: darkMode ? '#6ee7b7' : '#065f46', bg: darkMode ? 'rgba(16,185,129,0.14)' : '#d1fae5', icon: '🕐' },
+    3: { label: 'Programación', color: darkMode ? '#fcd34d' : '#92400e', bg: darkMode ? 'rgba(245,158,11,0.14)' : '#fef3c7', icon: '⚡' },
+    4: { label: 'Publicado', color: darkMode ? '#86efac' : '#166534', bg: darkMode ? 'rgba(34,197,94,0.14)' : '#dcfce7', icon: '✅' },
+  };
+  return palette[fase] || palette[1];
+}
 
-const ESTADO_STYLES: Record<string, { bg: string; color: string }> = {
-  borrador: { bg: '#f1f5f9', color: '#475569' },
-  en_disponibilidad: { bg: '#dbeafe', color: '#1e40af' },
-  en_programacion: { bg: '#fef3c7', color: '#92400e' },
-  publicado: { bg: '#dcfce7', color: '#166534' },
-  cancelado: { bg: '#fee2e2', color: '#991b1b' },
-};
+function getEstadoStyle(estado: string, darkMode: boolean) {
+  const palette: Record<string, { bg: string; color: string }> = {
+    borrador: { bg: darkMode ? 'rgba(148,163,184,0.12)' : '#f1f5f9', color: darkMode ? '#cbd5e1' : '#475569' },
+    en_disponibilidad: { bg: darkMode ? 'rgba(59,130,246,0.14)' : '#dbeafe', color: darkMode ? '#93c5fd' : '#1e40af' },
+    en_programacion: { bg: darkMode ? 'rgba(245,158,11,0.14)' : '#fef3c7', color: darkMode ? '#fcd34d' : '#92400e' },
+    publicado: { bg: darkMode ? 'rgba(34,197,94,0.14)' : '#dcfce7', color: darkMode ? '#86efac' : '#166534' },
+    cancelado: { bg: darkMode ? 'rgba(239,68,68,0.14)' : '#fee2e2', color: darkMode ? '#fca5a5' : '#991b1b' },
+  };
+  return palette[estado] || palette.borrador;
+}
 
 export default function HorariosPage() {
   const { darkMode } = useTheme();
@@ -198,7 +204,7 @@ export default function HorariosPage() {
   );
 
   return (
-    <div style={{padding:'32px', color: darkMode ? 'var(--text-primary)' : 'var(--text-primary)'}}>
+    <div className="horarios-index-page" style={{padding:'32px', color: darkMode ? 'var(--text-primary)' : 'var(--text-primary)'}}>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'24px'}}>
         <div>
@@ -209,24 +215,24 @@ export default function HorariosPage() {
           <div style={{display:'flex',borderRadius:'8px',overflow:'hidden',border:'1px solid var(--border-color)'}}>
             {!isDocente && (
               <button
-                style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',background:vista==='programaciones'?'#1a3a5c':'var(--bg-card)',color:vista==='programaciones'?'white':'var(--text-secondary)'}}
+                style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',background:vista==='programaciones'?(darkMode ? 'rgba(59,130,246,0.18)' : '#1a3a5c'):'var(--bg-card)',color:vista==='programaciones'?(darkMode ? '#bfdbfe' : 'white'):'var(--text-secondary)'}}
                 onClick={() => setVista('programaciones')}
               >📋 Programaciones</button>
             )}
             {isDocente && (
               <>
                 <button
-                  style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',background:vista==='programaciones'?'#1a3a5c':'var(--bg-card)',color:vista==='programaciones'?'white':'var(--text-secondary)'}}
+                  style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',background:vista==='programaciones'?(darkMode ? 'rgba(59,130,246,0.18)' : '#1a3a5c'):'var(--bg-card)',color:vista==='programaciones'?(darkMode ? '#bfdbfe' : 'white'):'var(--text-secondary)'}}
                   onClick={() => setVista('programaciones')}
                 >📋 Mis Programaciones (Disponibilidad)</button>
                 <button
-                  style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderLeft:'1px solid var(--border-color)',background:vista==='mi-horario'?'#1a3a5c':'var(--bg-card)',color:vista==='mi-horario'?'white':'var(--text-secondary)'}}
+                  style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderLeft:'1px solid var(--border-color)',background:vista==='mi-horario'?(darkMode ? 'rgba(59,130,246,0.18)' : '#1a3a5c'):'var(--bg-card)',color:vista==='mi-horario'?(darkMode ? '#bfdbfe' : 'white'):'var(--text-secondary)'}}
                   onClick={() => setVista('mi-horario')}
                 >👤 Mi Horario</button>
               </>
             )}
             <button
-              style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderLeft:'1px solid var(--border-color)',background:vista==='horario'?'#1a3a5c':'var(--bg-card)',color:vista==='horario'?'white':'var(--text-secondary)'}}
+              style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderLeft:'1px solid var(--border-color)',background:vista==='horario'?(darkMode ? 'rgba(59,130,246,0.18)' : '#1a3a5c'):'var(--bg-card)',color:vista==='horario'?(darkMode ? '#bfdbfe' : 'white'):'var(--text-secondary)'}}
               onClick={() => setVista('horario')}
             >📅 Horario General</button>
           </div>
@@ -271,8 +277,8 @@ export default function HorariosPage() {
           ) : (
             <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
               {programaciones.map(prog => {
-                const faseInfo = FASE_INFO[prog.fase] || FASE_INFO[1];
-                const estadoStyle = ESTADO_STYLES[prog.estado] || ESTADO_STYLES.borrador;
+                const faseInfo = getFaseInfo(prog.fase, darkMode);
+                const estadoStyle = getEstadoStyle(prog.estado, darkMode);
                 return (
                   <div key={prog.id} className="card" style={{padding:0,overflow:'hidden'}}>
                     {/* Barra de progreso de fases */}
@@ -307,10 +313,10 @@ export default function HorariosPage() {
                       {/* Stats */}
                       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'12px',marginBottom:'16px'}}>
                         {[
-                          { label: 'Cursos', value: prog.total_cursos || 0, color: '#1a3a5c' },
-                          { label: 'Docentes', value: prog.total_docentes || 0, color: '#065f46' },
-                          { label: 'Fase actual', value: `${prog.fase}/4`, color: '#92400e' },
-                          { label: 'Ciclo', value: prog.ciclo_nombre, color: '#6b21a8' },
+                          { label: 'Cursos', value: prog.total_cursos || 0, color: darkMode ? '#93c5fd' : '#1a3a5c' },
+                          { label: 'Docentes', value: prog.total_docentes || 0, color: darkMode ? '#6ee7b7' : '#065f46' },
+                          { label: 'Fase actual', value: `${prog.fase}/4`, color: darkMode ? '#fcd34d' : '#92400e' },
+                          { label: 'Ciclo', value: prog.ciclo_nombre, color: darkMode ? '#c4b5fd' : '#6b21a8' },
                         ].map((s, i) => (
                           <div key={i} style={{background:'var(--bg-card-hover)',borderRadius:'8px',padding:'12px',textAlign:'center',border:'1px solid var(--border-color)'}}>
                             <p style={{fontSize:'18px',fontWeight:'700',color:s.color,margin:'0 0 2px'}}>{s.value}</p>
@@ -322,13 +328,13 @@ export default function HorariosPage() {
                       {/* Fases timeline */}
                       <div style={{display:'flex',gap:'0',marginBottom:'16px'}}>
                         {[1,2,3,4].map(f => {
-                          const fi = FASE_INFO[f];
+                          const fi = getFaseInfo(f, darkMode);
                           const activa = f === prog.fase;
                           const completada = f < prog.fase;
                           return (
-                            <div key={f} style={{flex:1,display:'flex',alignItems:'center',gap:'8px',padding:'8px 12px',borderRadius:f===1?'8px 0 0 8px':f===4?'0 8px 8px 0':'0',background:activa?fi.bg:completada?'#f0fdf4':'var(--bg-card-hover)',borderRight:f<4?'1px solid var(--border-color)':'none'}}>
+                            <div key={f} style={{flex:1,display:'flex',alignItems:'center',gap:'8px',padding:'8px 12px',borderRadius:f===1?'8px 0 0 8px':f===4?'0 8px 8px 0':'0',background:activa?fi.bg:completada?(darkMode ? 'rgba(16,185,129,0.16)' : '#f0fdf4'):'var(--bg-card-hover)',borderRight:f<4?'1px solid var(--border-color)':'none'}}>
                               <span style={{fontSize:'14px'}}>{completada ? '✅' : activa ? fi.icon : '○'}</span>
-                              <span style={{fontSize:'11px',fontWeight:activa?'600':'400',color:activa?fi.color:'#94a3b8'}}>{fi.label}</span>
+                              <span style={{fontSize:'11px',fontWeight:activa?'600':'400',color:activa?fi.color:(darkMode ? '#bbf7d0' : '#94a3b8')}}>{fi.label}</span>
                             </div>
                           );
                         })}
@@ -426,14 +432,14 @@ export default function HorariosPage() {
                   {ciclos.map(c => <option key={c.id} value={c.id}>{c.nombre} {c.activo ? '(Activo)' : ''}</option>)}
                 </select>
               </div>
-              <div style={{background:'#f8fafc',borderRadius:'8px',padding:'16px'}}>
-                <h4 style={{fontSize:'14px',fontWeight:'600',color:'#475569',margin:'0 0 8px'}}>Flujo de trabajo:</h4>
+              <div style={{background:'var(--bg-card-hover)',borderRadius:'8px',padding:'16px',border:'1px solid var(--border-color)'}}>
+                <h4 style={{fontSize:'14px',fontWeight:'600',color:'var(--text-primary)',margin:'0 0 8px'}}>Flujo de trabajo:</h4>
                 {[1,2,3,4].map(f => {
-                  const fi = FASE_INFO[f];
+                  const fi = getFaseInfo(f, darkMode);
                   return (
                     <div key={f} style={{display:'flex',alignItems:'center',gap:'8px',padding:'4px 0'}}>
                       <span style={{fontSize:'14px'}}>{fi.icon}</span>
-                      <span style={{fontSize:'13px',color:'#475569'}}>Fase {f}: {fi.label}</span>
+                      <span style={{fontSize:'13px',color:'var(--text-secondary)'}}>Fase {f}: {fi.label}</span>
                     </div>
                   );
                 })}

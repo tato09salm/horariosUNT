@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import GrillaHorarios from '@/components/horarios/GrillaHorarios';
 import { BotonExportarFormatoUNT } from '@/components/exportar/BotonExportarFormatoUNT';
 
 const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
@@ -14,23 +15,28 @@ export default function PublicarPage() {
 
   const [prog, setProg] = useState<any>(null);
   const [asignaciones, setAsignaciones] = useState<any[]>([]);
+  const [slots, setSlots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const [showEditarModal, setShowEditarModal] = useState(false);
   const [msg, setMsg] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [filtroTipo, setFiltroTipo] = useState('');
   const [filtroDocente, setFiltroDocente] = useState('');
   const [filtroCurso, setFiltroCurso] = useState('');
   const itemsPerPage = 20;
+  const publicado = prog?.estado === 'publicado';
 
   const cargarDatos = useCallback(async () => {
     setLoading(true);
     try {
-      const [progRes, exportRes] = await Promise.all([
+      const [progRes, dashRes, exportRes] = await Promise.all([
         fetch(`/api/horarios/programaciones/${progId}`).then(r => r.json()),
+        fetch('/api/dashboard').then(r => r.json()),
         fetch(`/api/horarios/exportar?programacion_id=${progId}`).then(r => r.json()).catch(() => ({ asignaciones: [] })),
       ]);
       setProg(progRes.data);
+      setSlots(dashRes.slots || []);
       setAsignaciones(exportRes.asignaciones || progRes.data?.config?.asignaciones || []);
     } finally {
       setLoading(false);
@@ -70,6 +76,25 @@ export default function PublicarPage() {
       if (!res.ok) throw new Error((await res.json()).error);
       window.location.href = `/horarios/${progId}/programar`;
     } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
+  };
+
+  const solicitarEditarHorario = () => setShowEditarModal(true);
+
+  const confirmarEditarHorario = async () => {
+    setShowEditarModal(false);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fase: 3 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo editar el horario');
+      window.location.href = `/horarios/${progId}/programar`;
+    } catch (e: any) {
+      setMsg({ type: 'error', text: e.message });
+    }
   };
 
   const cancelarProgramacion = async () => {
@@ -228,10 +253,8 @@ export default function PublicarPage() {
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando datos...</div>;
   if (!prog) return <div style={{ padding: '40px', textAlign: 'center' }}>Programación no encontrada</div>;
 
-  const publicado = prog.estado === 'publicado';
-
   return (
-    <div style={{ padding: '32px' }}>
+    <div className="horarios-publicar-page" style={{ padding: '32px' }}>
       <div style={{ marginBottom: '8px' }}>
         <a href="/horarios" style={{ fontSize: '13px', color: '#64748b', textDecoration: 'none' }}>← Volver a Horarios</a>
       </div>
@@ -242,7 +265,9 @@ export default function PublicarPage() {
           <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Fase 4: Revisión y Publicación</p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {!publicado && (
+          {publicado ? (
+            <button className="btn-secondary" onClick={solicitarEditarHorario}>✏️ Editar horario</button>
+          ) : (
             <>
               <button className="btn-secondary" onClick={retrocederFase}>← Volver a Fase 3</button>
               <button className="btn-danger" onClick={cancelarProgramacion}>Cancelar</button>
@@ -264,7 +289,7 @@ export default function PublicarPage() {
       {msg && <div className={`alert alert-${msg.type}`} style={{ marginBottom: '20px' }}>{msg.text}</div>}
 
       {/* Panel de publicación */}
-      <div className="card" style={{ maxWidth: '700px', margin: '0 auto 32px', textAlign: 'center' }}>
+      <div className="card horarios-publicar-summary" style={{ maxWidth: '700px', margin: '0 auto 32px', textAlign: 'center' }}>
         <div style={{ fontSize: '64px', marginBottom: '16px' }}>{publicado ? '🎉' : '📢'}</div>
         <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#1e293b', marginBottom: '8px' }}>
           {publicado ? 'Horario Publicado Oficialmente' : 'Listo para publicar'}
@@ -289,9 +314,20 @@ export default function PublicarPage() {
         )}
       </div>
 
+      {/* Cuadro visual del horario generado */}
+      {asignaciones.length > 0 && slots.length > 0 && (
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Horario generado</h3>
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Vista previa del horario oficial</span>
+          </div>
+          <GrillaHorarios asignaciones={asignaciones} slots={slots} />
+        </div>
+      )}
+
       {/* Filtros de Vista Previa */}
       {asignaciones.length > 0 && (
-        <div className="card" style={{ marginBottom: '20px', padding: '16px' }}>
+        <div className="card horarios-publicar-filter-card" style={{ marginBottom: '20px', padding: '16px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label" style={{ fontWeight: '600' }}>Filtrar por Tipo</label>
@@ -315,9 +351,31 @@ export default function PublicarPage() {
         </div>
       )}
 
+      {showEditarModal && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowEditarModal(false)}>
+          <div className="modal" style={{ maxWidth: '460px' }}>
+            <div className="modal-header">
+              <h2 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>¿Editar horario publicado?</h2>
+              <button onClick={() => setShowEditarModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="alert alert-warning">
+                Esto despublicará el horario oficial del ciclo y volverá la programación a la Fase 3 para que puedas editarla.
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowEditarModal(false)}>Cancelar</button>
+              <button className="btn-danger" onClick={confirmarEditarHorario}>Sí, despublicar y editar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabla resumen agrupada */}
       {agrupadas.length > 0 ? (
-        <div className="card" style={{ overflowX: 'auto', padding: 0 }}>
+        <div className="card horarios-publicar-table-card" style={{ overflowX: 'auto', padding: 0 }}>
           <div style={{ padding: '20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1e293b', margin: 0 }}>
               Vista Previa — {agrupadas.length} bloques asignados ({asignaciones.length} horas)
@@ -345,16 +403,16 @@ export default function PublicarPage() {
                 <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '10px 12px', color: '#334155', fontWeight: '500' }}>{DIAS_LABEL[a.dia] || a.dia}</td>
                   <td style={{ padding: '10px 12px', color: '#0f172a', fontWeight: '600' }}>{a.hora_inicio?.slice(0,5) || ''} - {a.hora_fin?.slice(0,5) || ''}</td>
-                  <td style={{ padding: '10px 12px' }}><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{a.curso_codigo}</code></td>
+                  <td style={{ padding: '10px 12px' }}><code className="horarios-publicar-code" style={{ background: '#e2e8f0', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{a.curso_codigo}</code></td>
                   <td style={{ padding: '10px 12px', color: '#475569', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={a.curso_nombre}>{a.curso_nombre}</td>
                   <td style={{ padding: '10px 12px', color: '#64748b' }}>{a.grupo}</td>
                   <td style={{ padding: '10px 12px' }}>
-                    <span style={{ background: a.tipo === 'teoria' ? '#dbeafe' : a.tipo === 'practica' ? '#d1fae5' : '#fef3c7', color: a.tipo === 'teoria' ? '#1d4ed8' : a.tipo === 'practica' ? '#065f46' : '#92400e', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600' }}>
+                    <span className={`horarios-publicar-type horarios-publicar-type--${a.tipo}`} style={{ background: a.tipo === 'teoria' ? '#e2e8f0' : a.tipo === 'practica' ? '#dcfce7' : '#f3f4f6', color: a.tipo === 'teoria' ? '#334155' : a.tipo === 'practica' ? '#14532d' : '#4b5563', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600' }}>
                       {a.tipo}
                     </span>
                   </td>
                   <td style={{ padding: '10px 12px', color: '#475569' }}>{a.docente}</td>
-                  <td style={{ padding: '10px 12px' }}><code style={{ background: '#fef3c7', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{a.aula}</code></td>
+                  <td style={{ padding: '10px 12px' }}><code className="horarios-publicar-code horarios-publicar-code--room" style={{ background: '#e2e8f0', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{a.aula}</code></td>
                 </tr>
               ))}
             </tbody>

@@ -365,33 +365,33 @@ export default function CursosPage() {
               ) : cursos.map((c:Curso) => (
                 <tr key={c.id}>
                   <td className="hide-sm" style={{textAlign:'center'}}>
-                    <span style={{background:'#1a3a5c',color:'white',borderRadius:'6px',padding:'2px 8px',fontSize:'11px',fontWeight:'600'}}>{c.ciclo_plan}</span>
+                    <span style={{background: darkMode ? 'rgba(59, 130, 246, 0.15)' : '#e0f2fe', color: darkMode ? '#60a5fa' : '#0369a1', borderRadius:'6px', padding:'2px 8px', fontSize:'11px', fontWeight:'600'}}>Ciclo {c.ciclo_plan}</span>
                   </td>
-                  <td style={{fontWeight:'600',color:'#475569',fontFamily:'monospace',fontSize:'13px'}}>{c.codigo.toUpperCase()}</td>
+                  <td style={{fontWeight:'600',color: darkMode ? '#94a3b8' : '#475569',fontFamily:'monospace',fontSize:'13px'}}>{c.codigo.toUpperCase()}</td>
                   <td style={{fontWeight:'500'}}>{c.nombre.toUpperCase()}</td>
                   <td className="hide-sm" style={{textAlign:'center'}}>
-                    <span style={{background:'#f1f5f9',color:'#374151',padding:'2px 8px',borderRadius:'6px',fontSize:'12px',fontWeight:'600'}}>{c.creditos} cr.</span>
+                    <span style={{background: darkMode ? 'rgba(148, 163, 184, 0.1)' : '#f1f5f9', color: 'var(--text-secondary)', padding:'2px 8px', borderRadius:'6px', fontSize:'12px', fontWeight:'600'}}>{c.creditos} cr.</span>
                   </td>
                   <td className="hide-sm" style={{textAlign:'center'}}><span className="badge badge-teoria">{c.horas_teoria}h</span></td>
                   <td className="hide-sm" style={{textAlign:'center'}}>
                     {c.horas_practica > 0
                       ? <span className="badge badge-laboratorio">{c.horas_practica}h</span>
-                      : <span style={{color:'#94a3b8',fontSize:'12px'}}>—</span>}
+                      : <span style={{color:'var(--text-muted)',fontSize:'12px'}}>—</span>}
                   </td>
                   <td>
-                    <span style={{display:'inline-flex',alignItems:'center',gap:'4px',padding:'2px 8px',borderRadius:'9999px',fontSize:'11px',fontWeight:'600',background:c.activo?'#dcfce7':'#fee2e2',color:c.activo?'#166534':'#991b1b'}}>
+                    <span className={`docentes-status-badge ${c.activo ? 'docentes-status-badge--activo' : 'docentes-status-badge--inactivo'}`}>
                       {c.activo ? '● Activo' : '○ Inactivo'}
                     </span>
                   </td>
                   <td>
                     <div style={{display:'flex',gap:'6px'}}>
-                      <button className="btn-secondary" style={{padding:'5px 10px',fontSize:'12px'}} onClick={() => editar(c)}>
-                        <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                      <button className="btn-secondary btn-crud-edit" style={{padding:'5px 10px',fontSize:'12px'}} onClick={() => editar(c)}>
                         <span className="hide-sm">Editar</span>
+                        <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                       </button>
                       <button
-                        className={c.activo ? 'btn-danger' : 'btn-primary'}
-                        style={{padding:'5px 10px',fontSize:'12px',minWidth:c.activo?'80px':'60px'}}
+                        className="btn-secondary btn-crud-deactivate"
+                        style={{padding:'5px 10px',fontSize:'12px'}}
                         onClick={() => toggleEstado(c)}
                       >
                         <span className="hide-sm">{c.activo ? 'Desactivar' : 'Activar'}</span>

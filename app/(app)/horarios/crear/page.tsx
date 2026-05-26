@@ -439,35 +439,35 @@ export default function CrearHorarioPage() {
   if (!prog) return <div style={{ padding: '40px', textAlign: 'center' }}>Programación no encontrada.</div>;
 
   return (
-    <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div className="horarios-crear-page" style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', margin: '0 0 4px' }}>{prog.nombre}</h1>
-          <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>
+          <h1 style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 4px' }}>{prog.nombre}</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
             Fase 1: Carga de Información — {prog.ciclo_nombre}
             {lastSaved && <span style={{ marginLeft: '12px', color: '#10b981' }}>✔ Guardado</span>}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Currícula Base:</label>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>CURRÍCULA BASE:</label>
             <select className="form-input" style={{ padding: '6px 12px', fontSize: '13px' }} value={curriculaActual} onChange={e => setCurriculaActual(e.target.value)}>
-              <option value="">Seleccionar currícula...</option>
+              <option value="">SELECCIONAR CURRÍCULA...</option>
               {curriculas.map(c => (
-                <option key={c.id} value={c.id}>{c.nombre_carrera} ({c.año_curricula})</option>
+                <option key={c.id} value={c.id}>{c.nombre_carrera.toUpperCase()} ({c.año_curricula})</option>
               ))}
             </select>
           </div>
           <input type="file" accept=".csv" ref={fileInputRef} style={{ display: 'none' }} onChange={importarCSV} />
-          <button className="btn-secondary" style={{ background: '#fff', border: '1px solid #cbd5e1' }} onClick={() => fileInputRef.current?.click()} disabled={saving || loading}>
-            📥 Importar CSV
+          <button className="btn-secondary horarios-crear-import-btn" onClick={() => fileInputRef.current?.click()} disabled={saving || loading}>
+            📥 IMPORTAR CSV
           </button>
           <button className="btn-primary" onClick={avanzarFase} disabled={saving || alerts.length > 0 || cursosFiltrados.length === 0} title={alerts.length > 0 ? "Existen errores por corregir" : ""}>
-            {saving ? 'Avanzando...' : 'Avanzar a Fase 2 →'}
+            {saving ? 'AVANZANDO...' : 'AVANZAR A FASE 2 →'}
           </button>
           <button className="btn-danger" onClick={cancelarProgramacion}>
-            Cancelar
+            CANCELAR
           </button>
         </div>
       </div>
@@ -477,8 +477,8 @@ export default function CrearHorarioPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '24px' }}>
 
         {/* PANEL IZQUIERDO: Selección de Ciclos y Cursos */}
-        <div className="card" style={{ padding: '20px', height: 'fit-content' }}>
-          <h2 style={{ fontSize: '15px', fontWeight: '700', color: '#1e293b', marginBottom: '16px' }}>Cursos a Programar</h2>
+        <div className="card horarios-crear-sidebar" style={{ padding: '20px', height: 'fit-content', background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+          <h2 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '16px' }}>CURSOS A PROGRAMAR</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {ciclosDisponibles.map(cicloPlan => {
               const cursosDelCiclo = cursosCurricula.filter(c => c.ciclo_plan === cicloPlan);
@@ -487,27 +487,28 @@ export default function CrearHorarioPage() {
               const allSelected = seleccionadosCount === cursosDelCiclo.length && cursosDelCiclo.length > 0;
 
               return (
-                <div key={cicloPlan} style={{ border: '1px solid #e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
+                <div key={cicloPlan} className="horarios-crear-cycle" style={{ border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
                   <div
-                    style={{ background: isCicloSelected ? '#e0e7ff' : '#f8fafc', padding: '8px 12px', display: 'flex', alignItems: 'center', cursor: 'pointer', borderBottom: isCicloSelected ? '1px solid #c7d2fe' : 'none' }}
+                    className="horarios-crear-cycle-header"
+                    style={{ background: isCicloSelected ? 'var(--bg-card-hover)' : 'var(--bg-card)', padding: '8px 12px', display: 'flex', alignItems: 'center', cursor: 'pointer', borderBottom: isCicloSelected ? '1px solid var(--border-color)' : 'none' }}
                     onClick={() => toggleCicloPlan(cicloPlan)}
                   >
-                    <span style={{ fontWeight: '600', color: '#1e293b', fontSize: '13px', flex: 1 }}>Ciclo {toRoman(cicloPlan)}</span>
-                    <span style={{ fontSize: '11px', color: '#64748b', background: '#fff', padding: '2px 6px', borderRadius: '4px' }}>{seleccionadosCount}/{cursosDelCiclo.length}</span>
+                    <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '13px', flex: 1 }}>Ciclo {toRoman(cicloPlan)}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'var(--bg-card-hover)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>{seleccionadosCount}/{cursosDelCiclo.length}</span>
                   </div>
                   {isCicloSelected && (
-                    <div style={{ padding: '6px', background: '#fff' }}>
+                    <div className="horarios-crear-cycle-body" style={{ padding: '6px', background: 'var(--bg-card)' }}>
                       <div
-                        style={{ fontSize: '11px', color: '#3b82f6', cursor: 'pointer', marginBottom: '6px', textAlign: 'right' }}
+                        style={{ fontSize: '11px', color: '#60a5fa', cursor: 'pointer', marginBottom: '6px', textAlign: 'right' }}
                         onClick={(e) => { e.stopPropagation(); seleccionarTodosCursosDeCiclo(cicloPlan, !allSelected); }}
                       >
                         {allSelected ? 'Desmarcar todos' : 'Marcar todos'}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         {cursosDelCiclo.map(curso => (
-                          <label key={curso.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', padding: '4px', cursor: 'pointer', background: selectedCursosIds.includes(curso.id) ? '#f8fafc' : 'transparent' }}>
+                          <label key={curso.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', padding: '4px', cursor: 'pointer', background: selectedCursosIds.includes(curso.id) ? 'var(--bg-card-hover)' : 'transparent' }}>
                             <input type="checkbox" checked={selectedCursosIds.includes(curso.id)} onChange={() => toggleCurso(curso.id)} style={{ marginTop: '2px' }} />
-                            <span style={{ fontSize: '12px', color: '#334155', lineHeight: '1.2' }}>{curso.codigo} - {curso.nombre}</span>
+                            <span style={{ fontSize: '12px', color: 'var(--text-primary)', lineHeight: '1.2' }}>{curso.codigo} - {curso.nombre}</span>
                           </label>
                         ))}
                       </div>
@@ -522,19 +523,19 @@ export default function CrearHorarioPage() {
         {/* PANEL DERECHO: Tabla Plana */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, overflow: 'hidden' }}>
           {alerts.length > 0 && (
-            <div style={{ background: '#fef2f2', border: '1px solid #f87171', borderRadius: '8px', overflow: 'hidden' }}>
+            <div style={{ background: darkMode ? 'rgba(239, 68, 68, 0.12)' : '#fef2f2', border: `1px solid ${darkMode ? 'rgba(239, 68, 68, 0.3)' : '#f87171'}`, borderRadius: '8px', overflow: 'hidden' }}>
               <div 
-                style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: alertasOpen ? '#fee2e2' : 'transparent' }}
+                style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: alertasOpen ? (darkMode ? 'rgba(239, 68, 68, 0.15)' : '#fee2e2') : 'transparent' }}
                 onClick={() => setAlertasOpen(!alertasOpen)}
               >
-                <h4 style={{ color: '#b91c1c', fontWeight: '700', fontSize: '14px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h4 style={{ color: darkMode ? '#f87171' : '#b91c1c', fontWeight: '700', fontSize: '14px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   ⚠️ Existen alertas de asignación que debe solucionar ({alerts.length})
                 </h4>
-                <span style={{ color: '#b91c1c', fontSize: '18px', lineHeight: 1 }}>{alertasOpen ? '▴' : '▾'}</span>
+                <span style={{ color: darkMode ? '#f87171' : '#b91c1c', fontSize: '18px', lineHeight: 1 }}>{alertasOpen ? '▴' : '▾'}</span>
               </div>
               {alertasOpen && (
-                <div style={{ padding: '16px', borderTop: '1px solid #fca5a5' }}>
-                  <ul style={{ margin: 0, paddingLeft: '20px', color: '#991b1b', fontSize: '13px' }}>
+                <div style={{ padding: '16px', borderTop: `1px solid ${darkMode ? 'rgba(239, 68, 68, 0.2)' : '#fca5a5'}` }}>
+                  <ul style={{ margin: 0, paddingLeft: '20px', color: darkMode ? '#fca5a5' : '#991b1b', fontSize: '13px' }}>
                     {alerts.map((al, idx) => <li key={idx} style={{ marginBottom: '4px' }}>{al}</li>)}
                   </ul>
                 </div>
@@ -542,10 +543,10 @@ export default function CrearHorarioPage() {
             </div>
           )}
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div className="table-container" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <div className="table-container horarios-crear-table-container" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+              <table className="horarios-crear-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
-                  <tr style={{ background: '#1e293b', color: '#fff' }}>
+                  <tr style={{ background: 'var(--sidebar-bg)', color: '#fff' }}>
                     <th style={{ padding: '10px 12px', textAlign: 'left', minWidth: '60px' }}>CICLO</th>
                     <th style={{ padding: '10px 12px', textAlign: 'left' }}>CÓDIGO</th>
                     <th style={{ padding: '10px 12px', textAlign: 'left' }}>CURSO</th>
@@ -560,7 +561,7 @@ export default function CrearHorarioPage() {
                 <tbody>
                   {cursosFiltrados.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                         Selecciona ciclos y cursos en el panel izquierdo.
                       </td>
                     </tr>
@@ -584,22 +585,22 @@ export default function CrearHorarioPage() {
                       return (
                         <React.Fragment key={curso.id}>
                           {/* Course Header Row */}
-                          <tr style={{ background: '#fff', borderTop: '2px solid #e2e8f0' }}>
-                            <td rowSpan={rowSpanCurso} style={{ padding: '12px', verticalAlign: 'top', fontWeight: '600', color: '#3730a3', borderRight: '1px solid #f1f5f9' }}>
+                          <tr style={{ background: 'var(--bg-card)', borderTop: '2px solid var(--border-color)' }}>
+                            <td rowSpan={rowSpanCurso} style={{ padding: '12px', verticalAlign: 'top', fontWeight: '600', color: darkMode ? '#60a5fa' : '#1a3a5c', borderRight: '1px solid var(--border-color)' }}>
                               {toRoman(curso.ciclo_plan)}
                             </td>
-                            <td rowSpan={rowSpanCurso} style={{ padding: '12px', verticalAlign: 'top', borderRight: '1px solid #f1f5f9', fontWeight: '600' }}>
+                            <td rowSpan={rowSpanCurso} style={{ padding: '12px', verticalAlign: 'top', borderRight: '1px solid var(--border-color)', fontWeight: '600', color: 'var(--text-primary)' }}>
                               {curso.codigo}
                             </td>
-                            <td style={{ padding: '12px', verticalAlign: 'top', borderRight: '1px solid #f1f5f9', maxWidth: '250px' }}>
-                              <div style={{ fontWeight: '700', color: '#1e293b', lineHeight: '1.3' }}>{curso.nombre}</div>
+                            <td style={{ padding: '12px', verticalAlign: 'top', borderRight: '1px solid var(--border-color)', maxWidth: '250px' }}>
+                              <div style={{ fontWeight: '700', color: 'var(--text-primary)', lineHeight: '1.3' }}>{curso.nombre.toUpperCase()}</div>
                             </td>
                             <td style={{ padding: '8px 12px', textAlign: 'center' }}></td>
                             <td style={{ padding: '8px 12px', textAlign: 'left' }}></td>
-                            <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: '#475569' }}>{curso.horas_teoria}</td>
-                            <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: '#475569' }}>{curso.horas_practica}</td>
-                            <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: '#475569' }}>{curso.horas_laboratorio || 0}</td>
-                            <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: '#475569' }}>-</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)' }}>{curso.horas_teoria}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)' }}>{curso.horas_practica}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)' }}>{curso.horas_laboratorio || 0}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)' }}>-</td>
                           </tr>
 
                           {/* Activities & Group Rows */}
@@ -617,14 +618,14 @@ export default function CrearHorarioPage() {
                             return (
                               <React.Fragment key={act.id}>
                                 {gruposAct.length === 0 ? (
-                                  <tr style={{ background: '#f8fafc' }}>
-                                    <td style={{ padding: '12px', verticalAlign: 'top', borderRight: '1px solid #f1f5f9', background: '#f1f5f9' }}>
-                                      <div style={{ fontWeight: '600', color: '#334155', marginBottom: '8px', textTransform: 'uppercase', fontSize: '12px' }}>{act.name}</div>
-                                      <button className="btn-secondary" style={{ padding: '4px 8px', fontSize: '10px', width: '100%', border: '1px dashed #cbd5e1', background: '#fff', color: '#475569' }} onClick={() => agregarGrupo(curso.id, act.id)}>
+                                  <tr style={{ background: 'var(--bg-card-hover)' }}>
+                                    <td style={{ padding: '12px', verticalAlign: 'top', borderRight: '1px solid var(--border-color)', background: 'var(--bg-card-hover)' }}>
+                                      <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px', textTransform: 'uppercase', fontSize: '12px' }}>{act.name}</div>
+                                      <button className="btn-secondary horarios-crear-add-group-btn" style={{ padding: '4px 8px', fontSize: '10px', width: '100%', border: '1px dashed var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)' }} onClick={() => agregarGrupo(curso.id, act.id)}>
                                         + AGREGAR GRUPO
                                       </button>
                                     </td>
-                                    <td colSpan={6} style={{ borderTop: '1px solid #f1f5f9' }}></td>
+                                    <td colSpan={6} style={{ borderTop: '1px solid var(--border-color)' }}></td>
                                   </tr>
                                 ) : (
                                   gruposAct.map((grupo, gIdx) => {
@@ -637,33 +638,33 @@ export default function CrearHorarioPage() {
 
                                     return (
                                       <React.Fragment key={grupo.id}>
-                                        <tr style={{ background: '#f8fafc' }}>
+                                        <tr style={{ background: 'var(--bg-card)' }}>
                                           {gIdx === 0 && (
-                                            <td rowSpan={rowSpanAct} style={{ padding: '12px', verticalAlign: 'top', borderRight: '1px solid #f1f5f9', background: '#f1f5f9' }}>
-                                              <div style={{ fontWeight: '600', color: '#334155', marginBottom: '8px', textTransform: 'uppercase', fontSize: '12px' }}>{act.name}</div>
-                                              <button className="btn-secondary" style={{ padding: '4px 8px', fontSize: '10px', width: '100%', border: '1px dashed #cbd5e1', background: '#fff', color: '#475569' }} onClick={() => agregarGrupo(curso.id, act.id)}>
+                                            <td rowSpan={rowSpanAct} style={{ padding: '12px', verticalAlign: 'top', borderRight: '1px solid var(--border-color)', background: 'var(--bg-card-hover)' }}>
+                                              <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px', textTransform: 'uppercase', fontSize: '12px' }}>{act.name}</div>
+                                              <button className="btn-secondary horarios-crear-add-group-btn" style={{ padding: '4px 8px', fontSize: '10px', width: '100%', border: '1px dashed var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)' }} onClick={() => agregarGrupo(curso.id, act.id)}>
                                                 + AGREGAR GRUPO
                                               </button>
                                             </td>
                                           )}
                                           {/* Group Header */}
-                                          <td rowSpan={rowSpanGrupo} style={{ padding: '12px', textAlign: 'center', fontWeight: '700', borderRight: '1px solid #f1f5f9', borderTop: '1px solid #f1f5f9', verticalAlign: 'top', position: 'relative' }}>
+                                          <td rowSpan={rowSpanGrupo} style={{ padding: '12px', textAlign: 'center', fontWeight: '700', borderRight: '1px solid var(--border-color)', borderTop: '1px solid var(--border-color)', verticalAlign: 'top', position: 'relative' }}>
                                             G{grupo.numero_grupo}
-                                            <button style={{ position: 'absolute', top: '4px', right: '4px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '10px' }} onClick={() => eliminarGrupo(grupo.id)} title="Eliminar Grupo">✖</button>
+                                            <button style={{ position: 'absolute', top: '4px', right: '4px', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '10px' }} onClick={() => eliminarGrupo(grupo.id)} title="Eliminar Grupo">✖</button>
                                           </td>
-                                          <td style={{ padding: '8px 12px', fontSize: '11px', color: '#94a3b8', fontWeight: '500', borderTop: '1px solid #f1f5f9' }}>
+                                          <td style={{ padding: '8px 12px', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '500', borderTop: '1px solid var(--border-color)' }}>
                                             COD. DOCENTE
                                           </td>
-                                          <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: '#64748b', borderTop: '1px solid #f1f5f9' }}>
+                                          <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: 'var(--text-secondary)', borderTop: '1px solid var(--border-color)' }}>
                                             {sumT}/{curso.horas_teoria}
                                           </td>
-                                          <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: '#64748b', borderTop: '1px solid #f1f5f9' }}>
+                                          <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: 'var(--text-secondary)', borderTop: '1px solid var(--border-color)' }}>
                                             {sumP}/{curso.horas_practica}
                                           </td>
-                                          <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: '#64748b', borderTop: '1px solid #f1f5f9' }}>
+                                          <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: 'var(--text-secondary)', borderTop: '1px solid var(--border-color)' }}>
                                             {sumL}/{curso.horas_laboratorio || 0}
                                           </td>
-                                          <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: '#64748b', borderTop: '1px solid #f1f5f9' }}>
+                                          <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: 'var(--text-secondary)', borderTop: '1px solid var(--border-color)' }}>
                                             {sumC}/-
                                           </td>
                                         </tr>
@@ -673,29 +674,29 @@ export default function CrearHorarioPage() {
                                           const carga = asig.docente_id && cargaDocenteMap[asig.docente_id] ? cargaDocenteMap[asig.docente_id] : null;
                                           const isExcedido = carga && carga.ocupada > carga.max;
                                           return (
-                                            <tr key={asig.id} style={{ background: '#f8fafc' }}>
+                                            <tr key={asig.id} style={{ background: 'var(--bg-card)' }}>
                                               <td style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                                                  <span style={{ fontSize: '11px', color: '#64748b', marginRight: '16px', display: 'inline-block', width: '30px', fontFamily: 'monospace' }}>{asig.docente_codigo || '0000'}</span>
-                                                  <span style={{ fontWeight: '500', fontSize: '12px', color: '#1e293b' }}>{asig.docente_nombre}</span>
+                                                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginRight: '16px', display: 'inline-block', width: '30px', fontFamily: 'monospace' }}>{asig.docente_codigo || '0000'}</span>
+                                                  <span style={{ fontWeight: '500', fontSize: '12px', color: 'var(--text-primary)' }}>{asig.docente_nombre}</span>
                                                   {carga && (
-                                                    <span style={{ fontSize: '11px', marginLeft: '8px', color: isExcedido ? '#ef4444' : '#64748b', fontWeight: isExcedido ? '700' : '500', background: isExcedido ? '#fee2e2' : 'transparent', padding: isExcedido ? '2px 4px' : '0', borderRadius: '4px' }}>
+                                                    <span style={{ fontSize: '11px', marginLeft: '8px', color: isExcedido ? '#fca5a5' : 'var(--text-secondary)', fontWeight: isExcedido ? '700' : '500', background: isExcedido ? 'rgba(239,68,68,0.12)' : 'transparent', padding: isExcedido ? '2px 4px' : '0', borderRadius: '4px' }}>
                                                       ({carga.ocupada}/{carga.max})
                                                     </span>
                                                   )}
                                                 </div>
-                                                <button style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px' }} onClick={() => removeDocente(asig.id)} title="Eliminar docente">✖</button>
+                                                <button style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '12px' }} onClick={() => removeDocente(asig.id)} title="Eliminar docente">✖</button>
                                               </td>
-                                              <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid #e2e8f0', background: grupo.tipo_actividad !== 'teoria' ? '#e2e8f0' : '#fff' }} disabled={grupo.tipo_actividad !== 'teoria'} value={asig.horas_teoria} onChange={e => updateHoras(asig.id, 'horas_teoria', parseInt(e.target.value) || 0)} /></td>
-                                              <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid #e2e8f0', background: grupo.tipo_actividad !== 'practica' ? '#e2e8f0' : '#fff' }} disabled={grupo.tipo_actividad !== 'practica'} value={asig.horas_practica} onChange={e => updateHoras(asig.id, 'horas_practica', parseInt(e.target.value) || 0)} /></td>
-                                              <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid #e2e8f0', background: grupo.tipo_actividad !== 'laboratorio' ? '#e2e8f0' : '#fff' }} disabled={grupo.tipo_actividad !== 'laboratorio'} value={asig.horas_laboratorio} onChange={e => updateHoras(asig.id, 'horas_laboratorio', parseInt(e.target.value) || 0)} /></td>
-                                              <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid #e2e8f0' }} value={asig.horas_consejeria || 0} onChange={e => updateHoras(asig.id, 'horas_consejeria', parseInt(e.target.value) || 0)} /></td>
+                                              <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid var(--border-color)', background: grupo.tipo_actividad !== 'teoria' ? 'var(--bg-card-hover)' : 'var(--bg-card)', color: 'var(--text-primary)' }} disabled={grupo.tipo_actividad !== 'teoria'} value={asig.horas_teoria} onChange={e => updateHoras(asig.id, 'horas_teoria', parseInt(e.target.value) || 0)} /></td>
+                                              <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid var(--border-color)', background: grupo.tipo_actividad !== 'practica' ? 'var(--bg-card-hover)' : 'var(--bg-card)', color: 'var(--text-primary)' }} disabled={grupo.tipo_actividad !== 'practica'} value={asig.horas_practica} onChange={e => updateHoras(asig.id, 'horas_practica', parseInt(e.target.value) || 0)} /></td>
+                                              <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid var(--border-color)', background: grupo.tipo_actividad !== 'laboratorio' ? 'var(--bg-card-hover)' : 'var(--bg-card)', color: 'var(--text-primary)' }} disabled={grupo.tipo_actividad !== 'laboratorio'} value={asig.horas_laboratorio} onChange={e => updateHoras(asig.id, 'horas_laboratorio', parseInt(e.target.value) || 0)} /></td>
+                                              <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)' }} value={asig.horas_consejeria || 0} onChange={e => updateHoras(asig.id, 'horas_consejeria', parseInt(e.target.value) || 0)} /></td>
                                             </tr>
                                           );
                                         })}
 
                                         {/* Add Teacher Button Row */}
-                                        <tr style={{ background: '#f8fafc' }}>
+                                        <tr style={{ background: 'var(--bg-card)' }}>
                                           <td style={{ padding: '8px 12px', position: 'relative' }}>
                                             {searchGrupoId === grupo.id ? (
                                               <div>
@@ -709,11 +710,11 @@ export default function CrearHorarioPage() {
                                                   style={{ width: '100%', fontSize: '12px', padding: '6px' }}
                                                 />
                                                 {filteredDocentes.length > 0 && (
-                                                  <div style={{ position: 'absolute', top: '100%', left: '12px', right: '12px', background: '#fff', border: '1px solid #cbd5e1', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 20, maxHeight: '200px', overflowY: 'auto' }}>
+                                                  <div style={{ position: 'absolute', top: '100%', left: '12px', right: '12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 20, maxHeight: '200px', overflowY: 'auto' }}>
                                                     {filteredDocentes.map(d => (
-                                                      <div key={d.id} style={{ padding: '8px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }} onClick={() => addDocente(curso, grupo.id, d)}>
-                                                        <div style={{ fontWeight: '600', fontSize: '12px', color: '#1e293b' }}>{d.nombre} {d.apellidos}</div>
-                                                        <div style={{ fontSize: '10px', color: '#64748b' }}>COD: {d.usuario_id || '0000'} | DNI: {d.dni}</div>
+                                                      <div key={d.id} style={{ padding: '8px', borderBottom: '1px solid var(--border-color)', cursor: 'pointer' }} onClick={() => addDocente(curso, grupo.id, d)}>
+                                                        <div style={{ fontWeight: '600', fontSize: '12px', color: 'var(--text-primary)' }}>{d.nombre} {d.apellidos}</div>
+                                                        <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>COD: {d.usuario_id || '0000'} | DNI: {d.dni}</div>
                                                       </div>
                                                     ))}
                                                   </div>
@@ -721,7 +722,7 @@ export default function CrearHorarioPage() {
                                                 <button style={{ fontSize: '11px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', marginTop: '4px' }} onClick={() => setSearchGrupoId(null)}>Cancelar</button>
                                               </div>
                                             ) : (
-                                              <button style={{ background: 'none', border: '1px solid #cbd5e1', borderRadius: '4px', color: '#475569', fontWeight: '600', fontSize: '10px', padding: '4px 8px', cursor: 'pointer', display: 'block', margin: '0 auto' }} onClick={() => { setSearchGrupoId(grupo.id); setDocenteSearch(''); }}>
+                                              <button style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '4px', color: 'var(--text-primary)', fontWeight: '600', fontSize: '10px', padding: '4px 8px', cursor: 'pointer', display: 'block', margin: '0 auto' }} onClick={() => { setSearchGrupoId(grupo.id); setDocenteSearch(''); }}>
                                                 + AGREGAR DOCENTE
                                               </button>
                                             )}

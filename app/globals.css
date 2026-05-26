@@ -21,9 +21,9 @@
 
 .dark {
   --bg-body: #0F172A;
-  --text-primary: #F8FAFC;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
+  --text-primary: #F1F5F9;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
   --bg-card: #111827;
   --bg-card-hover: #1E293B;
   --border-color: #334155;
@@ -263,6 +263,59 @@ body {
   border-color: var(--input-border);
 }
 
+.btn-exportar-formato-unt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-exportar-formato-unt:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--input-border);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-exportar-formato-unt:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-exportar-formato-unt__icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.dark .btn-exportar-formato-unt {
+  background: #111827;
+  color: #e2e8f0;
+  border-color: #334155;
+  box-shadow: var(--shadow-sm);
+}
+
+.dark .btn-exportar-formato-unt:hover {
+  background: #1e293b;
+  border-color: #475569;
+}
+
+.dark .btn-exportar-formato-unt__icon {
+  color: #cbd5e1;
+}
+
 .btn-danger { 
   background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); 
   color: white; 
@@ -283,6 +336,65 @@ body {
   background: linear-gradient(135deg, #F87171 0%, #EF4444 100%);
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+}
+
+.btn-crud-edit {
+  background: #fccc53;
+  color: #1f2937;
+  border: none;
+  box-shadow: 0 4px 12px rgba(183, 121, 31, 0.26);
+}
+
+.btn-crud-edit:hover {
+  background: linear-gradient(135deg, #e0b02a 0%, #c98b00 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(183, 121, 31, 0.34);
+}
+
+.btn-crud-edit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-crud-deactivate {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  box-shadow: none;
+}
+
+.btn-crud-deactivate:hover {
+  background: transparent;
+  color: var(--text-primary);
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-crud-deactivate:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.dark .btn-crud-edit {
+  background: #b8902c;
+  color: #111827;
+  box-shadow: 0 4px 12px rgba(183, 121, 31, 0.34);
+}
+
+.dark .btn-crud-edit:hover {
+  background: linear-gradient(135deg, #e0b02a 0%, #c98b00 100%);
+}
+
+.dark .btn-crud-deactivate {
+  color: #94a3b8;
+}
+
+.dark .btn-crud-deactivate:hover {
+  color: #e2e8f0;
 }
 
 .badge { 
@@ -381,8 +493,15 @@ tbody tr:hover {
 }
 
 .form-input::placeholder {
-  color: var(--text-muted);
-  opacity: 0.7;
+  color: #94A3B8;
+}
+
+.dark .form-input::placeholder {
+  color: #64748B;
+}
+
+.dark .form-input {
+  color: #F1F5F9;
 }
 
 .modal-overlay { 
@@ -572,8 +691,14 @@ tbody tr:hover {
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg-card-hover);
+}
+
+.horario-time--lunch {
+  color: var(--text-muted);
+  font-weight: 500;
   background: var(--bg-card-hover);
 }
 
@@ -782,4 +907,350 @@ tbody tr:hover {
 @media print { 
   .sidebar, .no-print { display: none !important; } 
   .main-content { margin-left: 0 !important; } 
+}
+
+.dark .block-teoria {
+  background: rgba(59, 130, 246, 0.18) !important;
+  border-left-color: #60a5fa !important;
+  color: #bfdbfe !important;
+}
+
+.dark .block-laboratorio {
+  background: rgba(16, 185, 129, 0.18) !important;
+  border-left-color: #34d399 !important;
+  color: #a7f3d0 !important;
+}
+
+.dark .block-practica {
+  background: rgba(245, 158, 11, 0.18) !important;
+  border-left-color: #fbbf24 !important;
+  color: #fde68a !important;
+}
+
+.dark .bloque-horario {
+  background: rgba(15, 23, 42, 0.94) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .bloque-horario--teoria {
+  background: rgba(30, 64, 175, 0.18) !important;
+}
+
+.dark .bloque-horario--laboratorio {
+  background: rgba(5, 150, 105, 0.18) !important;
+}
+
+.dark .bloque-horario--practica {
+  background: rgba(180, 83, 9, 0.18) !important;
+}
+
+.dark .bloque-horario--asesoria {
+  background: rgba(99, 102, 241, 0.18) !important;
+}
+
+.dark .bloque-horario__titulo,
+.dark .bloque-horario__nombre-curso,
+.dark .bloque-horario__meta,
+.dark .bloque-horario__docente {
+  color: var(--text-primary) !important;
+}
+
+.dark .programar-dia-tabs button.active {
+  background: rgba(59, 130, 246, 0.18) !important;
+  color: #bfdbfe !important;
+  border-color: rgba(59, 130, 246, 0.35) !important;
+}
+
+.dark .dashboard-page .dashboard-chart-card,
+.dark .dashboard-page .dashboard-alert-card,
+.dark .dashboard-page .dashboard-detail-card,
+.dark .horarios-crear-page .card,
+.dark .horarios-disponibilidad-page .card,
+.dark .horarios-programar-page .card,
+.dark .horarios-publicar-page .card,
+.dark .horarios-index-page .card {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark .dashboard-page .dashboard-alert-row,
+.dark .dashboard-page .dashboard-detail-item {
+  background: #1f2937 !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark .dashboard-page .dashboard-alert-row p,
+.dark .dashboard-page .dashboard-alert-row span,
+.dark .dashboard-page .dashboard-detail-item p,
+.dark .dashboard-page .dashboard-detail-item span {
+  color: var(--text-primary) !important;
+}
+
+.dark .horarios-crear-page .table-container,
+.dark .horarios-publicar-page .table-container {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark .horarios-crear-page table,
+.dark .horarios-publicar-page table {
+  background: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .horarios-crear-page thead tr,
+.dark .horarios-crear-page tbody tr,
+.dark .horarios-crear-page tbody td,
+.dark .horarios-crear-page tbody th,
+.dark .horarios-publicar-page thead tr,
+.dark .horarios-publicar-page tbody tr,
+.dark .horarios-publicar-page tbody td,
+.dark .horarios-publicar-page tbody th {
+  background: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark .horarios-disponibilidad-page .horario-grid,
+.dark .horarios-programar-page .horario-grid,
+.dark .horarios-index-page .horario-grid {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark .horarios-disponibilidad-page .horario-time,
+.dark .horarios-disponibilidad-page .horario-cell,
+.dark .horarios-disponibilidad-page .horario-cell--lunch,
+.dark .horarios-programar-page .horario-time,
+.dark .horarios-programar-page .horario-cell,
+.dark .horarios-programar-page .horario-cell--lunch,
+.dark .horarios-index-page .horario-time,
+.dark .horarios-index-page .horario-cell,
+.dark .horarios-index-page .horario-cell--lunch {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .horarios-programar-page .horario-time--lunch,
+.dark .horarios-programar-page .horario-cell--lunch {
+  background: var(--bg-card-hover) !important;
+  color: var(--text-secondary) !important;
+}
+
+.dark .horarios-disponibilidad-page .horario-slot-cell {
+  border-color: var(--border-color) !important;
+}
+
+.dark .horarios-disponibilidad-page .horario-slot-cell--none {
+  background: var(--bg-card) !important;
+  border-color: #374151 !important;
+}
+
+.dark .horarios-crear-page h1,
+.dark .horarios-crear-page h2,
+.dark .horarios-crear-page h3,
+.dark .horarios-crear-page h4,
+.dark .horarios-crear-page p,
+.dark .horarios-crear-page label,
+.dark .horarios-crear-page span {
+  color: var(--text-primary) !important;
+}
+
+.dark .horarios-crear-page .horarios-crear-sidebar,
+.dark .horarios-crear-page .horarios-crear-cycle,
+.dark .horarios-crear-page .horarios-crear-cycle-body,
+.dark .horarios-crear-page .table-container,
+.dark .horarios-crear-page .horarios-crear-table-container,
+.dark .horarios-crear-page .horarios-crear-table {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark .horarios-crear-page .horarios-crear-cycle-header {
+  background: var(--bg-card-hover) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark .horarios-crear-page .horarios-crear-cycle-header span,
+.dark .horarios-crear-page .horarios-crear-table th,
+.dark .horarios-crear-page .horarios-crear-table td {
+  color: var(--text-primary) !important;
+}
+
+.dark .horarios-crear-page .horarios-crear-table thead tr,
+.dark .horarios-crear-page .horarios-crear-table tbody tr,
+.dark .horarios-crear-page .horarios-crear-table tbody td,
+.dark .horarios-crear-page .horarios-crear-table tbody th {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark .horarios-crear-page .horarios-crear-add-group-btn,
+.dark .horarios-crear-page .horarios-crear-import-btn {
+  background: var(--bg-card-hover) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark .horarios-disponibilidad-page .availability-legend__item {
+  color: var(--text-primary) !important;
+}
+
+.dark .horarios-disponibilidad-page .availability-legend__swatch--preferred {
+  background: #14532d !important;
+}
+
+.dark .horarios-disponibilidad-page .availability-legend__swatch--acceptable {
+  background: #854d0e !important;
+}
+
+.dark .horarios-disponibilidad-page .availability-legend__swatch--none {
+  background: #1f2937 !important;
+  border-color: #374151 !important;
+}
+
+.docentes-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.docentes-status-badge--activo {
+  background: rgba(34, 197, 94, 0.12);
+  color: #166534;
+  border-color: rgba(34, 197, 94, 0.18);
+}
+
+.docentes-status-badge--inactivo {
+  background: rgba(148, 163, 184, 0.12);
+  color: #475569;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+.dark .docentes-status-badge--activo {
+  background: rgba(34, 197, 94, 0.16);
+  color: #bbf7d0;
+  border-color: rgba(34, 197, 94, 0.24);
+}
+
+.dark .docentes-status-badge--inactivo {
+  background: rgba(148, 163, 184, 0.16);
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+.dark .horarios-programar-page .csp-stats-card,
+.dark .horarios-programar-page .diagnostico-panel {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark .horarios-programar-page .csp-stats-card h1,
+.dark .horarios-programar-page .csp-stats-card h2,
+.dark .horarios-programar-page .csp-stats-card h3,
+.dark .horarios-programar-page .csp-stats-card p,
+.dark .horarios-programar-page .diagnostico-panel h1,
+.dark .horarios-programar-page .diagnostico-panel h2,
+.dark .horarios-programar-page .diagnostico-panel h3,
+.dark .horarios-programar-page .diagnostico-panel p {
+  color: var(--text-primary) !important;
+}
+
+.dark .horarios-programar-page .diagnostico-panel .diagnostico-row span,
+.dark .horarios-programar-page .diagnostico-panel .diagnostico-detail-cell span {
+  color: inherit !important;
+}
+
+.dark .horarios-programar-page .diagnostico-panel .btn-secondary,
+.dark .horarios-programar-page .diagnostico-panel .btn-primary,
+.dark .horarios-programar-page .diagnostico-panel .btn-danger {
+  color: inherit !important;
+}
+
+.dark .horarios-programar-page .diagnostico-header {
+  background: var(--bg-card-hover) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark .horarios-programar-page .diagnostico-kpis > div,
+.dark .horarios-programar-page .diagnostico-table,
+.dark .horarios-programar-page .diagnostico-table thead tr,
+.dark .horarios-programar-page .diagnostico-table tbody tr,
+.dark .horarios-programar-page .diagnostico-table tbody td,
+.dark .horarios-programar-page .diagnostico-table tbody th,
+.dark .horarios-programar-page .diagnostico-detail-cell {
+  background: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark .horarios-programar-page .diagnostico-detail-cell {
+  background: var(--bg-card-hover) !important;
+}
+
+.dark .horarios-publicar-page h1,
+.dark .horarios-publicar-page h2,
+.dark .horarios-publicar-page h3,
+.dark .horarios-publicar-page p,
+.dark .horarios-publicar-page label,
+.dark .horarios-publicar-page th,
+.dark .horarios-publicar-page td {
+  color: var(--text-primary) !important;
+}
+
+.dark .horarios-publicar-page .horarios-publicar-type,
+.dark .horarios-publicar-page .horarios-publicar-code {
+  color: #e2e8f0 !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.dark .horarios-publicar-page .horarios-publicar-type--teoria {
+  background: #1e293b !important;
+  color: #cbd5e1 !important;
+}
+
+.dark .horarios-publicar-page .horarios-publicar-type--practica {
+  background: #134e4a !important;
+  color: #d1fae5 !important;
+}
+
+.dark .horarios-publicar-page .horarios-publicar-type--laboratorio,
+.dark .horarios-publicar-page .horarios-publicar-type--asesoria {
+  background: #374151 !important;
+  color: #e5e7eb !important;
+}
+
+.dark .horarios-publicar-page .horarios-publicar-code,
+.dark .horarios-publicar-page .horarios-publicar-code--room {
+  background: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .horarios-publicar-page .horarios-publicar-type {
+  border-color: transparent !important;
+}
+
+.dark .horarios-publicar-page .horarios-publicar-summary,
+.dark .horarios-publicar-page .horarios-publicar-filter-card,
+.dark .horarios-publicar-page .horarios-publicar-table-card,
+.dark .horarios-publicar-page .table-container,
+.dark .horarios-publicar-page table {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dark .horarios-publicar-page thead tr,
+.dark .horarios-publicar-page tbody tr,
+.dark .horarios-publicar-page tbody td,
+.dark .horarios-publicar-page tbody th {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
 }

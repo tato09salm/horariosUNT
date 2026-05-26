@@ -297,18 +297,18 @@ export default function AulasPage() {
                   <td className="hide-sm" style={{textAlign:'center'}}>{a.piso}°</td>
                   <td className="hide-sm" style={{color:'#64748b'}}>{a.edificio.toUpperCase()}</td>
                   <td>
-                    <span style={{display:'inline-flex',alignItems:'center',gap:'4px',padding:'2px 8px',borderRadius:'9999px',fontSize:'11px',fontWeight:'600',background:a.disponible?'#dcfce7':'#fee2e2',color:a.disponible?'#166534':'#991b1b'}}>
-                      {a.disponible ? '● Disponible' : '○ Inactivo'}
+                    <span className={`docentes-status-badge ${a.disponible ? 'docentes-status-badge--activo' : 'docentes-status-badge--inactivo'}`}>
+                      {a.disponible ? '● Activo' : '○ Inactivo'}
                     </span>
                   </td>
                   <td>
                     <div style={{display:'flex',gap:'6px'}}>
-                      <button className="btn-secondary" style={{padding:'5px 10px',fontSize:'12px'}} onClick={() => editar(a)}>
-                        <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                      <button className="btn-secondary btn-crud-edit" style={{padding:'5px 10px',fontSize:'12px'}} onClick={() => editar(a)}>
                         <span className="hide-sm">Editar</span>
+                        <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                       </button>
                       <button 
-                        className={a.disponible ? "btn-danger" : "btn-primary"} 
+                        className={a.disponible ? "btn-secondary btn-crud-deactivate" : "btn-primary"} 
                         style={{padding:'5px 10px',fontSize:'12px', minWidth: a.disponible ? '80px' : '60px'}} 
                         onClick={() => toggleEstado(a)}
                       >

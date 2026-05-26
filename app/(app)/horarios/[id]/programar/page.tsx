@@ -210,15 +210,15 @@ export default function ProgramarPage() {
   if (!prog) return <div style={{ padding: '40px', textAlign: 'center' }}>Programación no encontrada</div>;
 
   return (
-    <div style={{ padding: '32px' }}>
+    <div className="horarios-programar-page" style={{ padding: '32px' }}>
       <div style={{ marginBottom: '8px' }}>
         <a href="/horarios" style={{ fontSize: '13px', color: '#64748b', textDecoration: 'none' }}>← Volver a Horarios</a>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', margin: '0 0 4px' }}>{prog.nombre}</h1>
-          <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Fase 3: Programación (Motor CSP)</p>
+          <h1 style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 4px' }}>{prog.nombre}</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>Fase 3: Programación (Motor CSP)</p>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button className="btn-secondary" onClick={() => ejecutarMotor(false)} disabled={resolving || prog.fase !== 3}>
@@ -239,9 +239,9 @@ export default function ProgramarPage() {
       {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
 
       {cspStats && (
-        <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid #6366f1' }}>
-          <h3 style={{ fontSize: '15px', margin: '0 0 12px' }}>Estadísticas CSP</h3>
-          <div style={{ fontSize: '13px', color: '#475569', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+        <div className="card csp-stats-card" style={{ marginBottom: '20px', borderLeft: '4px solid #6366f1', background: 'var(--bg-card)' }}>
+          <h3 style={{ fontSize: '15px', margin: '0 0 12px', color: 'var(--text-primary)' }}>Estadísticas CSP</h3>
+          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
             <span>Asignados: <b>{cspStats.asignados}/{cspStats.total_bloques}</b></span>
             <span>P1 (preferida): <b style={{ color: '#059669' }}>{cspStats.prioridad_alta}</b></span>
             <span>P2 (aceptable): <b style={{ color: '#ca8a04' }}>{cspStats.prioridad_baja}</b></span>
@@ -261,40 +261,41 @@ export default function ProgramarPage() {
 
       {/* ── Panel de Diagnóstico de Disponibilidad Docente ── */}
       {diagnostico && (
-        <div style={{ marginBottom: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+        <div className="diagnostico-panel" style={{ marginBottom: '20px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
 
           {/* Header */}
           <div
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', cursor: 'pointer', background: diagAbierto ? '#f8fafc' : 'white', borderBottom: diagAbierto ? '1px solid #e2e8f0' : 'none' }}
+            className="diagnostico-header"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', cursor: 'pointer', background: diagAbierto ? 'var(--bg-card-hover)' : 'var(--bg-card)', borderBottom: diagAbierto ? '1px solid var(--border-color)' : 'none' }}
             onClick={() => setDiagAbierto(!diagAbierto)}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span style={{ fontSize: '18px' }}>📊</span>
               <div>
-                <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a', margin: 0 }}>
+                <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
                   Diagnóstico de Disponibilidad Docente
                 </h3>
-                <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
                   Análisis de horas requeridas vs. disponibles por docente
                 </p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               {/* Summary badges */}
-              <span style={{ background: '#dcfce7', color: '#166534', fontSize: '11px', fontWeight: '700', padding: '3px 10px', borderRadius: '20px' }}>
+              <span style={{ background: 'rgba(34,197,94,0.16)', color: '#bbf7d0', fontSize: '11px', fontWeight: '700', padding: '3px 10px', borderRadius: '20px' }}>
                 ✓ {diagnostico.resumen.ok} OK
               </span>
               {diagnostico.resumen.alertas > 0 && (
-                <span style={{ background: '#fee2e2', color: '#991b1b', fontSize: '11px', fontWeight: '700', padding: '3px 10px', borderRadius: '20px' }}>
+                <span style={{ background: 'rgba(239,68,68,0.16)', color: '#fecaca', fontSize: '11px', fontWeight: '700', padding: '3px 10px', borderRadius: '20px' }}>
                   ⚠ {diagnostico.resumen.alertas} con alertas
                 </span>
               )}
               {diagnostico.resumen.total_horas_faltantes > 0 && (
-                <span style={{ background: '#fef3c7', color: '#92400e', fontSize: '11px', fontWeight: '700', padding: '3px 10px', borderRadius: '20px' }}>
+                <span style={{ background: 'rgba(245,158,11,0.16)', color: '#fde68a', fontSize: '11px', fontWeight: '700', padding: '3px 10px', borderRadius: '20px' }}>
                   +{diagnostico.resumen.total_horas_faltantes}h a agregar
                 </span>
               )}
-              <span style={{ fontSize: '12px', color: '#94a3b8', marginLeft: '4px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginLeft: '4px' }}>
                 {diagAbierto ? '▲' : '▼'}
               </span>
             </div>
@@ -304,46 +305,46 @@ export default function ProgramarPage() {
             <div style={{ padding: '0' }}>
 
               {/* Summary KPI row */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0', borderBottom: '1px solid #f1f5f9' }}>
+              <div className="diagnostico-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0', borderBottom: '1px solid #f1f5f9' }}>
                 {[
-                  { label: 'Docentes en programación', value: diagnostico.resumen.total_docentes, color: '#1a3a5c', bg: '#eff6ff' },
-                  { label: 'Con disponibilidad OK', value: diagnostico.resumen.ok, color: '#059669', bg: '#f0fdf4' },
-                  { label: 'Con alertas de disponibilidad', value: diagnostico.resumen.alertas, color: diagnostico.resumen.alertas > 0 ? '#dc2626' : '#059669', bg: diagnostico.resumen.alertas > 0 ? '#fef2f2' : '#f0fdf4' },
-                  { label: 'Horas totales a agregar', value: `${diagnostico.resumen.total_horas_faltantes}h`, color: diagnostico.resumen.total_horas_faltantes > 0 ? '#d97706' : '#059669', bg: diagnostico.resumen.total_horas_faltantes > 0 ? '#fffbeb' : '#f0fdf4' },
+                  { label: 'Docentes en programación', value: diagnostico.resumen.total_docentes, color: '#93c5fd', bg: 'rgba(59,130,246,0.10)' },
+                  { label: 'Con disponibilidad OK', value: diagnostico.resumen.ok, color: '#6ee7b7', bg: 'rgba(16,185,129,0.10)' },
+                  { label: 'Con alertas de disponibilidad', value: diagnostico.resumen.alertas, color: diagnostico.resumen.alertas > 0 ? '#fca5a5' : '#6ee7b7', bg: diagnostico.resumen.alertas > 0 ? 'rgba(239,68,68,0.10)' : 'rgba(16,185,129,0.10)' },
+                  { label: 'Horas totales a agregar', value: `${diagnostico.resumen.total_horas_faltantes}h`, color: diagnostico.resumen.total_horas_faltantes > 0 ? '#fcd34d' : '#6ee7b7', bg: diagnostico.resumen.total_horas_faltantes > 0 ? 'rgba(245,158,11,0.10)' : 'rgba(16,185,129,0.10)' },
                 ].map((kpi, i) => (
-                  <div key={i} style={{ padding: '16px 20px', background: kpi.bg, borderRight: i < 3 ? '1px solid #f1f5f9' : 'none', textAlign: 'center' }}>
+                  <div key={i} className="diagnostico-kpi" style={{ padding: '16px 20px', background: kpi.bg, borderRight: i < 3 ? '1px solid #f1f5f9' : 'none', textAlign: 'center' }}>
                     <div style={{ fontSize: '22px', fontWeight: '800', color: kpi.color }}>{kpi.value}</div>
-                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', lineHeight: '1.3' }}>{kpi.label}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px', lineHeight: '1.3' }}>{kpi.label}</div>
                   </div>
                 ))}
               </div>
 
               {/* Teacher table */}
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <div className="diagnostico-table-wrap" style={{ overflowX: 'auto' }}>
+                <table className="diagnostico-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                   <thead>
-                    <tr style={{ background: '#f8fafc' }}>
-                      <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: '600', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Docente</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Horas de cursos</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>+ Asesoría</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: '#1a3a5c', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Total requerido</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Horas disponibles</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '700', color: '#dc2626', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Horas a agregar</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Bloque máx.</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Días marcados</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Estado</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Cursos</th>
+                    <tr style={{ background: 'var(--bg-card-hover)' }}>
+                      <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Docente</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Horas de cursos</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>+ Asesoría</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: '#93c5fd', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Total requerido</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Horas disponibles</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '700', color: '#f87171', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Horas a agregar</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Bloque máx.</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Días marcados</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Estado</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Cursos</th>
                     </tr>
                   </thead>
                   <tbody>
                     {diagnostico.docentes.map((doc: any, i: number) => {
                       const isAlert = doc.estado !== 'ok';
                       const isExpanded = expandedDocente === doc.docente_id;
-                      const estadoConfig: Record<string, { label: string; bg: string; color: string; icon: string }> = {
-                        ok:                  { label: 'OK',                      bg: '#dcfce7', color: '#166534', icon: '✓' },
-                        horas_insuficientes: { label: 'Horas insuficientes',     bg: '#fee2e2', color: '#991b1b', icon: '✕' },
-                        sin_bloque_continuo: { label: 'Sin bloque continuo',     bg: '#fef3c7', color: '#92400e', icon: '⚡' },
-                        pocos_dias:          { label: 'Pocos días disponibles',  bg: '#fef3c7', color: '#92400e', icon: '📅' },
+                      const estadoConfig: Record<string, { label: string; bg: string; color: string; icon: string; border: string }> = {
+                        ok:                  { label: 'OK',                      bg: 'rgba(148,163,184,0.14)', color: '#cbd5e1', icon: '✓', border: 'rgba(148,163,184,0.24)' },
+                        horas_insuficientes: { label: 'Horas insuficientes',     bg: 'rgba(148,163,184,0.14)', color: '#e2e8f0', icon: '✕', border: 'rgba(148,163,184,0.24)' },
+                        sin_bloque_continuo: { label: 'Sin bloque continuo',     bg: 'rgba(148,163,184,0.14)', color: '#e2e8f0', icon: '⚡', border: 'rgba(148,163,184,0.24)' },
+                        pocos_dias:          { label: 'Pocos días disponibles',  bg: 'rgba(148,163,184,0.14)', color: '#e2e8f0', icon: '📅', border: 'rgba(148,163,184,0.24)' },
                       };
                       const ec = estadoConfig[doc.estado] || estadoConfig.ok;
                       const pct = doc.horas_disponibles > 0 ? Math.min(100, Math.round((doc.horas_requeridas / doc.horas_disponibles) * 100)) : 0;
@@ -351,60 +352,61 @@ export default function ProgramarPage() {
                       return (
                         <Fragment key={doc.docente_id}>
                           <tr
-                            style={{ background: isAlert ? (i % 2 === 0 ? '#fffbeb' : '#fef9f0') : (i % 2 === 0 ? 'white' : '#fafafa'), borderBottom: isExpanded ? 'none' : '1px solid #f1f5f9' }}
+                            className="diagnostico-row"
+                            style={{ background: i % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-card-hover)', borderBottom: isExpanded ? 'none' : '1px solid var(--border-color)' }}
                           >
                             {/* Docente nombre + badges */}
-                            <td style={{ padding: '12px 16px', fontWeight: '600', color: '#0f172a' }}>
+                            <td style={{ padding: '12px 16px', fontWeight: '600', color: 'var(--text-primary)' }}>
                               <div>{doc.docente_nombre}</div>
                               <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '9px', fontWeight: '700', padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase', background: doc.condicion === 'nombrado' ? '#dcfce7' : '#fee2e2', color: doc.condicion === 'nombrado' ? '#166534' : '#991b1b' }}>
+                                <span style={{ fontSize: '9px', fontWeight: '700', padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase', background: doc.condicion === 'nombrado' ? 'rgba(34,197,94,0.12)' : 'rgba(148,163,184,0.14)', color: doc.condicion === 'nombrado' ? '#bbf7d0' : '#cbd5e1', border: '1px solid rgba(148,163,184,0.18)' }}>
                                   {doc.condicion || '—'}
                                 </span>
-                                <span style={{ fontSize: '9px', fontWeight: '600', padding: '1px 5px', borderRadius: '3px', background: '#ede9fe', color: '#5b21b6', textTransform: 'capitalize' }}>
+                                <span style={{ fontSize: '9px', fontWeight: '600', padding: '1px 5px', borderRadius: '3px', background: 'rgba(148,163,184,0.14)', color: '#cbd5e1', border: '1px solid rgba(148,163,184,0.18)', textTransform: 'capitalize' }}>
                                   {doc.categoria || '—'}
                                 </span>
                               </div>
                             </td>
                             {/* Horas cursos */}
-                            <td style={{ padding: '12px', textAlign: 'center', color: '#1e293b', fontWeight: '600' }}>{doc.horas_cursos}h</td>
+                            <td style={{ padding: '12px', textAlign: 'center', color: 'var(--text-primary)', fontWeight: '600' }}>{doc.horas_cursos}h</td>
                             {/* Asesoría */}
-                            <td style={{ padding: '12px', textAlign: 'center', color: '#6366f1', fontWeight: '600' }}>+1h</td>
+                            <td style={{ padding: '12px', textAlign: 'center', color: '#93c5fd', fontWeight: '600' }}>+1h</td>
                             {/* Total requerido */}
                             <td style={{ padding: '12px', textAlign: 'center' }}>
-                              <span style={{ fontWeight: '800', fontSize: '14px', color: '#1a3a5c' }}>{doc.horas_requeridas}h</span>
+                              <span style={{ fontWeight: '800', fontSize: '14px', color: '#93c5fd' }}>{doc.horas_requeridas}h</span>
                             </td>
                             {/* Horas disponibles + mini bar */}
                             <td style={{ padding: '12px', textAlign: 'center' }}>
-                              <div style={{ fontWeight: '600', color: doc.horas_disponibles >= doc.horas_requeridas ? '#059669' : '#dc2626' }}>
+                              <div style={{ fontWeight: '600', color: doc.horas_disponibles >= doc.horas_requeridas ? '#6ee7b7' : '#fca5a5' }}>
                                 {doc.horas_disponibles}h
                               </div>
-                              <div style={{ marginTop: '4px', height: '4px', borderRadius: '2px', background: '#e2e8f0', width: '60px', margin: '4px auto 0' }}>
+                              <div style={{ marginTop: '4px', height: '4px', borderRadius: '2px', background: '#334155', width: '60px', margin: '4px auto 0' }}>
                                 <div style={{ height: '4px', borderRadius: '2px', width: `${Math.min(pct, 100)}%`, background: doc.horas_faltantes > 0 ? '#ef4444' : '#22c55e' }} />
                               </div>
                             </td>
                             {/* Horas a agregar */}
                             <td style={{ padding: '12px', textAlign: 'center' }}>
                               {doc.horas_faltantes > 0 ? (
-                                <span style={{ fontWeight: '800', fontSize: '15px', color: '#dc2626', background: '#fee2e2', padding: '3px 10px', borderRadius: '6px', display: 'inline-block' }}>
+                                <span style={{ fontWeight: '800', fontSize: '15px', color: '#fca5a5', background: 'rgba(239,68,68,0.12)', padding: '3px 10px', borderRadius: '6px', display: 'inline-block' }}>
                                   +{doc.horas_faltantes}h
                                 </span>
                               ) : (
-                                <span style={{ color: '#22c55e', fontWeight: '700' }}>—</span>
+                                <span style={{ color: '#6ee7b7', fontWeight: '700' }}>—</span>
                               )}
                             </td>
                             {/* Bloque máx continuo */}
-                            <td style={{ padding: '12px', textAlign: 'center', color: '#475569' }}>
+                            <td style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                               {doc.max_bloque_continuo != null ? `${doc.max_bloque_continuo}h` : '—'}
                             </td>
                             {/* Días */}
                             <td style={{ padding: '12px', textAlign: 'center' }}>
-                              <span style={{ color: doc.dias_marcados < 3 ? '#dc2626' : '#475569', fontWeight: doc.dias_marcados < 3 ? '700' : '400' }}>
+                              <span style={{ color: doc.dias_marcados < 3 ? '#fca5a5' : 'var(--text-secondary)', fontWeight: doc.dias_marcados < 3 ? '700' : '400' }}>
                                 {doc.dias_marcados ?? doc.dias_disponibles ?? '—'} días
                               </span>
                             </td>
                             {/* Estado badge */}
                             <td style={{ padding: '12px', textAlign: 'center' }}>
-                              <span style={{ fontSize: '10px', fontWeight: '700', padding: '3px 8px', borderRadius: '20px', background: ec.bg, color: ec.color, whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: '10px', fontWeight: '700', padding: '3px 8px', borderRadius: '20px', background: ec.bg, color: ec.color, border: `1px solid ${ec.border}`, whiteSpace: 'nowrap' }}>
                                 {ec.icon} {ec.label}
                               </span>
                             </td>
@@ -412,7 +414,7 @@ export default function ProgramarPage() {
                             <td style={{ padding: '12px', textAlign: 'center' }}>
                               <button
                                 onClick={() => setExpandedDocente(isExpanded ? null : doc.docente_id)}
-                                style={{ fontSize: '11px', color: '#3b82f6', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontWeight: '600' }}
+                                style={{ fontSize: '11px', color: '#bfdbfe', background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.25)', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontWeight: '600' }}
                               >
                                 {doc.cursos.length} cursos {isExpanded ? '▲' : '▼'}
                               </button>
@@ -422,46 +424,46 @@ export default function ProgramarPage() {
                           {/* Expandable course breakdown */}
                           {isExpanded && (
                             <tr key={`${doc.docente_id}-detail`}>
-                              <td colSpan={10} style={{ padding: '0 16px 16px 48px', background: isAlert ? '#fffbeb' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                              <td colSpan={10} className="diagnostico-detail-cell" style={{ padding: '0 16px 16px 48px', background: 'var(--bg-card-hover)', borderBottom: '1px solid var(--border-color)' }}>
                                 <div style={{ paddingTop: '12px' }}>
-                                  <p style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                  <p style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                     Detalle de carga curricular asignada
                                   </p>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                     {doc.cursos.map((c: any, ci: number) => (
-                                      <div key={ci} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'white', borderRadius: '8px', padding: '10px 14px', border: '1px solid #e2e8f0' }}>
-                                        <span style={{ fontWeight: '700', color: '#1a3a5c', fontSize: '12px', minWidth: '80px' }}>{c.codigo}</span>
-                                        <span style={{ flex: 1, color: '#334155', fontSize: '12px' }}>{c.curso_nombre}</span>
-                                        <span style={{ fontSize: '10px', background: '#ede9fe', color: '#5b21b6', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>
+                                      <div key={ci} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-card)', borderRadius: '8px', padding: '10px 14px', border: '1px solid var(--border-color)' }}>
+                                        <span style={{ fontWeight: '700', color: '#93c5fd', fontSize: '12px', minWidth: '80px' }}>{c.codigo}</span>
+                                        <span style={{ flex: 1, color: 'var(--text-primary)', fontSize: '12px' }}>{c.curso_nombre}</span>
+                                        <span style={{ fontSize: '10px', background: 'rgba(139,92,246,0.12)', color: '#c4b5fd', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>
                                           Ciclo {c.ciclo_plan || '—'}
                                         </span>
-                                        {c.horas_teoria > 0 && <span style={{ fontSize: '10px', background: '#dbeafe', color: '#1e40af', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>T: {c.horas_teoria}h</span>}
-                                        {c.horas_practica > 0 && <span style={{ fontSize: '10px', background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>P: {c.horas_practica}h</span>}
-                                        {c.horas_laboratorio > 0 && <span style={{ fontSize: '10px', background: '#d1fae5', color: '#065f46', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>L: {c.horas_laboratorio}h × {c.cantidad_labs} turnos</span>}
-                                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#0f172a', minWidth: '50px', textAlign: 'right' }}>= {c.total_horas}h</span>
+                                        {c.horas_teoria > 0 && <span style={{ fontSize: '10px', background: 'rgba(59,130,246,0.12)', color: '#bfdbfe', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>T: {c.horas_teoria}h</span>}
+                                        {c.horas_practica > 0 && <span style={{ fontSize: '10px', background: 'rgba(245,158,11,0.12)', color: '#fde68a', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>P: {c.horas_practica}h</span>}
+                                        {c.horas_laboratorio > 0 && <span style={{ fontSize: '10px', background: 'rgba(16,185,129,0.12)', color: '#a7f3d0', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>L: {c.horas_laboratorio}h × {c.cantidad_labs} turnos</span>}
+                                        <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-primary)', minWidth: '50px', textAlign: 'right' }}>= {c.total_horas}h</span>
                                       </div>
                                     ))}
                                     {/* Totals row */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f1f5f9', borderRadius: '8px', padding: '10px 14px', border: '1px solid #e2e8f0', marginTop: '4px' }}>
-                                      <span style={{ flex: 1, fontWeight: '700', color: '#334155', fontSize: '12px' }}>Total de horas de clase</span>
-                                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#1a3a5c' }}>{doc.horas_cursos}h</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-card-hover)', borderRadius: '8px', padding: '10px 14px', border: '1px solid var(--border-color)', marginTop: '4px' }}>
+                                      <span style={{ flex: 1, fontWeight: '700', color: 'var(--text-primary)', fontSize: '12px' }}>Total de horas de clase</span>
+                                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#93c5fd' }}>{doc.horas_cursos}h</span>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#eef2ff', borderRadius: '8px', padding: '10px 14px', border: '1px solid #c7d2fe' }}>
-                                      <span style={{ flex: 1, color: '#4338ca', fontSize: '12px' }}>+ 1 hora de asesoría/consejería obligatoria</span>
-                                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#4338ca' }}>{doc.horas_requeridas}h total requerido</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(99,102,241,0.12)', borderRadius: '8px', padding: '10px 14px', border: '1px solid rgba(99,102,241,0.25)' }}>
+                                      <span style={{ flex: 1, color: '#c7d2fe', fontSize: '12px' }}>+ 1 hora de asesoría/consejería obligatoria</span>
+                                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#c7d2fe' }}>{doc.horas_requeridas}h total requerido</span>
                                     </div>
                                     {doc.horas_faltantes > 0 && (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#fef2f2', borderRadius: '8px', padding: '12px 14px', border: '1px solid #fca5a5', marginTop: '4px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(239,68,68,0.12)', borderRadius: '8px', padding: '12px 14px', border: '1px solid rgba(248,113,113,0.35)', marginTop: '4px' }}>
                                         <span style={{ fontSize: '16px' }}>⚠️</span>
                                         <div>
-                                          <div style={{ fontSize: '13px', fontWeight: '700', color: '#991b1b' }}>
+                                          <div style={{ fontSize: '13px', fontWeight: '700', color: '#fca5a5' }}>
                                             Se deben agregar <strong>{doc.horas_faltantes} hora{doc.horas_faltantes > 1 ? 's' : ''} de disponibilidad</strong> a este docente
                                           </div>
-                                          <div style={{ fontSize: '12px', color: '#b91c1c', marginTop: '2px' }}>
+                                          <div style={{ fontSize: '12px', color: '#fecaca', marginTop: '2px' }}>
                                             Disponibles: {doc.horas_disponibles}h · Requeridas: {doc.horas_requeridas}h · Diferencia: {doc.horas_faltantes}h
                                           </div>
                                         </div>
-                                        <a href={`/horarios/${progId}/disponibilidad`} style={{ marginLeft: 'auto', background: '#dc2626', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: '600', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                        <a href={`/horarios/${progId}/disponibilidad`} style={{ marginLeft: 'auto', background: '#b91c1c', color: 'white', borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: '600', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
                                           Ajustar disponibilidad →
                                         </a>
                                       </div>
@@ -484,22 +486,22 @@ export default function ProgramarPage() {
 
       {/* Panel de Alertas y Conflictos del Motor CSP */}
       {conflictos.length > 0 && (
-        <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid #ef4444', background: '#fef2f2', padding: '20px', borderRadius: '12px' }}>
+        <div className="card conflictos-panel" style={{ marginBottom: '20px', borderLeft: '4px solid #ef4444', background: 'var(--bg-card)', padding: '20px', borderRadius: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => setConflictosAbiertos(!conflictosAbiertos)}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '20px' }}>⚠️</span>
-              <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#991b1b', margin: 0 }}>
+              <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
                 Conflictos y Cursos sin Asignar ({conflictos.length})
               </h3>
             </div>
-            <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: '12px', background: 'white', borderColor: '#fca5a5', color: '#991b1b' }}>
+            <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: '12px', background: 'var(--bg-card-hover)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>
               {conflictosAbiertos ? '▲ Colapsar' : '▼ Expandir'}
             </button>
           </div>
           
           {conflictosAbiertos && (
             <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <p style={{ fontSize: '13px', color: '#7f1d1d', margin: 0, lineHeight: '1.4' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
                 El motor de asignación CSP ha detectado incompatibilidades o restricciones insatisfechas al procesar el horario. Revise el detalle de cada bloque no asignado para ver el motivo exacto (ej. docente sin disponibilidad o cruce de aulas/grupos).
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '350px', overflowY: 'auto', paddingRight: '8px' }}>
@@ -509,11 +511,11 @@ export default function ProgramarPage() {
                     <div 
                       key={conf.id || index} 
                       style={{ 
-                        background: 'white', 
+                        background: 'var(--bg-card)', 
                         borderRadius: '8px', 
                         padding: '14px', 
-                        border: `1px solid ${esCritico ? '#fee2e2' : '#fef3c7'}`,
-                        borderLeft: `4px solid ${esCritico ? '#dc2626' : '#d97706'}`,
+                        border: `1px solid var(--border-color)`,
+                        borderLeft: `4px solid ${esCritico ? '#f87171' : '#fbbf24'}`,
                         boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
                       }}
                     >
@@ -522,26 +524,26 @@ export default function ProgramarPage() {
                           fontSize: '10px', 
                           fontWeight: 'bold', 
                           textTransform: 'uppercase',
-                          color: esCritico ? '#dc2626' : '#b45309',
-                          background: esCritico ? '#fee2e2' : '#fef3c7',
+                          color: esCritico ? '#fca5a5' : '#fde68a',
+                          background: esCritico ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)',
                           padding: '3px 8px',
                           borderRadius: '4px',
                           letterSpacing: '0.05em'
                         }}>
                           {translateTipo(conf.tipo)}
                         </span>
-                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
                           Prioridad: <b style={{ color: esCritico ? '#dc2626' : '#d97706' }}>{translateSeveridad(conf.severidad)}</b>
                         </span>
                       </div>
                       <div style={{ 
                         fontSize: '13px', 
-                        color: '#1e293b', 
+                        color: 'var(--text-primary)', 
                         whiteSpace: 'pre-wrap', 
-                        background: '#f8fafc', 
+                        background: 'var(--bg-card-hover)', 
                         padding: '10px 14px', 
                         borderRadius: '6px', 
-                        border: '1px solid #f1f5f9', 
+                        border: '1px solid var(--border-color)', 
                         margin: '6px 0 10px', 
                         lineHeight: '1.5' 
                       }}>
@@ -550,17 +552,17 @@ export default function ProgramarPage() {
                       {conf.sugerencia && (
                         <div style={{ 
                           fontSize: '12px', 
-                          color: '#1e3a8a', 
+                          color: '#bfdbfe', 
                           display: 'flex', 
                           alignItems: 'flex-start', 
                           gap: '8px', 
-                          background: '#eff6ff', 
+                          background: 'rgba(59,130,246,0.12)', 
                           padding: '8px 12px', 
                           borderRadius: '6px', 
-                          border: '1px solid #dbeafe',
+                          border: '1px solid rgba(59,130,246,0.25)',
                           lineHeight: '1.4'
                         }}>
-                          <span style={{ color: '#2563eb', fontWeight: '700', flexShrink: 0 }}>💡 Acción sugerida:</span>
+                          <span style={{ color: '#93c5fd', fontWeight: '700', flexShrink: 0 }}>💡 Acción sugerida:</span>
                           <span>{formatearSugerencia(conf.sugerencia)}</span>
                         </div>
                       )}

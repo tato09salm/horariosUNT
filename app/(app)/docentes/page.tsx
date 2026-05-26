@@ -267,7 +267,7 @@ export default function DocentesPage() {
   });
 
   return (
-    <div className="page-container">
+    <div className="page-container docentes-page">
 
       {/* Toast */}
       {toast && (
@@ -419,24 +419,24 @@ export default function DocentesPage() {
                     <div className="hide-sm" style={{fontSize:'12px',color:'#94a3b8'}}>{d.email || '—'}</div>
                   </td>
                   <td style={{fontFamily:'monospace'}}>{d.dni}</td>
-                  <td className="hide-sm"><span className={`badge badge-${d.categoria}`}>{d.categoria.replace('_',' ')}</span></td>
-                  <td className="hide-sm"><span className={`badge badge-${d.condicion}`}>{d.condicion}</span></td>
-                  <td className="hide-sm" style={{fontSize:'12px',color:'#64748b'}}>{d.grado_academico}</td>
+                  <td className="hide-sm"><span className={`badge badge-${d.categoria}`}>{d.categoria.replace('_',' ').toUpperCase()}</span></td>
+                  <td className="hide-sm"><span className={`badge badge-${d.condicion}`}>{d.condicion.toUpperCase()}</span></td>
+                  <td className="hide-sm" style={{fontSize:'12px',color:'#64748b'}}>{d.grado_academico.toUpperCase()}</td>
                   <td className="hide-sm" style={{fontSize:'12px',color:'#64748b'}}>{d.fecha_ingreso?.split('T')[0]}</td>
                   <td className="hide-sm" style={{textAlign:'center',fontWeight:'600'}}>{d.horas_max_semana}h</td>
                   <td className="hide-sm">
-                    <span style={{display:'inline-flex',alignItems:'center',gap:'4px',padding:'2px 8px',borderRadius:'9999px',fontSize:'11px',fontWeight:'600',background:d.activo?'#dcfce7':'#fee2e2',color:d.activo?'#166534':'#991b1b'}}>
+                    <span className={`docentes-status-badge ${d.activo ? 'docentes-status-badge--activo' : 'docentes-status-badge--inactivo'}`}>
                       {d.activo ? '● Activo' : '○ Inactivo'}
                     </span>
                   </td>
                   <td>
                     <div style={{display:'flex',gap:'6px'}}>
-                      <button className="btn-secondary" style={{padding:'5px 10px',fontSize:'12px'}} onClick={() => editar(d)}>
+                      <button className="btn-secondary btn-crud-edit" style={{padding:'5px 10px',fontSize:'12px'}} onClick={() => editar(d)}>
                         <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                         <span className="hide-sm">Editar</span>
                       </button>
                       <button
-                        className={d.activo ? 'btn-danger' : 'btn-primary'}
+                        className={d.activo ? 'btn-secondary btn-crud-deactivate' : 'btn-primary'}
                         style={{padding:'5px 10px',fontSize:'12px',minWidth:d.activo?'80px':'60px'}}
                         onClick={() => toggleEstado(d)}
                       >

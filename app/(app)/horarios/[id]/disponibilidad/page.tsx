@@ -216,7 +216,7 @@ export default function DisponibilidadPage() {
   if (!prog) return <div style={{ padding: '40px', textAlign: 'center' }}>Programación no encontrada</div>;
 
   return (
-    <div style={{ padding: '32px' }}>
+    <div className="horarios-disponibilidad-page" style={{ padding: '32px' }}>
       <div style={{ marginBottom: '8px' }}>
         <a href="/horarios" style={{ fontSize: '13px', color: '#64748b', textDecoration: 'none' }}>← Volver a Horarios</a>
       </div>
@@ -228,7 +228,7 @@ export default function DisponibilidadPage() {
         {isAdminOrSec && (
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <input type="file" accept=".csv" ref={fileInputRef} style={{ display: 'none' }} onChange={importarCSV} />
-            <button className="btn-secondary" style={{ background: '#fff', border: '1px solid #cbd5e1' }} onClick={() => fileInputRef.current?.click()} disabled={saving || loading}>
+            <button className="btn-secondary" onClick={() => fileInputRef.current?.click()} disabled={saving || loading}>
               📥 Importar CSV
             </button>
             <button className="btn-secondary" onClick={notificarDocentes}>Notificar Docentes</button>
@@ -266,9 +266,9 @@ export default function DisponibilidadPage() {
 
       <div className="card" style={{ overflowX: 'auto' }}>
         <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap', fontSize: '13px' }}>
-          <span><span style={{ display: 'inline-block', width: 14, height: 14, background: '#059669', marginRight: 6 }} /> Preferida ({contarPrioridad(1)})</span>
-          <span><span style={{ display: 'inline-block', width: 14, height: 14, background: '#fde047', marginRight: 6 }} /> Aceptable ({contarPrioridad(2)})</span>
-          <span><span style={{ display: 'inline-block', width: 14, height: 14, background: '#fef2f2', border: '1px solid #fecaca', marginRight: 6 }} /> No disponible</span>
+          <span className="availability-legend__item availability-legend__preferred"><span className="availability-legend__swatch availability-legend__swatch--preferred" style={{ display: 'inline-block', width: 14, height: 14, background: '#059669', marginRight: 6 }} /> Preferida ({contarPrioridad(1)})</span>
+          <span className="availability-legend__item availability-legend__acceptable"><span className="availability-legend__swatch availability-legend__swatch--acceptable" style={{ display: 'inline-block', width: 14, height: 14, background: '#fde047', marginRight: 6 }} /> Aceptable ({contarPrioridad(2)})</span>
+          <span className="availability-legend__item availability-legend__none"><span className="availability-legend__swatch availability-legend__swatch--none" style={{ display: 'inline-block', width: 14, height: 14, background: '#fef2f2', border: '1px solid #fecaca', marginRight: 6 }} /> No disponible</span>
         </div>
         <div className="horario-grid" style={{ minWidth: '900px' }}>
           <div className="horario-header">Hora</div>
@@ -283,6 +283,7 @@ export default function DisponibilidadPage() {
                   const st = PRIORIDAD_STYLE[p];
                   return (
                     <div key={`${dia}-${slot.id}`} onClick={() => toggleSlot(dia, slot.id)}
+                      className={`horario-slot-cell${p === 0 ? ' horario-slot-cell--none' : ''}`}
                       style={{ borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', background: st.bg, minHeight: 36, cursor: 'pointer' }} />
                   );
                 })}
