@@ -57,7 +57,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const anterior = await queryOne(`SELECT * FROM programaciones WHERE id = $1`, [id]);
   if (!anterior) return NextResponse.json({ error: 'No encontrada' }, { status: 404 });
 
-  if (anterior.estado === 'publicado') {
+  const vuelveAProgramacionDesdePublicado = anterior.estado === 'publicado' && body.fase !== undefined && parseInt(body.fase) === 3;
+
+  if (anterior.estado === 'publicado' && !vuelveAProgramacionDesdePublicado) {
     return NextResponse.json({ error: 'No se puede modificar una programación publicada' }, { status: 400 });
   }
 
@@ -94,6 +96,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     values.push(nuevaFase);
     updates.push(`estado = $${idx++}`);
     values.push(estadoMap[nuevaFase]);
+
+    if (anterior.estado === 'publicado' && nuevaFase === 3) {
+      await query(`DELETE FROM asignaciones WHERE ciclo_id = $1`, [anterior.ciclo_id]);
+      updates.push('publicado_at = NULL');
+      updates.push('publicado_por = NULL');
+    }
 
     // Si avanza a fase 4 → publicar
     if (nuevaFase === 4) {

@@ -81,7 +81,7 @@ export function SelectorDocente({
   
   return (
     <div className="selector-docente" style={{ position: 'relative', width: '100%', maxWidth: '360px' }}>
-      <label className="selector-label" style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>
+      <label className="selector-label" style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px' }}>
         Filtrar por Docente (Autocompletado):
       </label>
       
@@ -103,10 +103,11 @@ export function SelectorDocente({
           style={{
             width: '100%',
             padding: '10px 36px 10px 12px',
-            border: '1px solid #cbd5e1',
+            border: '1px solid var(--input-border)',
             borderRadius: '8px',
             fontSize: '13px',
-            background: '#ffffff',
+            background: 'var(--input-bg)',
+            color: 'var(--text-primary)',
             boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
             outline: 'none',
             transition: 'all 0.2s'
@@ -153,8 +154,8 @@ export function SelectorDocente({
           top: '100%',
           left: 0,
           right: 0,
-          background: 'white',
-          border: '1px solid #cbd5e1',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-color)',
           borderRadius: '8px',
           marginTop: '4px',
           maxHeight: '260px',
@@ -175,26 +176,26 @@ export function SelectorDocente({
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                borderBottom: '1px solid #f1f5f9',
+                borderBottom: '1px solid var(--border-color)',
                 transition: 'background 0.15s'
               }}
             >
               <div className="docente-info" style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, flex: 1, marginRight: '8px' }}>
-                <span className="docente-nombre" style={{ fontSize: '13px', color: '#1e293b', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span className="docente-nombre" style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {docente.apellidos}, {docente.nombre}
                 </span>
-                <span className="docente-categoria" style={{ fontSize: '11px', color: '#64748b', textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span className="docente-categoria" style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {displayCategory(docente.categoria)} - {docente.condicion || ''}
                 </span>
               </div>
               <span className="docente-carga" style={{
                 fontSize: '11px',
-                color: '#1e3a8a',
-                background: '#eff6ff',
+                  color: '#bfdbfe',
+                  background: 'rgba(59,130,246,0.12)',
                 padding: '2px 8px',
                 borderRadius: '12px',
                 fontWeight: '600',
-                border: '1px solid #dbeafe',
+                  border: '1px solid rgba(59,130,246,0.25)',
                 flexShrink: 0
               }}>
                 {docente.horas_asignadas || 0}h / {docente.horas_max_semana || 20}h
@@ -210,12 +211,12 @@ export function SelectorDocente({
           top: '100%',
           left: 0,
           right: 0,
-          background: 'white',
-          border: '1px solid #cbd5e1',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-color)',
           borderRadius: '8px',
           marginTop: '4px',
           padding: '12px',
-          color: '#64748b',
+          color: 'var(--text-secondary)',
           fontStyle: 'italic',
           textAlign: 'center',
           fontSize: '12px',
