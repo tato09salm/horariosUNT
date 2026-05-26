@@ -1,4 +1,4 @@
-import { generarHorarioCSP } from './lib/horarios-csp';
+import { generarHorarioCSP } from '../lib/horarios-csp';
 async function run() {
   console.log("Iniciando CSP...");
   const progId = process.argv[2];
