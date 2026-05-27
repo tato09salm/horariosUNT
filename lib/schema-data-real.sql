@@ -355,8 +355,6 @@ VALUES
 ('Alberto', 'Asmat Alva', '52525252', 'aasmat@unt.edu.pe', 'asociado', 'nombrado', '2013-03-01', 'magister', 20),
 -- CSV DNI: 54545454 → CF-601 (Ciclo VI 2025-II, solo 2025-II)
 ('Juan Manuel', 'Granda Fernández', '54545454', 'jgranda@unt.edu.pe', 'asociado', 'nombrado', '2014-03-01', 'magister', 20),
--- CSV DNI: 56565656 → FIS-601 (Ciclo VI 2025-II, solo 2025-II)
-('Juan', 'Cabanillas', '56565656', 'jcabanillas@unt.edu.pe', 'principal', 'nombrado', '2009-03-01', 'doctor', 20),
 -- CSV DNI: 57575757 → AMB-601 (Ciclo VI 2025-II, solo 2025-II)
 ('Luis', 'Moncada Albites', '57575757', 'lmoncada@unt.edu.pe', 'asociado', 'nombrado', '2015-03-01', 'magister', 20),
 -- CSV DNI: 62626262 → DER-801 (Ciclo VIII 2025-II, solo 2025-II)

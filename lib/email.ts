@@ -41,6 +41,10 @@ interface EmailOptions {
 
 export async function enviarEmail({ to, subject, text, html }: EmailOptions) {
   try {
+    if (process.env.EMAILS_DISABLED === 'true') {
+      console.log('Emails deshabilitados por EMAILS_DISABLED=true. Omitiendo envio a %s.', to);
+      return null;
+    }
     const transporter = getTransporter();
     const info = await transporter.sendMail({
       from: `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL}>`,

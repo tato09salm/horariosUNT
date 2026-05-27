@@ -1,7 +1,10 @@
 module.exports = {
       up: async (qi) => {
-        await qi.bulkInsert('docentes', [
-          { nombre: 'Marcelino', apellidos: 'Torres Villanueva', dni: '11111111', email: 'mtorres@unt.edu.pe', categoria: 'principal', condicion: 'nombrado', fecha_ingreso: '2000-03-01', grado_academico: 'doctor', horas_max_semana: 20 },
+        const prevEmailsDisabled = process.env.EMAILS_DISABLED;
+        process.env.EMAILS_DISABLED = 'true';
+        try {
+          await qi.bulkInsert('docentes', [
+            { nombre: 'Marcelino', apellidos: 'Torres Villanueva', dni: '11111111', email: 'mtorres@unt.edu.pe', categoria: 'principal', condicion: 'nombrado', fecha_ingreso: '2000-03-01', grado_academico: 'doctor', horas_max_semana: 20 },
           { nombre: 'Bertha', apellidos: 'Urtecho Zavaleta', dni: '44444444', email: 'burtecho@unt.edu.pe', categoria: 'principal', condicion: 'nombrado', fecha_ingreso: '1998-03-01', grado_academico: 'doctor', horas_max_semana: 20 },
           { nombre: 'Jose Luis', apellidos: 'Ponte Bejarano', dni: '55555555', email: 'jponte@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2010-03-01', grado_academico: 'magister', horas_max_semana: 20 },
           { nombre: 'Jorge Luis', apellidos: 'Rios Gonzales', dni: '66666666', email: 'jrios@unt.edu.pe', categoria: 'auxiliar', condicion: 'contratado', fecha_ingreso: '2015-08-01', grado_academico: 'licenciado', horas_max_semana: 16 },
@@ -27,7 +30,7 @@ module.exports = {
           { nombre: 'Juan Pedro', apellidos: 'Santos Fernández', dni: '34343434', email: 'jsantos@unt.edu.pe', categoria: 'principal', condicion: 'nombrado', fecha_ingreso: '2005-03-01', grado_academico: 'doctor', horas_max_semana: 20 },
           { nombre: 'Ricardo', apellidos: 'Mendoza Rivera', dni: '35353535', email: 'rmendoza@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2010-03-01', grado_academico: 'magister', horas_max_semana: 20 },
           { nombre: 'Oscar Romel', apellidos: 'Alcántara Moreno', dni: '36363636', email: 'oalcantara@unt.edu.pe', categoria: 'auxiliar', condicion: 'contratado', fecha_ingreso: '2018-08-01', grado_academico: 'licenciado', horas_max_semana: 16 },
-          { nombre: 'Jhoe', apellidos: 'Gonzalez Vasquez', dni: '37373737', email: 'jgonzalez@unt.edu.pe', categoria: 'principal', condicion: 'nombrado', fecha_ingreso: '2008-03-01', grado_academico: 'doctor', horas_max_semana: 20 },
+          { nombre: 'Jhoe Alexis', apellidos: 'Gonzalez Vasquez', dni: '37373737', email: 'jgonzalez@unt.edu.pe', categoria: 'principal', condicion: 'nombrado', fecha_ingreso: '2008-03-01', grado_academico: 'doctor', horas_max_semana: 20 },
           { nombre: 'José', apellidos: 'Gómez Ávila', dni: '38383838', email: 'jgomez@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2011-03-01', grado_academico: 'magister', horas_max_semana: 20 },
           { nombre: 'Edgard', apellidos: 'Pelaez Vinces', dni: '40404040', email: 'epelaez@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2007-03-01', grado_academico: 'magister', horas_max_semana: 20 },
           { nombre: 'Diego', apellidos: 'Llaro Cruz', dni: '41414141', email: 'dllaro@unt.edu.pe', categoria: 'auxiliar', condicion: 'contratado', fecha_ingreso: '2018-08-01', grado_academico: 'licenciado', horas_max_semana: 16 },
@@ -37,10 +40,12 @@ module.exports = {
           { nombre: 'Segundo Roseli', apellidos: 'Jauregui Rosas', dni: '45454545', email: 'sjauregui@unt.edu.pe', categoria: 'principal', condicion: 'nombrado', fecha_ingreso: '2005-03-01', grado_academico: 'doctor', horas_max_semana: 20 },
           { nombre: 'Alberto', apellidos: 'Asmat Alva', dni: '52525252', email: 'aasmat@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2013-03-01', grado_academico: 'magister', horas_max_semana: 20 },
           { nombre: 'Juan Manuel', apellidos: 'Granda Fernández', dni: '54545454', email: 'jgranda@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2014-03-01', grado_academico: 'magister', horas_max_semana: 20 },
-          { nombre: 'Juan', apellidos: 'Cabanillas', dni: '56565656', email: 'jcabanillas@unt.edu.pe', categoria: 'principal', condicion: 'nombrado', fecha_ingreso: '2009-03-01', grado_academico: 'doctor', horas_max_semana: 20 },
           { nombre: 'Luis', apellidos: 'Moncada Albites', dni: '57575757', email: 'lmoncada@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2015-03-01', grado_academico: 'magister', horas_max_semana: 20 },
-          { nombre: 'Marco Celi', apellidos: 'Arevalo', dni: '62626262', email: 'marevalo@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2012-03-01', grado_academico: 'magister', horas_max_semana: 20 }
-        ], {});
+            { nombre: 'Marco Celi', apellidos: 'Arevalo', dni: '62626262', email: 'marevalo@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2012-03-01', grado_academico: 'magister', horas_max_semana: 20 }
+          ], {});
+        } finally {
+          process.env.EMAILS_DISABLED = prevEmailsDisabled;
+        }
       },
       down: async qi => qi.bulkDelete('docentes', null, {})
     };
