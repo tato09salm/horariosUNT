@@ -14,7 +14,8 @@ export function BotonExportarFormatoUNT({
     setCargando(true);
     try {
       const response = await fetch(
-        `/api/horarios/programaciones/${programacionId}/exportar-unt`
+        `/api/horarios/programaciones/${programacionId}/exportar-unt`,
+        { cache: 'no-store' }
       );
       
       if (!response.ok) {

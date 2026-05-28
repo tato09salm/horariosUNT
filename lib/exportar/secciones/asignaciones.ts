@@ -77,19 +77,40 @@ export function aplicarAsignaciones(
     const indiceColor = mapaDocenteColor.get(bloque.docente_id) ?? 0;
     const color = PALETA_COLORES_UNT[indiceColor % PALETA_COLORES_UNT.length];
     
-    // Desmerge previo (las filas ya tienen merge horizontal)
+    // Desmerge previo para evitar conflictos con merges existentes
+    const masters = new Set<string>();
     for (let f = filaInicio; f <= filaFin; f++) {
-      const rangoFila = `${colDia.inicio}${f}:${colDia.fin}${f}`;
-      try {
-        ws.unMergeCells(rangoFila);
-      } catch (e) {
-        // Si no estaba mergeado, ignorar
+      const colStart = colDia.inicio.charCodeAt(0);
+      const colEnd = colDia.fin.charCodeAt(0);
+      for (let c = colStart; c <= colEnd; c++) {
+        const charCol = String.fromCharCode(c);
+        const cell = ws.getCell(`${charCol}${f}`);
+        if (cell.isMerged && cell.master) {
+          masters.add(cell.master.address);
+        }
       }
     }
+    masters.forEach(addr => {
+      try {
+        ws.unMergeCells(addr);
+      } catch (e) {
+        // Ignorar si ya no existe el merge
+      }
+    });
     
     // Hacer merge del bloque completo (vertical + horizontal)
     const rangoBloque = `${colDia.inicio}${filaInicio}:${colDia.fin}${filaFin}`;
-    ws.mergeCells(rangoBloque);
+    try {
+      ws.mergeCells(rangoBloque);
+    } catch (e) {
+      // Si hay solapes residuales, intentar limpiar y reintentar
+      try {
+        ws.unMergeCells(rangoBloque);
+        ws.mergeCells(rangoBloque);
+      } catch (e2) {
+        // Si falla, omitir el merge para evitar romper la exportacion
+      }
+    }
     
     // Construir contenido (2-3 líneas)
     const lineas: string[] = [];

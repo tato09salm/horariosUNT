@@ -23,11 +23,24 @@ export function aplicarTablaDocentes(
   ws: ExcelJS.Worksheet,
   docentes: DocenteFila[]
 ) {
+  const safeMerge = (range: string) => {
+    try {
+      ws.unMergeCells(range);
+    } catch (e) {
+      // Ignore when there is nothing to unmerge
+    }
+    try {
+      ws.mergeCells(range);
+    } catch (e) {
+      // Ignore if still merged by another range
+    }
+  };
+
   // Hacer merges para todas las filas (1-14)
   for (let fila = 1; fila <= 14; fila++) {
-    ws.mergeCells(`G${fila}:H${fila}`);
-    ws.mergeCells(`I${fila}:J${fila}`);
-    ws.mergeCells(`P${fila}:Q${fila}`);
+    safeMerge(`G${fila}:H${fila}`);
+    safeMerge(`I${fila}:J${fila}`);
+    safeMerge(`P${fila}:Q${fila}`);
   }
   
   // ===== ENCABEZADO (Fila 1) =====

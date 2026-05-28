@@ -32,7 +32,7 @@ export interface BlockGroup {
   tipo_sesion: string;
 }
 
-const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'];
 
 function hashSeed(s: string): number {
   let h = 0;

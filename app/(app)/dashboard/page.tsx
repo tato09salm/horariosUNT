@@ -105,111 +105,116 @@ export default function DashboardPage() {
   const isDocente = user?.rol === 'docente';
   const { darkMode } = useTheme();
 
+  const fetchDashboard = async (selectedCicloId?: string): Promise<DashboardApiResponse | null> => {
+    const url = selectedCicloId ? `/api/dashboard?ciclo_id=${selectedCicloId}` : '/api/dashboard';
+    const res = await fetch(url);
+    const text = await res.text();
+    if (!text) {
+      if (!res.ok) {
+        throw new Error(`Respuesta vacia del servidor (${res.status})`);
+      }
+      console.warn(`Respuesta vacia del servidor en ${url}`);
+      return null;
+    }
+    let payload: DashboardApiResponse | null = null;
+    try {
+      payload = JSON.parse(text) as DashboardApiResponse;
+    } catch {
+      throw new Error('Respuesta no valida del servidor');
+    }
+    if (!res.ok) {
+      throw new Error(payload?.error || 'No se pudo cargar el dashboard');
+    }
+    let finalPayload = payload;
+
+    const statsEmpty = (payload?.stats?.totalAsignaciones || 0) === 0;
+    if (statsEmpty && payload?.ciclo?.id) {
+      try {
+        const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${payload.ciclo.id}`).then(r => r.json() as Promise<ProgramacionesApiResponse>);
+        const progs = progsRes.data || [];
+        const selectedProg = progs.find((p) => p.estado === 'publicado') || progs[0];
+        if (selectedProg) {
+          const exportRes = await fetch(`/api/horarios/programaciones/${selectedProg.id}/exportar`);
+          if (exportRes.ok) {
+            const exportData = await exportRes.json();
+            const asignaciones = exportData.asignaciones || [];
+
+            if (asignaciones.length > 0) {
+              const totalSlots = (payload?.slots?.length || 0) * 5 || 1;
+
+              const docenteMap = new Map<string, DashboardCargaDocente>();
+              const cursosSet = new Set<string>();
+              const ambientesMap = new Map<string, DashboardOcupacion>();
+              const diasMap = new Map<string, number>();
+              const tipoMap = new Map<string, number>();
+              const slotMap = new Map<string, number>();
+
+              asignaciones.forEach((a: { docente_id?: string; docente_nombre?: string; curso_codigo?: string; aula?: string; dia?: string; tipo_sesion?: string; tipo?: string; hora_inicio?: string; hora_fin?: string; }) => {
+                if (a.docente_id) {
+                  const current: DashboardCargaDocente = docenteMap.get(a.docente_id) || {
+                    nombre: a.docente_nombre || 'Docente',
+                    categoria: 'auxiliar',
+                    condicion: 'contratado',
+                    horas_max_semana: 20,
+                    horas_asignadas: 0,
+                    porcentaje_carga: 0,
+                  };
+                  current.horas_asignadas += 1;
+                  current.porcentaje_carga = Math.round((current.horas_asignadas * 100) / (current.horas_max_semana || 1));
+                  docenteMap.set(a.docente_id, current);
+                }
+                if (a.curso_codigo) cursosSet.add(a.curso_codigo);
+                if (a.aula) {
+                  const amb: DashboardOcupacion = ambientesMap.get(a.aula) || { nombre: a.aula, tipo: 'aula', codigo: a.aula, horas_usadas: 0, porcentaje: 0 };
+                  amb.horas_usadas += 1;
+                  amb.porcentaje = Math.round((amb.horas_usadas * 1000) / totalSlots) / 10;
+                  ambientesMap.set(a.aula, amb);
+                }
+                if (a.dia) diasMap.set(a.dia, (diasMap.get(a.dia) || 0) + 1);
+                const tipo = a.tipo_sesion || a.tipo || 'teoria';
+                tipoMap.set(tipo, (tipoMap.get(tipo) || 0) + 1);
+                if (a.hora_inicio && a.hora_fin) {
+                  const key = `${a.hora_inicio}-${a.hora_fin}`;
+                  slotMap.set(key, (slotMap.get(key) || 0) + 1);
+                }
+              });
+
+              finalPayload = {
+                ...payload,
+                stats: {
+                  ...payload.stats,
+                  totalDocentes: docenteMap.size,
+                  totalCursos: cursosSet.size,
+                  totalAmbientes: ambientesMap.size,
+                  totalAsignaciones: asignaciones.length,
+                },
+                cargaDocentes: Array.from(docenteMap.values()).sort((a, b) => (b.porcentaje_carga || 0) - (a.porcentaje_carga || 0)),
+                ocupacionAmbientes: Array.from(ambientesMap.values()).sort((a, b) => (b.porcentaje || 0) - (a.porcentaje || 0)),
+                distribucionDias: Array.from(diasMap.entries()).map(([dia, cantidad]) => ({ dia, cantidad })),
+                asignacionesPorTipo: Array.from(tipoMap.entries()).map(([tipo, cantidad]) => ({ tipo, cantidad })),
+                asignacionesPorSlot: Array.from(slotMap.entries()).map(([key, cantidad]) => {
+                  const [hora_inicio, hora_fin] = key.split('-');
+                  return { hora_inicio, hora_fin, cantidad };
+                }),
+              };
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Fallback dashboard export failed', err);
+      }
+    }
+
+    return finalPayload;
+  };
+
   useEffect(() => {
     const loadDashboard = async () => {
+      setLoading(true);
       try {
-        const res = await fetch('/api/dashboard');
-        const text = await res.text();
-        if (!text) {
-          if (!res.ok) {
-            throw new Error(`Respuesta vacia del servidor (${res.status})`);
-          }
-          console.warn('Respuesta vacia del servidor en /api/dashboard');
-          setData(null);
-          setCicloId('');
-          return;
-        }
-        let payload: DashboardApiResponse | null = null;
-        try {
-          payload = JSON.parse(text) as DashboardApiResponse;
-        } catch {
-          throw new Error('Respuesta no valida del servidor');
-        }
-        if (!res.ok) {
-          throw new Error(payload?.error || 'No se pudo cargar el dashboard');
-        }
-        let finalPayload = payload;
-
-        const statsEmpty = (payload?.stats?.totalAsignaciones || 0) === 0;
-        if (statsEmpty && payload?.ciclo?.id) {
-          try {
-            const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${payload.ciclo.id}`).then(r => r.json() as Promise<ProgramacionesApiResponse>);
-            const progs = progsRes.data || [];
-            const selectedProg = progs.find((p) => p.estado === 'publicado') || progs[0];
-            if (selectedProg) {
-              const exportRes = await fetch(`/api/horarios/programaciones/${selectedProg.id}/exportar`);
-              if (exportRes.ok) {
-                const exportData = await exportRes.json();
-                const asignaciones = exportData.asignaciones || [];
-
-                if (asignaciones.length > 0) {
-                  const totalSlots = (payload?.slots?.length || 0) * 5 || 1;
-
-                  const docenteMap = new Map<string, DashboardCargaDocente>();
-                  const cursosSet = new Set<string>();
-                  const ambientesMap = new Map<string, DashboardOcupacion>();
-                  const diasMap = new Map<string, number>();
-                  const tipoMap = new Map<string, number>();
-                  const slotMap = new Map<string, number>();
-
-                  asignaciones.forEach((a: { docente_id?: string; docente_nombre?: string; curso_codigo?: string; aula?: string; dia?: string; tipo_sesion?: string; tipo?: string; hora_inicio?: string; hora_fin?: string; }) => {
-                    if (a.docente_id) {
-                      const current: DashboardCargaDocente = docenteMap.get(a.docente_id) || {
-                        nombre: a.docente_nombre || 'Docente',
-                        categoria: 'auxiliar',
-                        condicion: 'contratado',
-                        horas_max_semana: 20,
-                        horas_asignadas: 0,
-                        porcentaje_carga: 0,
-                      };
-                      current.horas_asignadas += 1;
-                      current.porcentaje_carga = Math.round((current.horas_asignadas * 100) / (current.horas_max_semana || 1));
-                      docenteMap.set(a.docente_id, current);
-                    }
-                    if (a.curso_codigo) cursosSet.add(a.curso_codigo);
-                    if (a.aula) {
-                      const amb: DashboardOcupacion = ambientesMap.get(a.aula) || { nombre: a.aula, tipo: 'aula', codigo: a.aula, horas_usadas: 0, porcentaje: 0 };
-                      amb.horas_usadas += 1;
-                      amb.porcentaje = Math.round((amb.horas_usadas * 1000) / totalSlots) / 10;
-                      ambientesMap.set(a.aula, amb);
-                    }
-                    if (a.dia) diasMap.set(a.dia, (diasMap.get(a.dia) || 0) + 1);
-                    const tipo = a.tipo_sesion || a.tipo || 'teoria';
-                    tipoMap.set(tipo, (tipoMap.get(tipo) || 0) + 1);
-                    if (a.hora_inicio && a.hora_fin) {
-                      const key = `${a.hora_inicio}-${a.hora_fin}`;
-                      slotMap.set(key, (slotMap.get(key) || 0) + 1);
-                    }
-                  });
-
-                  finalPayload = {
-                    ...payload,
-                    stats: {
-                      ...payload.stats,
-                      totalDocentes: docenteMap.size,
-                      totalCursos: cursosSet.size,
-                      totalAmbientes: ambientesMap.size,
-                      totalAsignaciones: asignaciones.length,
-                    },
-                    cargaDocentes: Array.from(docenteMap.values()).sort((a, b) => (b.porcentaje_carga || 0) - (a.porcentaje_carga || 0)),
-                    ocupacionAmbientes: Array.from(ambientesMap.values()).sort((a, b) => (b.porcentaje || 0) - (a.porcentaje || 0)),
-                    distribucionDias: Array.from(diasMap.entries()).map(([dia, cantidad]) => ({ dia, cantidad })),
-                    asignacionesPorTipo: Array.from(tipoMap.entries()).map(([tipo, cantidad]) => ({ tipo, cantidad })),
-                    asignacionesPorSlot: Array.from(slotMap.entries()).map(([key, cantidad]) => {
-                      const [hora_inicio, hora_fin] = key.split('-');
-                      return { hora_inicio, hora_fin, cantidad };
-                    }),
-                  };
-                }
-              }
-            }
-          } catch (err) {
-            console.warn('Fallback dashboard export failed', err);
-          }
-        }
-
+        const finalPayload = await fetchDashboard();
         setData(finalPayload);
-        setCicloId(finalPayload.ciclo?.id || '');
+        setCicloId(finalPayload?.ciclo?.id || '');
       } catch (err) {
         console.error(err);
         alert('No se pudo cargar el dashboard. Revisa tu sesion e intenta nuevamente.');
@@ -241,10 +246,18 @@ export default function DashboardPage() {
     loadProgramaciones();
   }, []);
 
-  function recargar(id: string) {
+  async function recargar(id: string) {
     setCicloId(id);
     setLoading(true);
-    fetch(`/api/dashboard?ciclo_id=${id}`).then(r => r.json()).then(setData).finally(() => setLoading(false));
+    try {
+      const finalPayload = await fetchDashboard(id);
+      setData(finalPayload);
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo cargar el dashboard. Revisa tu sesion e intenta nuevamente.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function generarReporteGestion() {
@@ -502,11 +515,14 @@ export default function DashboardPage() {
     cantidad: Number(a.ambientes),
   })) || [];
 
-  const ocupacionTop = data?.ocupacionAmbientes?.slice(0, 6).map((a) => ({
-    name: a.codigo,
-    porcentaje: Number(a.porcentaje),
-    tipo: a.tipo,
-  })) || [];
+  const ambientesConEspacio = [...(data?.ocupacionAmbientes ?? [])]
+    .sort((a, b) => (a.porcentaje || 0) - (b.porcentaje || 0))
+    .slice(0, 9)
+    .map((a) => ({
+      name: a.codigo,
+      porcentaje: Number(a.porcentaje),
+      tipo: a.tipo,
+    }));
 
   const dashboardStats = data?.stats ?? {};
   const gruposTotal = dashboardStats.totalGrupos || 0;
@@ -520,6 +536,9 @@ export default function DashboardPage() {
   const ciclos = data?.ciclos ?? [];
   const docentesSobrecargaLista = data?.docentesSobrecarga ?? [];
   const capacidadExcedidaLista = data?.capacidadExcedida ?? [];
+  const docentesConEspacio = [...cargaDocentes]
+    .sort((a, b) => (a.porcentaje_carga || 0) - (b.porcentaje_carga || 0))
+    .slice(0, 10);
 
   const asignacionesPorSlot = data?.asignacionesPorSlot?.map((s) => ({
     name: `${formatTime(s.hora_inicio)}-${formatTime(s.hora_fin)}`,
@@ -532,6 +551,8 @@ export default function DashboardPage() {
   })) || [];
 
   const conflictosPendientes = data?.conflictosPendientes || 0;
+  const hasAlertas = gruposSinHorario > 0 || docentesSobrecargaLista.length > 0 || capacidadExcedidaLista.length > 0 || conflictosPendientes > 0;
+  const hasDetalles = docentesSobrecargaLista.length > 0 || capacidadExcedidaLista.length > 0;
 
   const COLORS = darkMode ? DARK_COLORS : LIGHT_COLORS;
 
@@ -739,85 +760,95 @@ export default function DashboardPage() {
       </div>
 
       {/* Alertas y acciones */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(360px, 1fr))',gap:'24px',marginBottom:'24px'}}>
-        <div className="card dashboard-alert-card" style={{padding:'20px', border:'1px solid var(--border-color)', background: 'var(--bg-card)'}}>
-          <h3 style={{fontSize:'16px',fontWeight:'600',color:'var(--text-primary)',margin:'0 0 14px',display:'flex',alignItems:'center',gap:'8px'}}>
-            <span style={{background: darkMode ? 'rgba(239,68,68,0.15)' : '#fee2e2', padding:'6px', borderRadius:'8px', color: darkMode ? '#f87171' : '#b91c1c'}}>⚠️</span> Alertas operativas
-          </h3>
-          <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
-            <div className="dashboard-alert-row" style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',border:'1px solid var(--border-color)',borderRadius:'8px',background:'var(--bg-card-hover)'}}>
-              <div>
-                <p style={{margin:'0 0 4px',fontSize:'13px',fontWeight:'600',color:'var(--text-primary)'}}>Grupos sin horario</p>
-                <p style={{margin:0,fontSize:'12px',color:'var(--text-muted)'}}>Pendientes de asignar en el ciclo</p>
-              </div>
-              <span style={{fontSize:'14px',fontWeight:'700',color:gruposSinHorario > 0 ? (darkMode ? '#f87171' : '#b91c1c') : (darkMode ? '#34d399' : '#166534')}}>{gruposSinHorario}</span>
-            </div>
-
-            <div className="dashboard-alert-row" style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',border:'1px solid var(--border-color)',borderRadius:'8px',background:'var(--bg-card-hover)'}}>
-              <div>
-                <p style={{margin:'0 0 4px',fontSize:'13px',fontWeight:'600',color:'var(--text-primary)'}}>Docentes sobrecargados</p>
-                <p style={{margin:0,fontSize:'12px',color:'var(--text-muted)'}}>Superan horas maximas</p>
-              </div>
-              <span style={{fontSize:'14px',fontWeight:'700',color:docentesSobrecargaLista.length > 0 ? (darkMode ? '#fbbf24' : '#b45309') : (darkMode ? '#34d399' : '#166534')}}>{docentesSobrecargaLista.length}</span>
-            </div>
-
-            <div className="dashboard-alert-row" style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',border:'1px solid var(--border-color)',borderRadius:'8px',background:'var(--bg-card-hover)'}}>
-              <div>
-                <p style={{margin:'0 0 4px',fontSize:'13px',fontWeight:'600',color:'var(--text-primary)'}}>Capacidad excedida</p>
-                <p style={{margin:0,fontSize:'12px',color:'var(--text-muted)'}}>Aulas con sobrecupo</p>
-              </div>
-              <span style={{fontSize:'14px',fontWeight:'700',color:capacidadExcedidaLista.length > 0 ? (darkMode ? '#fbbf24' : '#b45309') : (darkMode ? '#34d399' : '#166534')}}>{capacidadExcedidaLista.length}</span>
-            </div>
-
-            <div className="dashboard-alert-row" style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',border:'1px solid var(--border-color)',borderRadius:'8px',background:'var(--bg-card-hover)'}}>
-              <div>
-                <p style={{margin:'0 0 4px',fontSize:'13px',fontWeight:'600',color:'var(--text-primary)'}}>Conflictos pendientes</p>
-                <p style={{margin:0,fontSize:'12px',color:'var(--text-muted)'}}>Registros sin resolver</p>
-              </div>
-              <span style={{fontSize:'14px',fontWeight:'700',color:conflictosPendientes > 0 ? (darkMode ? '#f87171' : '#b91c1c') : (darkMode ? '#34d399' : '#166534')}}>{conflictosPendientes}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="card dashboard-detail-card" style={{padding:'20px', border:'1px solid var(--border-color)', background: 'var(--bg-card)'}}>
-          <h3 style={{fontSize:'16px',fontWeight:'600',color:'var(--text-primary)',margin:'0 0 14px',display:'flex',alignItems:'center',gap:'8px'}}>
-            <span style={{background: darkMode ? 'rgba(14,165,233,0.15)' : '#e0f2fe', padding:'6px', borderRadius:'8px', color: darkMode ? '#38bdf8' : '#0369a1'}}>📌</span> Detalles prioritarios
-          </h3>
-          <div style={{display:'grid',gridTemplateColumns:'1fr',gap:'12px'}}>
-            <div className="dashboard-detail-item" style={{border:'1px solid var(--border-color)',borderRadius:'10px',padding:'12px',background:'var(--bg-card-hover)'}}>
-              <p style={{margin:'0 0 8px',fontSize:'13px',fontWeight:'600',color:'var(--text-primary)'}}>Docentes sobrecarga</p>
-              {docentesSobrecargaLista.length > 0 ? (
-                <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
-                  {docentesSobrecargaLista.slice(0, 4).map((d) => (
-                    <div key={d.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                      <span style={{fontSize:'12px',color:'var(--text-primary)'}}>{d.nombre}</span>
-                      <span style={{fontSize:'12px',fontWeight:'600',color: darkMode ? '#fbbf24' : '#b45309'}}>{d.horas_asignadas} / {d.horas_max_semana}h</span>
+      {(hasAlertas || hasDetalles) && (
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(360px, 1fr))',gap:'24px',marginBottom:'24px'}}>
+          {hasAlertas && (
+            <div className="card dashboard-alert-card" style={{padding:'20px', border:'1px solid var(--border-color)', background: 'var(--bg-card)'}}>
+              <h3 style={{fontSize:'16px',fontWeight:'600',color:'var(--text-primary)',margin:'0 0 14px',display:'flex',alignItems:'center',gap:'8px'}}>
+                <span style={{background: darkMode ? 'rgba(239,68,68,0.15)' : '#fee2e2', padding:'6px', borderRadius:'8px', color: darkMode ? '#f87171' : '#b91c1c'}}>⚠️</span> Alertas operativas
+              </h3>
+              <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                {gruposSinHorario > 0 && (
+                  <div className="dashboard-alert-row" style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',border:'1px solid var(--border-color)',borderRadius:'8px',background:'var(--bg-card-hover)'}}>
+                    <div>
+                      <p style={{margin:'0 0 4px',fontSize:'13px',fontWeight:'600',color:'var(--text-primary)'}}>Grupos sin horario</p>
+                      <p style={{margin:0,fontSize:'12px',color:'var(--text-muted)'}}>Pendientes de asignar en el ciclo</p>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p style={{margin:0,fontSize:'12px',color:'var(--text-muted)'}}>Sin sobrecargas detectadas.</p>
-              )}
-            </div>
+                    <span style={{fontSize:'14px',fontWeight:'700',color:darkMode ? '#f87171' : '#b91c1c'}}>{gruposSinHorario}</span>
+                  </div>
+                )}
 
-            <div className="dashboard-detail-item" style={{border:'1px solid var(--border-color)',borderRadius:'10px',padding:'12px',background:'var(--bg-card-hover)'}}>
-              <p style={{margin:'0 0 8px',fontSize:'13px',fontWeight:'600',color:'var(--text-primary)'}}>Aulas con sobrecupo</p>
-              {capacidadExcedidaLista.length > 0 ? (
-                <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
-                  {capacidadExcedidaLista.slice(0, 4).map((c) => (
-                    <div key={c.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                      <span style={{fontSize:'12px',color:'var(--text-primary)'}}>{c.curso} · G{c.numero_grupo}</span>
-                      <span style={{fontSize:'12px',fontWeight:'600',color: darkMode ? '#fbbf24' : '#b45309'}}>{c.num_alumnos}/{c.capacidad}</span>
+                {docentesSobrecargaLista.length > 0 && (
+                  <div className="dashboard-alert-row" style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',border:'1px solid var(--border-color)',borderRadius:'8px',background:'var(--bg-card-hover)'}}>
+                    <div>
+                      <p style={{margin:'0 0 4px',fontSize:'13px',fontWeight:'600',color:'var(--text-primary)'}}>Docentes sobrecargados</p>
+                      <p style={{margin:0,fontSize:'12px',color:'var(--text-muted)'}}>Superan horas maximas</p>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p style={{margin:0,fontSize:'12px',color:'var(--text-muted)'}}>Sin sobrecupo registrado.</p>
-              )}
+                    <span style={{fontSize:'14px',fontWeight:'700',color:darkMode ? '#fbbf24' : '#b45309'}}>{docentesSobrecargaLista.length}</span>
+                  </div>
+                )}
+
+                {capacidadExcedidaLista.length > 0 && (
+                  <div className="dashboard-alert-row" style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',border:'1px solid var(--border-color)',borderRadius:'8px',background:'var(--bg-card-hover)'}}>
+                    <div>
+                      <p style={{margin:'0 0 4px',fontSize:'13px',fontWeight:'600',color:'var(--text-primary)'}}>Capacidad excedida</p>
+                      <p style={{margin:0,fontSize:'12px',color:'var(--text-muted)'}}>Aulas con sobrecupo</p>
+                    </div>
+                    <span style={{fontSize:'14px',fontWeight:'700',color:darkMode ? '#fbbf24' : '#b45309'}}>{capacidadExcedidaLista.length}</span>
+                  </div>
+                )}
+
+                {conflictosPendientes > 0 && (
+                  <div className="dashboard-alert-row" style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',border:'1px solid var(--border-color)',borderRadius:'8px',background:'var(--bg-card-hover)'}}>
+                    <div>
+                      <p style={{margin:'0 0 4px',fontSize:'13px',fontWeight:'600',color:'var(--text-primary)'}}>Conflictos pendientes</p>
+                      <p style={{margin:0,fontSize:'12px',color:'var(--text-muted)'}}>Registros sin resolver</p>
+                    </div>
+                    <span style={{fontSize:'14px',fontWeight:'700',color:darkMode ? '#f87171' : '#b91c1c'}}>{conflictosPendientes}</span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
+
+          {hasDetalles && (
+            <div className="card dashboard-detail-card" style={{padding:'20px', border:'1px solid var(--border-color)', background: 'var(--bg-card)'}}>
+              <h3 style={{fontSize:'16px',fontWeight:'600',color:'var(--text-primary)',margin:'0 0 14px',display:'flex',alignItems:'center',gap:'8px'}}>
+                <span style={{background: darkMode ? 'rgba(14,165,233,0.15)' : '#e0f2fe', padding:'6px', borderRadius:'8px', color: darkMode ? '#38bdf8' : '#0369a1'}}>📌</span> Detalles prioritarios
+              </h3>
+              <div style={{display:'grid',gridTemplateColumns:'1fr',gap:'12px'}}>
+                {docentesSobrecargaLista.length > 0 && (
+                  <div className="dashboard-detail-item" style={{border:'1px solid var(--border-color)',borderRadius:'10px',padding:'12px',background:'var(--bg-card-hover)'}}>
+                    <p style={{margin:'0 0 8px',fontSize:'13px',fontWeight:'600',color:'var(--text-primary)'}}>Docentes sobrecarga</p>
+                    <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+                      {docentesSobrecargaLista.slice(0, 4).map((d) => (
+                        <div key={d.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                          <span style={{fontSize:'12px',color:'var(--text-primary)'}}>{d.nombre}</span>
+                          <span style={{fontSize:'12px',fontWeight:'600',color: darkMode ? '#fbbf24' : '#b45309'}}>{d.horas_asignadas} / {d.horas_max_semana}h</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {capacidadExcedidaLista.length > 0 && (
+                  <div className="dashboard-detail-item" style={{border:'1px solid var(--border-color)',borderRadius:'10px',padding:'12px',background:'var(--bg-card-hover)'}}>
+                    <p style={{margin:'0 0 8px',fontSize:'13px',fontWeight:'600',color:'var(--text-primary)'}}>Aulas con sobrecupo</p>
+                    <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+                      {capacidadExcedidaLista.slice(0, 4).map((c) => (
+                        <div key={c.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                          <span style={{fontSize:'12px',color:'var(--text-primary)'}}>{c.curso} · G{c.numero_grupo}</span>
+                          <span style={{fontSize:'12px',fontWeight:'600',color: darkMode ? '#fbbf24' : '#b45309'}}>{c.num_alumnos}/{c.capacidad}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* Widget de Fases Activas */}
       {programaciones.filter((p) => p.estado !== 'cancelado').length > 0 && (
@@ -991,10 +1022,10 @@ export default function DashboardPage() {
           whileHover={{ scale: 1.01, boxShadow: 'var(--shadow-lg)' }}
         >
           <h3 style={{fontSize:'16px',fontWeight:'600',color: 'var(--text-primary)',margin:'0 0 20px', display:'flex', alignItems:'center', gap:'8px'}}>
-            <span style={{background: darkMode ? 'rgba(245,158,11,0.15)' : '#fffbeb', padding:'6px', borderRadius:'8px', color: darkMode ? '#fbbf24' : '#f59e0b'}}><Building2 size={18} strokeWidth={2} /></span> Ambientes más utilizados
+            <span style={{background: darkMode ? 'rgba(245,158,11,0.15)' : '#fffbeb', padding:'6px', borderRadius:'8px', color: darkMode ? '#fbbf24' : '#f59e0b'}}><Building2 size={18} strokeWidth={2} /></span> Ambientes con mayor disponibilidad
           </h3>
           <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
-            {ocupacionTop.length > 0 ? ocupacionTop.map((a, i: number) => (
+            {ambientesConEspacio.length > 0 ? ambientesConEspacio.map((a, i: number) => (
               <motion.div 
                 key={i} 
                 style={{background: 'var(--bg-card-hover)', padding:'12px', borderRadius:'12px', border:'1px solid var(--border-color)'}}
@@ -1021,10 +1052,10 @@ export default function DashboardPage() {
           whileHover={{ scale: 1.01, boxShadow: 'var(--shadow-lg)' }}
         >
           <h3 style={{fontSize:'16px',fontWeight:'600',color: 'var(--text-primary)',margin:'0 0 20px', display:'flex', alignItems:'center', gap:'8px'}}>
-            <span style={{background: darkMode ? 'rgba(16,185,129,0.15)' : '#f0fdf4', padding:'6px', borderRadius:'8px', color: darkMode ? '#34d399' : '#10b981'}}><Users size={18} strokeWidth={2} /></span> Docentes con mayor carga horaria
+            <span style={{background: darkMode ? 'rgba(16,185,129,0.15)' : '#f0fdf4', padding:'6px', borderRadius:'8px', color: darkMode ? '#34d399' : '#10b981'}}><Users size={18} strokeWidth={2} /></span> Docentes con mayor disponibilidad
           </h3>
-          <div style={{display:'flex',flexDirection:'column',gap:'12px',maxHeight:'320px',overflowY:'auto', paddingRight:'8px'}}>
-            {cargaDocentes.length > 0 ? cargaDocentes.slice(0, 10).map((d, i: number) => {
+          <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
+            {docentesConEspacio.length > 0 ? docentesConEspacio.map((d, i: number) => {
               const pct = Number(d.porcentaje_carga || 0);
               return (
               <motion.div 
@@ -1039,7 +1070,7 @@ export default function DashboardPage() {
                 </div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:'flex',justifyContent:'space-between',marginBottom:'4px'}}>
-                    <span style={{fontSize:'13px',color: 'var(--text-primary)',fontWeight:'600',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}} title={d.nombre}>{d.nombre}</span>
+                    <span style={{fontSize:'13px',color: 'var(--text-primary)',fontWeight:'600',whiteSpace:'normal',wordBreak:'break-word',flex:1}} title={d.nombre}>{d.nombre}</span>
                     <span style={{fontSize:'12px',color: 'var(--text-muted)',flexShrink:0,marginLeft:'8px', fontWeight:'600'}}>{d.horas_asignadas} / {d.horas_max_semana}h</span>
                   </div>
                   <div style={{background: 'var(--border-color)',borderRadius:'9999px',height:'6px'}}>

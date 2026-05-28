@@ -448,10 +448,12 @@ export default function ProgramarPage() {
                                       <span style={{ flex: 1, fontWeight: '700', color: 'var(--text-primary)', fontSize: '12px' }}>Total de horas de clase</span>
                                       <span style={{ fontSize: '13px', fontWeight: '800', color: '#93c5fd' }}>{doc.horas_cursos}h</span>
                                     </div>
+                                    {/*
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(99,102,241,0.12)', borderRadius: '8px', padding: '10px 14px', border: '1px solid rgba(99,102,241,0.25)' }}>
                                       <span style={{ flex: 1, color: '#c7d2fe', fontSize: '12px' }}>+ 1 hora de asesoría/consejería obligatoria</span>
                                       <span style={{ fontSize: '13px', fontWeight: '800', color: '#c7d2fe' }}>{doc.horas_requeridas}h total requerido</span>
                                     </div>
+                                    */}
                                     {doc.horas_faltantes > 0 && (
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(239,68,68,0.12)', borderRadius: '8px', padding: '12px 14px', border: '1px solid rgba(248,113,113,0.35)', marginTop: '4px' }}>
                                         <span style={{ fontSize: '16px' }}>⚠️</span>

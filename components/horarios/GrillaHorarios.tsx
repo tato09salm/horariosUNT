@@ -178,7 +178,10 @@ export default function GrillaHorarios({
         <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', borderBottom: '2px solid var(--border-color)', paddingBottom: '8px', marginBottom: '16px', fontWeight: '600' }}>
           {titulo}
         </h4>
-        <div className={`horario-grid horario-grid--responsive${isMobile ? ' horario-grid--mobile-one-day' : ''}`}>
+        <div
+          className={`horario-grid horario-grid--responsive${isMobile ? ' horario-grid--mobile-one-day' : ''}`}
+          style={{ gridTemplateColumns: `90px repeat(${DIAS.length}, 1fr)` }}
+        >
           <div className="horario-header horario-header--show">Hora</div>
           {DIAS.map(d => (
             <div key={d} className={`horario-header${diasGrilla.includes(d) ? ' horario-header--show' : ''}`}>

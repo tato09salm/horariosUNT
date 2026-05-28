@@ -347,9 +347,13 @@ export default function HorariosPage() {
                             Cancelar
                           </button>
                         )}
-                        
-                        <BotonExportarFormatoUNT programacionId={prog.id} />
-                        <BotonExportarExcel programacionId={prog.id} variant="icon" />
+
+                        {(prog.fase === 4 || prog.estado === 'publicado') && (
+                          <>
+                            <BotonExportarFormatoUNT programacionId={prog.id} />
+                            <BotonExportarExcel programacionId={prog.id} variant="icon" />
+                          </>
+                        )}
 
                         <a href={isDocente ? `/horarios/${prog.id}/disponibilidad` : getFaseUrl(prog)} style={{textDecoration:'none'}}>
                           <button className="btn-primary" style={{padding:'6px 14px',fontSize:'13px'}}>

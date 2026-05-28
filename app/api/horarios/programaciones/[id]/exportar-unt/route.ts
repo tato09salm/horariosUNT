@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+function jsonNoStore(body: any, init?: { status?: number }) {
+  const res = NextResponse.json(body, init);
+  res.headers.set('Cache-Control', 'no-store, max-age=0');
+  return res;
+}
+
 function esUUIDValido(uuid: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
 }
@@ -20,7 +29,7 @@ export async function GET(
 ) {
   const session = await getSession();
   if (!session) {
-    return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    return jsonNoStore({ error: 'No autenticado' }, { status: 401 });
   }
 
   try {
@@ -28,7 +37,7 @@ export async function GET(
     const programacionId = id;
 
     if (!esUUIDValido(programacionId)) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: 'UUID inválido' },
         { status: 400 }
       );
@@ -47,7 +56,14 @@ export async function GET(
 
     if (!prog) {
       console.log("DEBUG [exportar-unt]: Programming not found, returning 404");
-      return NextResponse.json({ error: 'Programación no encontrada' }, { status: 404 });
+      return jsonNoStore({ error: 'Programación no encontrada' }, { status: 404 });
+    }
+
+    if (prog.fase !== 4 && prog.estado !== 'publicado') {
+      return jsonNoStore(
+        { error: 'El formato UNT solo se habilita cuando la programación está en Fase 4' },
+        { status: 400 }
+      );
     }
 
     // 2. Cargar asignaciones crudas (borrador en config, o activas en tabla real)
@@ -201,7 +217,7 @@ export async function GET(
       });
     }
 
-    return NextResponse.json({
+    return jsonNoStore({
       programacion: {
         año: prog.año?.toString() ?? '2025',
         semestre: prog.semestre ?? 'II',
@@ -213,7 +229,7 @@ export async function GET(
 
   } catch (error) {
     console.error('❌ Error al exportar horario para Excel (Formato UNT):', error);
-    return NextResponse.json(
+    return jsonNoStore(
       { error: error instanceof Error ? error.message : 'Error desconocido' },
       { status: 500 }
     );

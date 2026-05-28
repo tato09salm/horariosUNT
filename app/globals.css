@@ -643,7 +643,7 @@ tbody tr:hover {
 
 .horario-grid { 
   display: grid; 
-  grid-template-columns: 90px repeat(6, 1fr); 
+  grid-template-columns: 90px repeat(5, 1fr); 
   border: 1px solid var(--border-color); 
   border-radius: 12px; 
   overflow: hidden; 

@@ -203,7 +203,7 @@ export default function AuditoriaPage() {
                     <div style={{fontWeight:'500',fontSize:'13px', color: 'var(--text-primary)'}}>{log.usuario_nombre||'—'}</div>
                     <div style={{fontSize:'11px',color:'var(--text-muted)'}}>{log.usuario_email||''}</div>
                   </td>
-                  <td style={{fontSize:'12px',color:'var(--text-secondary)',textTransform:'uppercase'}}>—</td>
+                  <td style={{fontSize:'12px',color:'var(--text-secondary)',textTransform:'uppercase'}}>{log.usuario_rol?.toUpperCase() || '—'}</td>
                   <td>{getAccionBadge(log.accion)}</td>
                   <td style={{fontSize:'12px',color:'var(--text-secondary)',fontFamily:'monospace'}}>{log.tabla_afectada?.toUpperCase()||'—'}</td>
                   <td style={{fontSize:'12px',color:'var(--text-primary)',maxWidth:'250px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{log.descripcion||'—'}</td>

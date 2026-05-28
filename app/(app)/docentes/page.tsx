@@ -40,6 +40,17 @@ function validarForm(d: Partial<Docente>): FormErrors {
   return e;
 }
 
+function getPeruTodayISO(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Lima',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const map = new Map(parts.map((p) => [p.type, p.value]));
+  return `${map.get('year')}-${map.get('month')}-${map.get('day')}`;
+}
+
 export default function DocentesPage() {
   const { darkMode } = useTheme();
 
@@ -184,7 +195,7 @@ export default function DocentesPage() {
   }
 
   function nuevo() {
-    const base = { ...emptyDocente };
+    const base = { ...emptyDocente, fecha_ingreso: getPeruTodayISO() };
     setEditando(base);
     editandoOriginal.current = base;
     setFormErrors({});
