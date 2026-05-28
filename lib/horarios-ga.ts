@@ -42,7 +42,7 @@ type LabUso = {
   docente_id: string;
 };
 
-const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'];
 const POP_SIZE = 40;
 const MAX_GEN = 300;
 const MUTATION_RATE = 0.15;

@@ -62,6 +62,10 @@ export async function verificarConflicto(input: Omit<AsignacionInput, 'created_b
 
 // Crear asignación
 export async function crearAsignacion(input: AsignacionInput): Promise<any> {
+  if (input.dia === 'sabado') {
+    throw new Error('No se permiten clases los sabados');
+  }
+
   const conflicto = await verificarConflicto(input);
   if (conflicto.conflicto) {
     throw new Error(`Conflicto de horario (${conflicto.tipo}): ${conflicto.detalle}`);

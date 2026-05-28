@@ -42,7 +42,7 @@ export async function generarHojaLeyenda(
     ['Teoría [T]', 'Clases lectivas teóricas dictadas en aula.', 'Celeste claro', 'FFE0E7FF'],
     ['Práctica [P]', 'Clases prácticas orientadas a ejercicios o problemas.', 'Verde claro', 'D1FAE5'],
     ['Laboratorio [L]', 'Sesiones experimentales en salas de cómputo/labs.', 'Ámbar claro', 'FEF3C7'],
-    ['Asesoría / Consejería [C]', 'Horas obligatorias de tutoría y consejería docente.', 'Gris neutro', 'FFE5E7EB']
+    // ['Asesoría / Consejería [C]', 'Horas obligatorias de tutoría y consejería docente.', 'Gris neutro', 'FFE5E7EB']
   ];
   
   tiposSesion.forEach(([tipo, desc, colorName, rgbHex]) => {

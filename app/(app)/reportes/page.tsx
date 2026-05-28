@@ -19,6 +19,7 @@ export default function ReportesPage() {
   const [dashData, setDashData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [exportableProgId, setExportableProgId] = useState<string | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,6 +32,28 @@ export default function ReportesPage() {
     fetch('/api/aulas').then(r=>r.json()).then(d=>setAmbientes(d.data||[]));
     fetch('/api/dashboard').then(r=>r.json()).then(d=>{ setSlots(d.slots||[]); setDashData(d); });
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!cicloId) {
+      setExportableProgId(null);
+      return () => { active = false; };
+    }
+
+    fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => {
+        if (!active) return;
+        const progs = d.data || [];
+        const published = progs.find((p: any) => p.estado === 'publicado' || p.fase === 4) || null;
+        setExportableProgId(published ? published.id : null);
+      })
+      .catch(() => {
+        if (active) setExportableProgId(null);
+      });
+
+    return () => { active = false; };
+  }, [cicloId]);
 
   async function generarReporte() {
     if (!cicloId) return;
@@ -697,16 +720,13 @@ export default function ReportesPage() {
       alert('Por favor seleccione un ciclo');
       return;
     }
+    if (!exportableProgId) {
+      alert('El formato UNT solo se habilita cuando la programacion esta en Fase 4.');
+      return;
+    }
     setLoading(true);
     try {
-      const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`).then(r => r.json());
-      const publishedProg = progsRes.data?.find((p: any) => p.estado === 'publicado') || progsRes.data?.[0];
-      
-      if (!publishedProg) {
-        throw new Error('No se encontró ninguna programación para este ciclo.');
-      }
-      
-      const response = await fetch(`/api/horarios/programaciones/${publishedProg.id}/exportar-unt`);
+      const response = await fetch(`/api/horarios/programaciones/${exportableProgId}/exportar-unt`, { cache: 'no-store' });
       if (!response.ok) {
         throw new Error('Error al obtener datos de exportación oficial UNT');
       }
@@ -872,13 +892,15 @@ export default function ReportesPage() {
               <span style={{fontSize:'20px'}}>📄</span>
             </button>
 
-            <button onClick={exportarExcelUNT} className="btn-secondary" style={{justifyContent:'space-between',padding:'14px 16px',borderRadius:'12px',border:'1px solid ' + (darkMode ? 'rgba(99,102,241,0.35)' : '#c7d2fe'),background: darkMode ? 'rgba(99,102,241,0.12)' : '#eef2ff',color: darkMode ? '#c7d2fe' : '#3730a3'}}>
-              <div style={{textAlign:'left'}}>
-                <div style={{fontWeight:'700', color: darkMode ? '#fff' : 'inherit'}}>Excel Formato UNT</div>
-                <div style={{fontSize:'12px',color: darkMode ? '#c7d2fe' : '#4338ca'}}>Formato oficial</div>
-              </div>
-              <span style={{fontSize:'20px'}}>📊</span>
-            </button>
+            {exportableProgId && (
+              <button onClick={exportarExcelUNT} className="btn-secondary" style={{justifyContent:'space-between',padding:'14px 16px',borderRadius:'12px',border:'1px solid ' + (darkMode ? 'rgba(99,102,241,0.35)' : '#c7d2fe'),background: darkMode ? 'rgba(99,102,241,0.12)' : '#eef2ff',color: darkMode ? '#c7d2fe' : '#3730a3'}}>
+                <div style={{textAlign:'left'}}>
+                  <div style={{fontWeight:'700', color: darkMode ? '#fff' : 'inherit'}}>Excel Formato UNT</div>
+                  <div style={{fontSize:'12px',color: darkMode ? '#c7d2fe' : '#4338ca'}}>Formato oficial</div>
+                </div>
+                <span style={{fontSize:'20px'}}>📊</span>
+              </button>
+            )}
 
             <button onClick={exportarCSV} className="btn-secondary" style={{justifyContent:'space-between',padding:'14px 16px',borderRadius:'12px',border:'1px solid var(--border-color)', background:'var(--bg-card)'}}>
               <div style={{textAlign:'left'}}>

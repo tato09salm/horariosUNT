@@ -82,10 +82,12 @@ export default function LeyendaHorarios({
               <span style={{ background: '#166534', color: 'white', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>L</span> 
               <span>Laboratorio (🔬)</span>
             </li>
+            {/*
             <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ background: '#7c2d12', color: 'white', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>C</span> 
+              <span style={{ background: '#7c2d12', color: 'white', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>C</span>
               <span>Consejería / Asesoría (💬)</span>
             </li>
+            */}
           </ul>
         </section>
         
