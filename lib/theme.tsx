@@ -21,16 +21,15 @@ const ThemeContext = createContext<ThemeContextType>({
 export const useTheme = () => useContext(ThemeContext);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-
-  const [darkMode, setDarkMode] = useState(false);
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('darkMode');
-
-    if (savedTheme !== null) {
-      setDarkMode(savedTheme === 'true');
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    // Cliente
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('darkMode') === 'true';
     }
-  }, []);
+
+    // SSR
+    return false;
+  });
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
