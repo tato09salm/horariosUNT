@@ -164,7 +164,65 @@ export async function exportarHorariosFormatoUNT(config: ConfigExportUNT) {
     });
     todasAsignaciones.push(...cicloData.asignaciones);
   }
-  
+
+  // HOJA 1: Información Global (al inicio)
+  const wsInfoGlobal = workbook.addWorksheet('INFORMACIÓN GLOBAL', {
+    pageSetup: {
+      orientation: 'portrait',
+      paperSize: 9,
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+    }
+  });
+
+  // Encabezado institucional
+  wsInfoGlobal.mergeCells('A1:E1');
+  wsInfoGlobal.getCell('A1').value = 'UNIVERSIDAD NACIONAL DE TRUJILLO';
+  wsInfoGlobal.getCell('A1').font = { bold: true, size: 14 };
+  wsInfoGlobal.getCell('A1').alignment = { horizontal: 'center' };
+
+  wsInfoGlobal.mergeCells('A2:E2');
+  wsInfoGlobal.getCell('A2').value = 'Facultad de Ingeniería - Escuela de Ingeniería de Sistemas';
+  wsInfoGlobal.getCell('A2').font = { size: 12 };
+  wsInfoGlobal.getCell('A2').alignment = { horizontal: 'center' };
+
+  wsInfoGlobal.mergeCells('A3:E3');
+  wsInfoGlobal.getCell('A3').value = `HORARIOS ACADÉMICOS - ${config.programacion.año} - ${config.programacion.semestre}`;
+  wsInfoGlobal.getCell('A3').font = { bold: true, size: 13 };
+  wsInfoGlobal.getCell('A3').alignment = { horizontal: 'center' };
+
+  wsInfoGlobal.mergeCells('A4:E4');
+  wsInfoGlobal.getCell('A4').value = `Periodo: ${config.programacion.inicio} al ${config.programacion.termino}`;
+  wsInfoGlobal.getCell('A4').font = { size: 11 };
+  wsInfoGlobal.getCell('A4').alignment = { horizontal: 'center' };
+
+  // Estadísticas generales
+  wsInfoGlobal.getCell('A6').value = 'RESUMEN GENERAL';
+  wsInfoGlobal.getCell('A6').font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+  wsInfoGlobal.getCell('A6').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A3A5C' } };
+  wsInfoGlobal.mergeCells('A6:E6');
+
+  const totalDocentes = docenteNameMap.size;
+  const totalCursos = new Set(todasAsignaciones.map(a => a.curso_codigo)).size;
+  const totalAsignaciones = todasAsignaciones.length;
+  const totalAulas = new Set(todasAsignaciones.map(a => a.aula)).size;
+
+  wsInfoGlobal.getCell('A8').value = 'Total Docentes:';
+  wsInfoGlobal.getCell('B8').value = totalDocentes;
+  wsInfoGlobal.getCell('A9').value = 'Total Cursos:';
+  wsInfoGlobal.getCell('B9').value = totalCursos;
+  wsInfoGlobal.getCell('A10').value = 'Total Asignaciones:';
+  wsInfoGlobal.getCell('B10').value = totalAsignaciones;
+  wsInfoGlobal.getCell('A11').value = 'Total Aulas/Laboratorios:';
+  wsInfoGlobal.getCell('B11').value = totalAulas;
+
+  wsInfoGlobal.getColumn('A').width = 25;
+  wsInfoGlobal.getColumn('B').width = 15;
+  wsInfoGlobal.getColumn('C').width = 25;
+  wsInfoGlobal.getColumn('D').width = 15;
+  wsInfoGlobal.getColumn('E').width = 15;
+
   // Una hoja por cada ciclo (II, IV, VI, VIII, X)
   for (const cicloData of config.ciclos) {
     const ws = crearHojaUNT(workbook, safeSheetName(cicloData.ciclo), {
@@ -241,8 +299,50 @@ export async function exportarHorariosFormatoUNT(config: ConfigExportUNT) {
         });
         aplicarAsignaciones(wsAula, asignacionesAula, mapaDocenteColorAula);
       });
+
+    // HOJAS POR DOCENTE
+    const docentesMap = new Map<string, Asignacion[]>();
+    for (const a of asignacionesGeneral) {
+      const docenteId = normalizarDocenteId(a.docente_id);
+      if (!docentesMap.has(docenteId)) {
+        docentesMap.set(docenteId, []);
+      }
+      docentesMap.get(docenteId)!.push(a);
+    }
+
+    Array.from(docentesMap.entries())
+      .sort((a, b) => {
+        const nombreA = docenteNameMap.get(a[0]) || a[0];
+        const nombreB = docenteNameMap.get(b[0]) || b[0];
+        return nombreA.localeCompare(nombreB);
+      })
+      .forEach(([docenteId, asignacionesDocente]) => {
+        const nombreDocente = docenteNameMap.get(docenteId) || 'Sin docente';
+        const docenteData = docentesGeneral.find(d => d.docente_id === docenteId);
+
+        const wsDocente = crearHojaUNT(workbook, safeSheetName(`DOC-${nombreDocente}`), {
+          ciclo: 'DOCENTE',
+          seccion: nombreDocente,
+          año: config.programacion.año,
+          semestre: config.programacion.semestre,
+          inicio: config.programacion.inicio,
+          termino: config.programacion.termino,
+        });
+
+        if (docenteData) {
+          aplicarTablaDocentes(wsDocente, [docenteData]);
+        }
+
+        const mapaDocenteColorDocente = new Map<string, number>();
+        if (docenteData) {
+          mapaDocenteColorDocente.set(docenteData.docente_id, 0);
+        }
+
+        const asignacionesDocenteRemap = remapAsignacionesDocenteN(asignacionesDocente, docenteData ? [docenteData] : []);
+        aplicarAsignaciones(wsDocente, asignacionesDocenteRemap, mapaDocenteColorDocente);
+      });
   }
-  
+
   // Generar archivo y descargar
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {

@@ -28,6 +28,8 @@ export interface BloqueHorarioProps {
   };
   compact?: boolean;
   mapaColores?: Map<string, ColorCurso>;
+  movidoManualmente?: boolean;
+  bloqueado?: boolean;
 }
 
 function IconoTipoSesion({ tipo }: { tipo: string }) {
@@ -63,7 +65,7 @@ function IconoTipoSesion({ tipo }: { tipo: string }) {
   );
 }
 
-export default function BloqueHorario({ asignacion: c, compact = false, mapaColores }: BloqueHorarioProps) {
+export default function BloqueHorario({ asignacion: c, compact = false, mapaColores, movidoManualmente = false, bloqueado = false }: BloqueHorarioProps) {
   const isAsesoria = c.tipo === 'asesoria';
   const cicloColor = colorCiclo(c.ciclo_plan);
   const tipo = c.tipo || 'teoria';
@@ -97,13 +99,14 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
     <div
       className={`bloque-horario${compact ? ' bloque-horario--compact' : ''}`}
       style={customStyle}
-      title={[
+    title={[
         c.curso_nombre,
         `Sección G${c.numero_grupo}`,
         tipoLabel,
         ambLabel,
         formatDocente(c.docente_nombre),
         c.prioridad_usada ? `Prioridad P${c.prioridad_usada}` : '',
+        movidoManualmente ? '✋ Movido manualmente' : '',
       ].filter(Boolean).join('\n')}
     >
       <div className="bloque-horario__titulo">
@@ -151,6 +154,51 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
           C{c.ciclo_plan}
         </span>
       ) : null}
+      {/* Badge permanente de movimiento manual */}
+      {movidoManualmente && (
+        <span
+          title="Este bloque fue reposicionado manualmente"
+          style={{
+            position: 'absolute',
+            top: '3px',
+            left: '6px',
+            fontSize: '9px',
+            fontWeight: '800',
+            color: '#7c3aed',
+            background: 'rgba(237,233,254,0.95)',
+            padding: '1px 5px',
+            borderRadius: '4px',
+            letterSpacing: '0.3px',
+            border: '1px solid rgba(124,58,237,0.3)',
+            zIndex: 3,
+            pointerEvents: 'none',
+          }}
+        >
+          ✦ manual
+        </span>
+      )}
+      {/* Badge de bloqueo: sesión continua multi-hora, no arrastrable individualmente */}
+      {bloqueado && (
+        <span
+          title={`Bloque continuo (${c.bloque_parte ?? 1}/${c.bloque_total ?? 1}): no se puede mover individualmente`}
+          style={{
+            position: 'absolute',
+            top: '3px',
+            right: '6px',
+            fontSize: '10px',
+            color: '#64748b',
+            background: 'rgba(241,245,249,0.95)',
+            padding: '1px 4px',
+            borderRadius: '4px',
+            border: '1px solid rgba(100,116,139,0.25)',
+            zIndex: 3,
+            pointerEvents: 'none',
+            lineHeight: 1.2,
+          }}
+        >
+          🔒
+        </span>
+      )}
     </div>
   );
 }

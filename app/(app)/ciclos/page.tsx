@@ -308,63 +308,99 @@ export default function CiclosPage() {
       </div>
 
       {/* Filtros */}
-      <div className="card" style={{ marginBottom: '16px', padding: '16px' }}>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <input
-            className="form-input"
-            style={{ flex: '1 1 200px', textTransform: 'uppercase' }}
-            placeholder="Buscar por nombre..."
-            value={buscar}
-            onChange={e => setBuscar(e.target.value.toUpperCase())}
-          />
-          <select
-            className="form-input"
-            style={{ flex: '0 0 auto' }}
-            value={filtroAnio}
-            onChange={e => setFiltroAnio(e.target.value)}
-          >
-            <option value="">Todos los años</option>
-            {aniosDisponibles.map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
-          <select
-            className="form-input"
-            style={{ flex: '0 0 auto' }}
-            value={filtroSemestre}
-            onChange={e => setFiltroSemestre(e.target.value)}
-          >
-            <option value="">Todos los semestres</option>
-            <option value="I">I</option>
-            <option value="II">II</option>
-          </select>
-
-          {/* Botón limpiar */}
-          {hayFiltrosActivos && (
+      <div className="card" style={{ marginBottom: '16px', padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', alignItems: 'end' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Buscar</label>
+            <input
+              className="form-input"
+              style={{ width: '100%', textTransform: 'uppercase', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
+              placeholder="Nombre del ciclo..."
+              value={buscar}
+              onChange={e => setBuscar(e.target.value.toUpperCase())}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Año</label>
+            <select
+              className="form-input"
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px', cursor: 'pointer' }}
+              value={filtroAnio}
+              onChange={e => setFiltroAnio(e.target.value)}
+            >
+              <option value="">Todos los años</option>
+              {aniosDisponibles.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Semestre</label>
+            <select
+              className="form-input"
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px', cursor: 'pointer' }}
+              value={filtroSemestre}
+              onChange={e => setFiltroSemestre(e.target.value)}
+            >
+              <option value="">Todos los semestres</option>
+              <option value="I">I</option>
+              <option value="II">II</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Acciones</label>
             <button
               onClick={limpiarFiltros}
               title="Limpiar filtros"
+              disabled={!hayFiltrosActivos}
               style={{
-                flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
-                padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
-                border: '1.5px solid #fca5a5', background: '#fff5f5', color: '#991b1b',
-                cursor: 'pointer', whiteSpace: 'nowrap',
+                width: 'auto',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: 600,
+                border: '1.5px solid ' + (hayFiltrosActivos ? (darkMode ? 'rgba(239,68,68,0.4)' : '#fca5a5') : (darkMode ? 'rgba(148,163,184,0.2)' : '#e2e8f0')),
+                background: hayFiltrosActivos ? (darkMode ? 'rgba(239,68,68,0.15)' : '#fff5f5') : (darkMode ? 'rgba(148,163,184,0.08)' : '#f8fafc'),
+                color: hayFiltrosActivos ? (darkMode ? '#fca5a5' : '#991b1b') : (darkMode ? '#94a3b8' : '#94a3b8'),
+                cursor: hayFiltrosActivos ? 'pointer' : 'not-allowed',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.2s',
+                opacity: hayFiltrosActivos ? 1 : 0.6,
+              }}
+              onMouseEnter={e => {
+                if (hayFiltrosActivos) {
+                  e.currentTarget.style.background = darkMode ? 'rgba(239,68,68,0.25)' : '#fee2e2';
+                }
+              }}
+              onMouseLeave={e => {
+                if (hayFiltrosActivos) {
+                  e.currentTarget.style.background = darkMode ? 'rgba(239,68,68,0.15)' : '#fff5f5';
+                }
               }}
             >
-              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/>
               </svg>
               Limpiar
             </button>
-          )}
+          </div>
         </div>
 
         {/* Contador resultados */}
         {!loading && hayFiltrosActivos && (
-          <p style={{ margin: '10px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
-            {total === 0
-              ? 'Sin resultados para los filtros aplicados'
-              : <><strong style={{ color: 'var(--text-primary)' }}>{total}</strong> ciclo{total !== 1 ? 's' : ''} encontrado{total !== 1 ? 's' : ''}</>
-            }
-          </p>
+          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--text-secondary)' }}>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
+              {total === 0
+                ? 'Sin resultados para los filtros aplicados'
+                : <><strong style={{ color: 'var(--text-primary)' }}>{total}</strong> ciclo{total !== 1 ? 's' : ''} encontrado{total !== 1 ? 's' : ''}</>
+              }
+            </p>
+          </div>
         )}
       </div>
 
