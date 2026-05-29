@@ -21,16 +21,15 @@ const ThemeContext = createContext<ThemeContextType>({
 export const useTheme = () => useContext(ThemeContext);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-
-  const [darkMode, setDarkMode] = useState(false);
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('darkMode');
-
-    if (savedTheme !== null) {
-      setDarkMode(savedTheme === 'true');
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    // Check localStorage on client-side only to avoid SSR hydration mismatch
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('darkMode') === 'true';
     }
-  }, []);
+
+    // Default to light mode during server-side rendering
+    return false;
+  });
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
