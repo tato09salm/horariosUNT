@@ -21,6 +21,11 @@ export default function ReportesPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [exportableProgId, setExportableProgId] = useState<string | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
+  const [sortBy, setSortBy] = useState<'nombre' | 'horas' | 'cursos'>('nombre');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [filtroDia, setFiltroDia] = useState('');
+  const [filtroTipoSesion, setFiltroTipoSesion] = useState('');
+  const [filtroCurso, setFiltroCurso] = useState('');
 
   useEffect(() => {
     fetch('/api/ciclos').then(r=>r.json()).then(d=>{
@@ -511,6 +516,7 @@ export default function ReportesPage() {
       // Reporte operacional semanal agrupado y pintado
       const docGrp: Record<string,any[]> = {};
       asignaciones.forEach(a => {
+        if (a.tipo === 'asesoria') return; // Excluir asesoría de los PDFs para ahorrar espacio
         const k = tipoReporte==='docente' ? a.docente_nombre : a.ambiente_nombre;
         if (!docGrp[k]) docGrp[k] = [];
         docGrp[k].push(a);
@@ -544,7 +550,7 @@ export default function ReportesPage() {
 
         // Agrupar bloques contiguos
         const bloquesAgrupados = agruparBloquesContiguos(grpAsignaciones);
-        
+
         // Generar mapa de colores
         const mapaColores = generarMapaColores(grpAsignaciones);
         const docentesUnicos = Array.from(
@@ -562,10 +568,9 @@ export default function ReportesPage() {
           ).values()
         );
         const totalHoras = bloquesAgrupados.reduce((acc, bloque) => acc + bloque.duracion_horas, 0);
-        const resumirLista = (items: any[], selector: (item: any) => string, limite = 3) => {
+        const resumirLista = (items: any[], selector: (item: any) => string) => {
           const valores = items.map(selector).filter(Boolean);
-          if (valores.length <= limite) return valores.join(' · ');
-          return `${valores.slice(0, limite).join(' · ')} +${valores.length - limite}`;
+          return valores.join('  ·  ');
         };
         const footerDocentes = resumirLista(docentesUnicos, (d) => d.docente_nombre || 'Sin docente');
         const footerCursos = resumirLista(cursosUnicos, (c) => `${c.curso_codigo}${c.curso_nombre ? ` ${c.curso_nombre}` : ''}`);
@@ -574,7 +579,21 @@ export default function ReportesPage() {
         const diasSem = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
         const headersTable = ['Hora', ...diasSem];
 
-        const sortedSlots = [...slots].sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio));
+        let sortedSlots = [...slots].sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio));
+        
+        // Recortar slots vacíos al final del día para garantizar que la tabla quepa en una hoja
+        let maxSlotIndex = 0;
+        bloquesAgrupados.forEach(b => {
+          const idx = sortedSlots.findIndex(s => s.hora_inicio === b.hora_inicio);
+          if (idx !== -1) {
+            const endIdx = idx + b.duracion_horas - 1;
+            if (endIdx > maxSlotIndex) maxSlotIndex = endIdx;
+          }
+        });
+        const cutOffIndex = Math.max(10, maxSlotIndex); // Mantener al menos hasta la tarde (aprox 17:00)
+        if (cutOffIndex < sortedSlots.length - 1) {
+          sortedSlots = sortedSlots.slice(0, cutOffIndex + 1);
+        }
         
         const rowsTable = construirFilasHorarioPdf(
           bloquesAgrupados,
@@ -583,6 +602,21 @@ export default function ReportesPage() {
           tipoReporte,
           mapaColores
         );
+
+        // Calcular dinámicamente la altura del footer para evitar que el texto se salga
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const sectionWidth = (pageWidth - 24) / 3;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(5.4);
+        const docLines = doc.splitTextToSize(footerDocentes || 'Sin asignar', sectionWidth - 8);
+        const curLines = doc.splitTextToSize(footerCursos || 'Sin asignar', sectionWidth - 8);
+        const blkLines = doc.splitTextToSize(`Totales: ${bloquesAgrupados.length}  ·  Horas: ${totalHoras}  ·  SiHorarios UNT`, sectionWidth - 8);
+        
+        const maxFooterLines = Math.max(docLines.length, curLines.length, blkLines.length);
+        const footerBoxHeight = Math.max(14, maxFooterLines * 2.2 + 6);
+        const marginBottom = footerBoxHeight + 6;
 
         // Renderizar autoTable
         autoTable(doc, {
@@ -593,7 +627,7 @@ export default function ReportesPage() {
           pageBreak: 'avoid',
           rowPageBreak: 'avoid',
           tableWidth: 'auto',
-          margin: { top: 8, bottom: 14, left: 10, right: 10 },
+          margin: { top: 8, bottom: marginBottom, left: 10, right: 10 },
           styles: {
             fontSize: 5.95,
             cellPadding: { top: 1.05, right: 1.15, bottom: 1.05, left: 1.35 },
@@ -618,33 +652,30 @@ export default function ReportesPage() {
             }
           },
           didDrawPage: () => {
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const pageHeight = doc.internal.pageSize.getHeight();
-            const footerTop = pageHeight - 17;
-            const sectionWidth = (pageWidth - 24) / 3;
+            const footerTop = pageHeight - footerBoxHeight - 4;
 
-            const drawFooterBox = (x: number, title: string, body: string, accent: [number, number, number]) => {
+            const drawFooterBox = (x: number, title: string, lines: string[], accent: [number, number, number]) => {
               doc.setFillColor(248, 250, 252);
               doc.setDrawColor(226, 232, 240);
-              doc.roundedRect(x, footerTop - 2, sectionWidth, 11, 1.5, 1.5, 'FD');
+              doc.roundedRect(x, footerTop, sectionWidth, footerBoxHeight, 1.5, 1.5, 'FD');
 
               doc.setFillColor(accent[0], accent[1], accent[2]);
-              doc.roundedRect(x + 1, footerTop - 1, 2.2, 9, 0.6, 0.6, 'F');
+              doc.roundedRect(x + 1, footerTop + 1, 2.2, footerBoxHeight - 2, 0.6, 0.6, 'F');
 
               doc.setFont('helvetica', 'bold');
               doc.setFontSize(6.2);
               doc.setTextColor(30, 41, 59);
-              doc.text(title, x + 5, footerTop + 1.1);
+              doc.text(title, x + 5, footerTop + 3.5);
 
               doc.setFont('helvetica', 'normal');
               doc.setFontSize(5.4);
               doc.setTextColor(71, 85, 105);
-              doc.text(body, x + 5, footerTop + 4.7, { maxWidth: sectionWidth - 6 });
+              doc.text(lines, x + 5, footerTop + 6.5);
             };
 
-            drawFooterBox(10, 'Docentes', footerDocentes || 'Sin asignar', [59, 130, 246]);
-            drawFooterBox(10 + sectionWidth + 7, 'Cursos', footerCursos || 'Sin asignar', [16, 185, 129]);
-            drawFooterBox(10 + (sectionWidth + 7) * 2, 'Bloques', `Totales: ${bloquesAgrupados.length}  ·  Horas: ${totalHoras}  ·  SiHorarios UNT`, [249, 115, 22]);
+            drawFooterBox(10, 'Docentes', docLines, [59, 130, 246]);
+            drawFooterBox(10 + sectionWidth + 7, 'Cursos', curLines, [16, 185, 129]);
+            drawFooterBox(10 + (sectionWidth + 7) * 2, 'Bloques', blkLines, [249, 115, 22]);
           },
           didParseCell: (data) => {
             if (data.section === 'body') {
@@ -793,6 +824,53 @@ export default function ReportesPage() {
     porAmbiente[a.ambiente_nombre].push(a);
   });
 
+  // Aplicar filtros adicionales
+  const aplicarFiltros = (items: any[]) => {
+    return items.filter(item => {
+      const matchDia = !filtroDia || item.dia === filtroDia;
+      const matchTipo = !filtroTipoSesion || item.tipo === filtroTipoSesion;
+      const matchCurso = !filtroCurso ||
+        item.curso_codigo?.toLowerCase().includes(filtroCurso.toLowerCase()) ||
+        item.curso_nombre?.toLowerCase().includes(filtroCurso.toLowerCase());
+      return matchDia && matchTipo && matchCurso;
+    });
+  };
+
+  // Ordenar por docente o ambiente
+  const ordenarItems = (entries: [string, any[]][]) => {
+    return entries.sort(([a, itemsA], [b, itemsB]) => {
+      const horasA = itemsA.length;
+      const horasB = itemsB.length;
+      const cursosA = new Set(itemsA.map(i => i.curso_nombre)).size;
+      const cursosB = new Set(itemsB.map(i => i.curso_nombre)).size;
+
+      let comparison = 0;
+      if (sortBy === 'nombre') {
+        comparison = a.localeCompare(b);
+      } else if (sortBy === 'horas') {
+        comparison = horasA - horasB;
+      } else if (sortBy === 'cursos') {
+        comparison = cursosA - cursosB;
+      }
+
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  };
+
+  const porDocenteFiltrado: Record<string, any[]> = {};
+  const porAmbienteFiltrado: Record<string, any[]> = {};
+
+  Object.entries(porDocente).forEach(([key, items]) => {
+    porDocenteFiltrado[key] = aplicarFiltros(items);
+  });
+
+  Object.entries(porAmbiente).forEach(([key, items]) => {
+    porAmbienteFiltrado[key] = aplicarFiltros(items);
+  });
+
+  const docentesOrdenados = ordenarItems(Object.entries(porDocenteFiltrado));
+  const ambientesOrdenados = ordenarItems(Object.entries(porAmbienteFiltrado));
+
   return (
     <div style={{padding:'32px', color:'var(--text-primary)'}}>
       <div style={{marginBottom:'24px',display:'flex',flexWrap:'wrap',alignItems:'center',justifyContent:'space-between',gap:'12px'}}>
@@ -801,8 +879,40 @@ export default function ReportesPage() {
           <p style={{color:'var(--text-secondary)',fontSize:'14px',margin:0}}>Crea reportes listos para impresión y exportación oficial</p>
         </div>
         <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
-          <div style={{background: darkMode ? 'rgba(148,163,184,0.14)' : '#e2e8f0',color: darkMode ? '#fff' : '#0f172a',padding:'6px 12px',borderRadius:'999px',fontSize:'12px',fontWeight:'600',border:'1px solid var(--border-color)'}}>Formato UNT</div>
-          <div style={{background: darkMode ? 'rgba(148,163,184,0.08)' : '#f1f5f9',color: darkMode ? '#e2e8f0' : '#475569',padding:'6px 12px',borderRadius:'999px',fontSize:'12px',fontWeight:'600',border:'1px solid var(--border-color)'}}>PDF profesional</div>
+          <div style={{
+            display:'flex',
+            alignItems:'center',
+            gap:'8px',
+            background: darkMode ? 'rgba(26,58,92,0.15)' : '#f0f9ff',
+            color: darkMode ? '#fff' : '#1a3a5c',
+            padding:'6px 14px',
+            borderRadius:'8px',
+            fontSize:'12px',
+            fontWeight:'600',
+            border:'1px solid ' + (darkMode ? 'rgba(26,58,92,0.3)' : '#bae6fd'),
+            boxShadow: darkMode ? 'none' : '0 1px 3px rgba(26,58,92,0.1)'
+          }}>
+            <img src="/logo.png" alt="UNT" loading="eager" style={{width:'18px',height:'18px',objectFit:'contain'}} />
+            Formato Oficial UNT
+          </div>
+          <div style={{
+            display:'flex',
+            alignItems:'center',
+            gap:'6px',
+            background: darkMode ? 'rgba(100,116,139,0.12)' : '#f8fafc',
+            color: darkMode ? '#e2e8f0' : '#475569',
+            padding:'6px 14px',
+            borderRadius:'8px',
+            fontSize:'12px',
+            fontWeight:'600',
+            border:'1px solid var(--border-color)',
+            boxShadow: darkMode ? 'none' : '0 1px 3px rgba(0,0,0,0.05)'
+          }}>
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            PDF Institucional
+          </div>
         </div>
       </div>
 
@@ -854,10 +964,20 @@ export default function ReportesPage() {
           {tipoReporte==='operacional' && (
             <div className="form-group" style={{margin:0}}>
               <label className="form-label" style={{color:'var(--text-secondary)', fontWeight:'600'}}>Filtrar por ambiente (opcional)</label>
-              <select 
-                className="form-input" 
-                style={{background: darkMode ? 'rgba(16,185,129,0.08)' : '#f0fdf4', border:'1px solid ' + (darkMode ? 'rgba(52,211,153,0.35)' : '#86efac'), borderRadius:'8px', padding:'10px 12px', transition:'all 0.2s', cursor:'pointer', color: darkMode ? '#d1fae5' : '#166534', fontWeight:500, boxShadow:'var(--shadow-sm)'}} 
-                value={ambienteId} 
+              <select
+                className="form-input"
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  transition: 'all 0.2s',
+                  cursor: 'pointer',
+                  color: 'var(--text-primary)',
+                  fontWeight: 500,
+                  boxShadow: 'var(--shadow-sm)'
+                }}
+                value={ambienteId}
                 onChange={e=>{setAmbienteId(e.target.value); setHasSearched(false);}}
               >
                 <option value="">Todos los ambientes</option>
@@ -925,17 +1045,106 @@ export default function ReportesPage() {
             <p style={{fontSize:'13px',margin:0,opacity:0.8}}>Ciclo: {ciclos.find(c=>c.id===cicloId)?.nombre} • Generado: {new Date().toLocaleDateString('es-PE')}</p>
           </div>
 
+          {/* Controles de ordenamiento y filtros */}
+          <div style={{padding:'16px 20px',background:'var(--bg-card)',borderBottom:'1px solid var(--border-color)',borderLeft:'1px solid var(--border-color)',borderRight:'1px solid var(--border-color)'}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))',gap:'12px'}}>
+              <div>
+                <label style={{fontSize:'12px',fontWeight:'600',color:'var(--text-secondary)',marginBottom:'4px',display:'block'}}>Ordenar por</label>
+                <select
+                  value={sortBy}
+                  onChange={e=>setSortBy(e.target.value as any)}
+                  style={{width:'100%',padding:'8px 12px',borderRadius:'6px',border:'1px solid var(--border-color)',background:'var(--bg-card)',color:'var(--text-primary)',fontSize:'13px'}}
+                >
+                  <option value="nombre">Nombre (A-Z)</option>
+                  <option value="horas">Horas asignadas</option>
+                  <option value="cursos">Cantidad de cursos</option>
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:'12px',fontWeight:'600',color:'var(--text-secondary)',marginBottom:'4px',display:'block'}}>Orden</label>
+                <select
+                  value={sortOrder}
+                  onChange={e=>setSortOrder(e.target.value as any)}
+                  style={{width:'100%',padding:'8px 12px',borderRadius:'6px',border:'1px solid var(--border-color)',background:'var(--bg-card)',color:'var(--text-primary)',fontSize:'13px'}}
+                >
+                  <option value="asc">Ascendente</option>
+                  <option value="desc">Descendente</option>
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:'12px',fontWeight:'600',color:'var(--text-secondary)',marginBottom:'4px',display:'block'}}>Filtrar por día</label>
+                <select
+                  value={filtroDia}
+                  onChange={e=>setFiltroDia(e.target.value)}
+                  style={{width:'100%',padding:'8px 12px',borderRadius:'6px',border:'1px solid var(--border-color)',background:'var(--bg-card)',color:'var(--text-primary)',fontSize:'13px'}}
+                >
+                  <option value="">Todos los días</option>
+                  <option value="lunes">Lunes</option>
+                  <option value="martes">Martes</option>
+                  <option value="miercoles">Miércoles</option>
+                  <option value="jueves">Jueves</option>
+                  <option value="viernes">Viernes</option>
+                  <option value="sabado">Sábado</option>
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:'12px',fontWeight:'600',color:'var(--text-secondary)',marginBottom:'4px',display:'block'}}>Filtrar por tipo</label>
+                <select
+                  value={filtroTipoSesion}
+                  onChange={e=>setFiltroTipoSesion(e.target.value)}
+                  style={{width:'100%',padding:'8px 12px',borderRadius:'6px',border:'1px solid var(--border-color)',background:'var(--bg-card)',color:'var(--text-primary)',fontSize:'13px'}}
+                >
+                  <option value="">Todos los tipos</option>
+                  <option value="teoria">Teoría</option>
+                  <option value="practica">Práctica</option>
+                  <option value="laboratorio">Laboratorio</option>
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:'12px',fontWeight:'600',color:'var(--text-secondary)',marginBottom:'4px',display:'block'}}>Filtrar por curso</label>
+                <input
+                  type="text"
+                  value={filtroCurso}
+                  onChange={e=>setFiltroCurso(e.target.value)}
+                  placeholder="Código o nombre..."
+                  style={{width:'100%',padding:'8px 12px',borderRadius:'6px',border:'1px solid var(--border-color)',background:'var(--bg-card)',color:'var(--text-primary)',fontSize:'13px'}}
+                />
+              </div>
+            </div>
+          </div>
+
           {tipoReporte==='docente' && (
             <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(320px, 1fr))', gap:'20px', marginTop:'24px'}}>
-              {Object.entries(porDocente).map(([docNombre, rows]) => {
+              {docentesOrdenados.map(([docNombre, rows], index) => {
                 const totalHoras = rows.length;
                 const cursosUnicos = Array.from(new Set(rows.map(r => r.curso_nombre)));
+                if (rows.length === 0) return null;
+                const colorIndex = index % 2;
+                const colors = [
+                  { 
+                    border: darkMode ? '#3b82f6' : '#60a5fa', 
+                    bg: darkMode ? 'rgba(30,58,138,0.15)' : '#eff6ff', 
+                    text: darkMode ? '#bfdbfe' : '#1e40af',
+                    badgeBg: darkMode ? 'rgba(59,130,246,0.2)' : '#dbeafe',
+                    badgeBorder: darkMode ? 'rgba(59,130,246,0.4)' : '#bfdbfe',
+                    badgeText: darkMode ? '#93c5fd' : '#1e40af'
+                  },
+                  { 
+                    border: darkMode ? '#8b5cf6' : '#a78bfa', 
+                    bg: darkMode ? 'rgba(76,29,149,0.15)' : '#f5f3ff', 
+                    text: darkMode ? '#ddd6fe' : '#4c1d95',
+                    badgeBg: darkMode ? 'rgba(139,92,246,0.2)' : '#ede9fe',
+                    badgeBorder: darkMode ? 'rgba(139,92,246,0.4)' : '#ddd6fe',
+                    badgeText: darkMode ? '#c4b5fd' : '#4c1d95'
+                  }
+                ];
+                const theme = colors[colorIndex];
                 return (
-                  <div key={docNombre} className="card" style={{padding:'20px', display:'flex', flexDirection:'column', borderTop:'4px solid #1a3a5c', background:'var(--bg-card)', borderColor:'var(--border-color)'}}>
+                  <div key={docNombre} className="card" style={{padding:'20px', display:'flex', flexDirection:'column', borderTop:'4px solid ' + theme.border, background: theme.bg, border:'1px solid ' + theme.border, boxShadow: darkMode ? 'none' : '0 2px 8px rgba(0,0,0,0.06)', transition:'all 0.2s ease'}}>
                     <h3 style={{fontSize:'16px',fontWeight:'700',color:'var(--text-primary)',margin:'0 0 8px'}}>{docNombre}</h3>
                     <div style={{display:'flex', gap:'12px', marginBottom:'16px'}}>
-                      <span style={{background: darkMode ? 'rgba(148,163,184,0.12)' : '#f1f5f9', color: darkMode ? '#fff' : '#475569', padding:'4px 10px', borderRadius:'6px', fontSize:'13px', fontWeight:'600'}}>📚 {cursosUnicos.length} Cursos</span>
-                      <span style={{background: darkMode ? 'rgba(59,130,246,0.12)' : '#dbeafe', color: darkMode ? '#dbeafe' : '#1e40af', padding:'4px 10px', borderRadius:'6px', fontSize:'13px', fontWeight:'600'}}>⏱️ {totalHoras} hrs asignadas</span>
+                      <span style={{background: theme.badgeBg, color: theme.badgeText, padding:'4px 10px', borderRadius:'6px', fontSize:'13px', fontWeight:'600', border:'1px solid ' + theme.badgeBorder}}>📚 {cursosUnicos.length} Cursos</span>
+                      <span style={{background: theme.badgeBg, color: theme.badgeText, padding:'4px 10px', borderRadius:'6px', fontSize:'13px', fontWeight:'600', border:'1px solid ' + theme.badgeBorder}}>⏱️ {totalHoras} hrs asignadas</span>
                     </div>
                     <div style={{display:'flex', flexDirection:'column', gap:'8px', flex:1}}>
                       {rows.sort((a,b)=>DIAS.indexOf(a.dia)-DIAS.indexOf(b.dia)).slice(0, 5).map((r, i) => (
@@ -957,23 +1166,44 @@ export default function ReportesPage() {
             </div>
           )}
 
-          {tipoReporte==='docente' && Object.keys(porDocente).length === 0 && (
+          {tipoReporte==='docente' && docentesOrdenados.filter(([_, rows]) => rows.length > 0).length === 0 && (
             <div style={{padding:'40px',textAlign:'center',color:'var(--text-secondary)',background:'var(--bg-card-hover)',borderRadius:'12px',border:'1px dashed var(--border-color)', marginTop:'24px'}}>
-              No hay horarios registrados para ningún docente en este ciclo.
+              No hay horarios registrados para ningún docente en este ciclo con los filtros seleccionados.
             </div>
           )}
 
           {tipoReporte==='operacional' && (
             <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(320px, 1fr))', gap:'20px', marginTop:'24px'}}>
-              {Object.entries(porAmbiente).map(([ambNombre, rows]) => {
+              {ambientesOrdenados.map(([ambNombre, rows], index) => {
                 const totalHoras = rows.length;
                 const cursosUnicos = Array.from(new Set(rows.map(r => r.curso_nombre)));
+                if (rows.length === 0) return null;
+                const colorIndex = index % 2;
+                const colors = [
+                  { 
+                    border: darkMode ? '#10b981' : '#34d399', 
+                    bg: darkMode ? 'rgba(6,78,59,0.2)' : '#f0fdf4', 
+                    text: darkMode ? '#a7f3d0' : '#065f46',
+                    badgeBg: darkMode ? 'rgba(16,185,129,0.2)' : '#d1fae5',
+                    badgeBorder: darkMode ? 'rgba(16,185,129,0.4)' : '#a7f3d0',
+                    badgeText: darkMode ? '#6ee7b7' : '#065f46'
+                  },
+                  { 
+                    border: darkMode ? '#0ea5e9' : '#38bdf8', 
+                    bg: darkMode ? 'rgba(12,74,110,0.2)' : '#f0f9ff', 
+                    text: darkMode ? '#bae6fd' : '#0c4a6e',
+                    badgeBg: darkMode ? 'rgba(14,165,233,0.2)' : '#e0f2fe',
+                    badgeBorder: darkMode ? 'rgba(14,165,233,0.4)' : '#bae6fd',
+                    badgeText: darkMode ? '#7dd3fc' : '#0c4a6e'
+                  }
+                ];
+                const theme = colors[colorIndex];
                 return (
-                  <div key={ambNombre} className="card" style={{padding:'20px', display:'flex', flexDirection:'column', borderTop:'4px solid #10b981', background:'var(--bg-card)', borderColor:'var(--border-color)'}}>
+                  <div key={ambNombre} className="card" style={{padding:'20px', display:'flex', flexDirection:'column', borderTop:'4px solid ' + theme.border, background: theme.bg, border:'1px solid ' + theme.border, boxShadow: darkMode ? 'none' : '0 2px 8px rgba(0,0,0,0.06)', transition:'all 0.2s ease'}}>
                     <h3 style={{fontSize:'16px',fontWeight:'700',color:'var(--text-primary)',margin:'0 0 8px'}}>🚪 {ambNombre}</h3>
                     <div style={{display:'flex', gap:'12px', marginBottom:'16px'}}>
-                      <span style={{background: darkMode ? 'rgba(148,163,184,0.12)' : '#f1f5f9', color: darkMode ? '#fff' : '#475569', padding:'4px 10px', borderRadius:'6px', fontSize:'13px', fontWeight:'600'}}>📚 {cursosUnicos.length} Cursos</span>
-                      <span style={{background: darkMode ? 'rgba(16,185,129,0.12)' : '#d1fae5', color: darkMode ? '#d1fae5' : '#065f46', padding:'4px 10px', borderRadius:'6px', fontSize:'13px', fontWeight:'600'}}>⏱️ {totalHoras} hrs de uso</span>
+                      <span style={{background: theme.badgeBg, color: theme.badgeText, padding:'4px 10px', borderRadius:'6px', fontSize:'13px', fontWeight:'600', border:'1px solid ' + theme.badgeBorder}}>📚 {cursosUnicos.length} Cursos</span>
+                      <span style={{background: theme.badgeBg, color: theme.badgeText, padding:'4px 10px', borderRadius:'6px', fontSize:'13px', fontWeight:'600', border:'1px solid ' + theme.badgeBorder}}>⏱️ {totalHoras} hrs de uso</span>
                     </div>
                     <div style={{display:'flex', flexDirection:'column', gap:'8px', flex:1}}>
                       {rows.sort((a,b)=>DIAS.indexOf(a.dia)-DIAS.indexOf(b.dia)).slice(0, 5).map((r, i) => (
@@ -995,9 +1225,9 @@ export default function ReportesPage() {
             </div>
           )}
 
-          {tipoReporte==='operacional' && Object.keys(porAmbiente).length === 0 && (
+          {tipoReporte==='operacional' && ambientesOrdenados.filter(([_, rows]) => rows.length > 0).length === 0 && (
             <div style={{padding:'40px',textAlign:'center',color:'var(--text-secondary)',background:'var(--bg-card-hover)',borderRadius:'12px',border:'1px dashed var(--border-color)', marginTop:'24px'}}>
-              No hay horarios registrados en ningún ambiente en este ciclo.
+              No hay horarios registrados en ningún ambiente en este ciclo con los filtros seleccionados.
             </div>
           )}
         </div>

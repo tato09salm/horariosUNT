@@ -1,8 +1,11 @@
 'use client';
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { usePathname } from 'next/navigation';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core';
 import GrillaHorarios from '@/components/horarios/GrillaHorarios';
+import BloqueHorario from '@/components/horarios/BloqueHorario';
 import { fetchProgramacionCursos } from '@/lib/fetch-programacion-cursos';
+import { useHorarioHistory } from '@/lib/hooks/useHorarioHistory';
 
 function translateTipo(tipo: string): string {
   const map: Record<string, string> = {
@@ -66,7 +69,8 @@ export default function ProgramarPage() {
 
   const [prog, setProg] = useState<any>(null);
   const [slots, setSlots] = useState<any[]>([]);
-  const [asignaciones, setAsignaciones] = useState<any[]>([]);
+  const history = useHorarioHistory([]);
+  const asignaciones = history.asignaciones;
   const [conflictos, setConflictos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState(false);
@@ -74,7 +78,7 @@ export default function ProgramarPage() {
   const [cspStats, setCspStats] = useState<any>(null);
   const [docentesConCarga, setDocentesConCarga] = useState<Set<string>>(new Set());
   const [diagnostico, setDiagnostico] = useState<any>(null);
-  const [diagAbierto, setDiagAbierto] = useState(true);
+  const [diagAbierto, setDiagAbierto] = useState(false);
   const [expandedDocente, setExpandedDocente] = useState<string | null>(null);
 
   const cargarDatos = useCallback(async () => {
@@ -95,7 +99,7 @@ export default function ProgramarPage() {
       setDocentesConCarga(ids);
       setProg(dataProg);
       setSlots(dashRes.slots || []);
-      setAsignaciones(dataProg?.config?.asignaciones || []);
+      history.setAsignacionesIniciales(dataProg?.config?.asignaciones || []);
       setCspStats(dataProg?.config?.csp_stats || null);
       setConflictos(confRes.data || []);
       setDiagnostico(diagRes.data || null);
@@ -109,6 +113,225 @@ export default function ProgramarPage() {
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [advertencias, setAdvertencias] = useState<string[]>([]);
   const [conflictosAbiertos, setConflictosAbiertos] = useState(true);
+
+  // --- Lógica Drag & Drop ---
+  const [sugerenciasRecolocacion, setSugerenciasRecolocacion] = useState<any[]>([]);
+  const [movimientoPendiente, setMovimientoPendiente] = useState<any>(null);
+  const [ultimoMovimiento, setUltimoMovimiento] = useState<{ origen: any, destino: any } | null>(null);
+  // Set persistente de IDs de bloques movidos manualmente en esta sesión
+  const [bloquesMovidos, setBloquesMovidos] = useState<Set<string>>(new Set());
+
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [activeBlockAsignaciones, setActiveBlockAsignaciones] = useState<any[]>([]);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const asignacion = event.active.data.current as any;
+    if (!asignacion) return;
+    setActiveDragId(asignacion.id);
+
+    const bloque = history.asignaciones.filter((a: any) => 
+      a.ambiente_id === asignacion.ambiente_id &&
+      a.docente_id === asignacion.docente_id &&
+      a.curso_id === asignacion.curso_id &&
+      a.tipo === asignacion.tipo &&
+      a.grupo_id === asignacion.grupo_id &&
+      a.dia === asignacion.dia
+    );
+
+    bloque.sort((a: any, b: any) => {
+      const idxA = slots.findIndex((s: any) => s.id === a.slot_id);
+      const idxB = slots.findIndex((s: any) => s.id === b.slot_id);
+      return idxA - idxB;
+    });
+
+    setActiveBlockAsignaciones(bloque);
+  };
+
+  const handleDragCancel = () => {
+    setActiveDragId(null);
+    setActiveBlockAsignaciones([]);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'z') { e.preventDefault(); history.undo(); }
+      if (e.ctrlKey && e.key === 'y') { e.preventDefault(); history.redo(); }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [history]);
+
+  const aplicarMovimiento = async (
+    asignacion: any, 
+    newDia: string, 
+    newSlotId: string, 
+    targetAmbiente: string, 
+    targetAmbienteCodigo: string = '', 
+    targetAmbienteNombre: string = '', 
+    advertenciasAceptadas = false,
+    bloqueAsignaciones?: any[]
+  ) => {
+    const block = bloqueAsignaciones || [asignacion];
+    const slotIndexOrigin = slots.findIndex(s => s.id === asignacion.slot_id);
+    const slotIndexTarget = slots.findIndex(s => s.id === newSlotId);
+    const deltaSlot = slotIndexTarget - slotIndexOrigin;
+
+    const moveMap = new Map();
+    for (const a of block) {
+      const aSlotIndex = slots.findIndex((s: any) => s.id === a.slot_id);
+      const newASlotIndex = aSlotIndex + deltaSlot;
+      const newASlot = slots[newASlotIndex] || slots[slots.length - 1];
+      
+      moveMap.set(a.id, {
+        newDia,
+        newSlotId: newASlot.id,
+        targetAmbiente,
+        targetAmbienteCodigo,
+        targetAmbienteNombre
+      });
+    }
+
+    setResolving(true);
+    const nuevasAsignaciones = history.asignaciones.map((a: any) => {
+      const mov = moveMap.get(a.id);
+      if (mov) {
+        return { 
+          ...a, 
+          dia: mov.newDia, 
+          slot_id: mov.newSlotId, 
+          ambiente_id: mov.targetAmbiente,
+          ...(mov.targetAmbienteCodigo ? { ambiente_codigo: mov.targetAmbienteCodigo } : {}),
+          ...(mov.targetAmbienteNombre ? { ambiente_nombre: mov.targetAmbienteNombre } : {})
+        };
+      }
+      return a;
+    });
+
+    history.commitMove(nuevasAsignaciones);
+    // Registrar el bloque como movido manualmente (persiste en la sesión)
+    const ids = Array.from(moveMap.keys());
+    setBloquesMovidos(prev => new Set([...prev, ...ids]));
+    setUltimoMovimiento({
+      origen: { dia: asignacion.dia, slot_id: asignacion.slot_id, ambiente_id: asignacion.ambiente_id },
+      destino: { dia: newDia, slot_id: newSlotId, ambiente_id: targetAmbiente }
+    });
+
+    try {
+      await fetch(`/api/horarios/programaciones/${progId}/movimiento`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          asignaciones: nuevasAsignaciones, 
+          movimiento: { 
+            bloqueId: asignacion.id, 
+            origen: { dia: asignacion.dia, slot_id: asignacion.slot_id }, 
+            destino: { dia: newDia, slot_id: newSlotId, ambiente_id: targetAmbiente },
+            advertenciasAceptadas
+          } 
+        })
+      });
+      setMsg({ type: 'success', text: 'Movimiento manual registrado correctamente.' });
+    } catch (e) {
+      history.undo();
+      setMsg({ type: 'error', text: 'Error al registrar movimiento.' });
+    }
+    setMovimientoPendiente(null);
+    setSugerenciasRecolocacion([]);
+    setResolving(false);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveDragId(null);
+    setActiveBlockAsignaciones([]);
+    const { active, over } = event;
+    if (!over) return;
+
+    const asignacion = active.data.current;
+    if (!asignacion) return;
+
+    const { dia: newDia, slot_id: newSlotId, ambiente_id: overAmbienteId, ambiente_codigo: overAmbienteCodigo, ambiente_nombre: overAmbienteNombre } = over.data.current as any;
+    const targetAmbiente = overAmbienteId || asignacion.ambiente_id;
+    const targetAmbienteCodigo = overAmbienteCodigo || asignacion.ambiente_codigo;
+    const targetAmbienteNombre = overAmbienteNombre || asignacion.ambiente_nombre;
+
+    if (asignacion.dia === newDia && asignacion.slot_id === newSlotId && asignacion.ambiente_id === targetAmbiente) {
+      return;
+    }
+
+    setResolving(true);
+    try {
+      const bloqueAsignaciones = history.asignaciones.filter((a: any) => 
+        a.ambiente_id === asignacion.ambiente_id &&
+        a.docente_id === asignacion.docente_id &&
+        a.curso_id === asignacion.curso_id &&
+        a.tipo === asignacion.tipo &&
+        a.grupo_id === asignacion.grupo_id &&
+        a.dia === asignacion.dia
+      );
+
+      bloqueAsignaciones.sort((a: any, b: any) => {
+        const idxA = slots.findIndex((s: any) => s.id === a.slot_id);
+        const idxB = slots.findIndex((s: any) => s.id === b.slot_id);
+        return idxA - idxB;
+      });
+
+      const slotIndexOrigin = slots.findIndex((s: any) => s.id === asignacion.slot_id);
+      const slotIndexTarget = slots.findIndex((s: any) => s.id === newSlotId);
+      const deltaSlot = slotIndexTarget - slotIndexOrigin;
+
+      let isConflict = false;
+      for (const a of bloqueAsignaciones) {
+        const aSlotIndex = slots.findIndex((s: any) => s.id === a.slot_id);
+        const newASlotIndex = aSlotIndex + deltaSlot;
+        const newASlot = slots[newASlotIndex];
+
+        if (!newASlot) {
+          setMsg({ type: 'error', text: 'El movimiento del bloque excede los horarios permitidos.' });
+          setResolving(false);
+          return;
+        }
+
+        const confGrupo = history.asignaciones.find((other: any) => !bloqueAsignaciones.some((ba: any) => ba.id === other.id) && other.dia === newDia && other.slot_id === newASlot.id && other.grupo_id === a.grupo_id);
+        const confDocente = a.docente_id && history.asignaciones.find((other: any) => !bloqueAsignaciones.some((ba: any) => ba.id === other.id) && other.dia === newDia && other.slot_id === newASlot.id && other.docente_id === a.docente_id);
+        const confAmbiente = targetAmbiente && history.asignaciones.find((other: any) => !bloqueAsignaciones.some((ba: any) => ba.id === other.id) && other.dia === newDia && other.slot_id === newASlot.id && other.ambiente_id === targetAmbiente);
+
+        if (confGrupo || confDocente || confAmbiente) isConflict = true;
+      }
+
+      if (isConflict) {
+        const firstAsignacion = bloqueAsignaciones[0];
+        const res = await fetch('/api/horarios/recolocar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ programacion_id: progId, bloque: { ...firstAsignacion, duracion_horas: bloqueAsignaciones.length }, asignaciones: history.asignaciones }),
+        });
+        const data = await res.json();
+        setSugerenciasRecolocacion(data.sugerencias || []);
+
+        const firstTargetIndex = slots.findIndex((s: any) => s.id === firstAsignacion.slot_id) + deltaSlot;
+        const firstTargetSlotId = slots[firstTargetIndex]?.id;
+
+        setMovimientoPendiente({ 
+          asignacion: firstAsignacion, 
+          bloqueAsignaciones,
+          newDia, 
+          newSlotId: firstTargetSlotId, 
+          targetAmbiente, 
+          targetAmbienteCodigo, 
+          targetAmbienteNombre, 
+          original: { dia: firstAsignacion.dia, slot_id: firstAsignacion.slot_id, ambiente_id: firstAsignacion.ambiente_id } 
+        });
+        setResolving(false);
+        return;
+      }
+
+      aplicarMovimiento(bloqueAsignaciones[0], newDia, slots[slots.findIndex((s: any) => s.id === bloqueAsignaciones[0].slot_id) + deltaSlot]?.id, targetAmbiente, targetAmbienteCodigo, targetAmbienteNombre, false, bloqueAsignaciones);
+    } catch (e: any) {
+      setMsg({ type: 'error', text: e.message });
+      setResolving(false);
+    }
+  };
+  // -------------------------
 
   const ejecutarMotor = async (force: boolean = false) => {
     if (!force) {
@@ -221,6 +444,10 @@ export default function ProgramarPage() {
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>Fase 3: Programación (Motor CSP)</p>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: '4px', marginRight: '16px', background: 'var(--bg-card)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+            <button className="btn-secondary" onClick={history.undo} disabled={!history.canUndo} style={{ padding: '6px 12px', fontSize: '12px' }} title="Deshacer (Ctrl+Z)">↩️</button>
+            <button className="btn-secondary" onClick={history.redo} disabled={!history.canRedo} style={{ padding: '6px 12px', fontSize: '12px' }} title="Rehacer (Ctrl+Y)">↪️</button>
+          </div>
           <button className="btn-secondary" onClick={() => ejecutarMotor(false)} disabled={resolving || prog.fase !== 3}>
             {resolving ? '⚙️ Resolviendo...' : asignacionesVisibles.length > 0 ? '🔄 Reejecutar CSP' : '⚙️ Ejecutar Auto-Asignación'}
           </button>
@@ -282,7 +509,7 @@ export default function ProgramarPage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               {/* Summary badges */}
-              <span style={{ background: 'rgba(34,197,94,0.16)', color: '#bbf7d0', fontSize: '11px', fontWeight: '700', padding: '3px 10px', borderRadius: '20px' }}>
+              <span style={{ background: 'rgba(113, 212, 150, 0.16)', color: '#2a9951', fontSize: '11px', fontWeight: '700', padding: '3px 10px', borderRadius: '20px' }}>
                 ✓ {diagnostico.resumen.ok} OK
               </span>
               {diagnostico.resumen.alertas > 0 && (
@@ -689,11 +916,73 @@ export default function ProgramarPage() {
         </div>
       )}
 
-      <GrillaHorarios 
-        asignaciones={asignaciones} 
-        slots={slots} 
-        docentesConCarga={docentesConCarga} 
-      />
+      <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
+        <GrillaHorarios 
+          asignaciones={asignacionesVisibles} 
+          slots={slots} 
+          docentesConCarga={docentesConCarga}
+          ultimoMovimiento={ultimoMovimiento}
+          bloquesMovidos={bloquesMovidos}
+          activeBlockIds={new Set(activeBlockAsignaciones.map(a => a.id))}
+        />
+        
+        <DragOverlay>
+          {activeDragId ? (
+            <div style={{ position: 'relative' }}>
+              {activeBlockAsignaciones.map((a, i) => {
+                const activeIndex = activeBlockAsignaciones.findIndex(ab => ab.id === activeDragId);
+                const offset = i - activeIndex;
+                return (
+                  <div key={a.id} style={{
+                    position: offset === 0 ? 'relative' : 'absolute',
+                    top: offset === 0 ? undefined : `calc(${offset * 100}% + ${offset * 4}px)`,
+                    left: 0,
+                    right: 0,
+                    zIndex: 9999
+                  }}>
+                    <BloqueHorario asignacion={a} />
+                  </div>
+                )
+              })}
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      {movimientoPendiente && (
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(15,23,42,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50}}>
+          <div className="card" style={{width:'600px',maxWidth:'90vw',maxHeight:'90vh',display:'flex',flexDirection:'column'}}>
+            <h2 style={{fontSize:'18px',color:'#b91c1c',margin:'0 0 16px',display:'flex',alignItems:'center',gap:'8px'}}>
+              <span>⛔</span> Conflicto detectado en la posición destino
+            </h2>
+            <div style={{flex:1,overflowY:'auto',marginBottom:'24px',fontSize:'14px',color:'#334155'}}>
+              <p style={{marginBottom:'16px'}}>Has intentado mover el bloque a una posición donde ya existe una clase asignada para este grupo, docente o aula. Puedes forzar el movimiento bajo tu responsabilidad, o elegir una de las posiciones sugeridas por el motor inteligente:</p>
+              
+              {sugerenciasRecolocacion.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {sugerenciasRecolocacion.map((sug, i) => (
+                    <button key={i} onClick={() => aplicarMovimiento(movimientoPendiente.asignacion, sug.dia, sug.slot_id, sug.ambiente_id, sug.ambiente_codigo, sug.ambiente_nombre, false, movimientoPendiente.bloqueAsignaciones)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer', textAlign: 'left' }}>
+                      <div>
+                        <div style={{ fontWeight: '700', color: 'var(--text-primary)', marginBottom: '4px' }}>{sug.calidad}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{sug.dia} • {sug.hora_inicio} a {sug.hora_fin} • {sug.ambiente_nombre}</div>
+                      </div>
+                      <span style={{ fontSize: '20px' }}>→</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="alert alert-warning">No se encontraron alternativas óptimas de recolocación automática.</div>
+              )}
+            </div>
+            <div style={{display:'flex',gap:'12px',justifyContent:'flex-end'}}>
+              <button className="btn-secondary" onClick={() => { setMovimientoPendiente(null); setSugerenciasRecolocacion([]); }}>Cancelar movimiento</button>
+              <button className="btn-primary" style={{background:'#b91c1c',borderColor:'#b91c1c'}} onClick={() => aplicarMovimiento(movimientoPendiente.asignacion, movimientoPendiente.newDia, movimientoPendiente.newSlotId, movimientoPendiente.targetAmbiente, movimientoPendiente.targetAmbienteCodigo, movimientoPendiente.targetAmbienteNombre, true, movimientoPendiente.bloqueAsignaciones)}>
+                Forzar movimiento (ignorar cruces)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showWarningModal && (
         <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(15,23,42,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50}}>

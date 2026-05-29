@@ -349,10 +349,7 @@ export default function HorariosPage() {
                         )}
 
                         {(prog.fase === 4 || prog.estado === 'publicado') && (
-                          <>
-                            <BotonExportarFormatoUNT programacionId={prog.id} />
-                            <BotonExportarExcel programacionId={prog.id} variant="icon" />
-                          </>
+                          <BotonExportarFormatoUNT programacionId={prog.id} />
                         )}
 
                         <a href={isDocente ? `/horarios/${prog.id}/disponibilidad` : getFaseUrl(prog)} style={{textDecoration:'none'}}>

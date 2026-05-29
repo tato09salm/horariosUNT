@@ -266,7 +266,7 @@ export default function PublicarPage() {
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {publicado ? (
-            <button className="btn-secondary" onClick={solicitarEditarHorario}>✏️ Editar horario</button>
+            <button className="btn-secondary" onClick={solicitarEditarHorario}>✏️ Editar horario (Volver a Fase 3)</button>
           ) : (
             <>
               <button className="btn-secondary" onClick={retrocederFase}>← Volver a Fase 3</button>
@@ -276,9 +276,6 @@ export default function PublicarPage() {
           {asignaciones.length > 0 && <BotonExportarFormatoUNT programacionId={progId} />}
           <button className="btn-secondary" onClick={exportarCSV} disabled={!asignaciones.length}>
             📥 Exportar CSV
-          </button>
-          <button className="btn-secondary" onClick={exportarExcel} disabled={!asignaciones.length}>
-            📊 Exportar Excel
           </button>
           <button className="btn-secondary" onClick={exportarPDF} disabled={!asignaciones.length}>
             📄 Exportar PDF
@@ -290,7 +287,39 @@ export default function PublicarPage() {
 
       {/* Panel de publicación */}
       <div className="card horarios-publicar-summary" style={{ maxWidth: '700px', margin: '0 auto 32px', textAlign: 'center' }}>
-        <div style={{ fontSize: '64px', marginBottom: '16px' }}>{publicado ? '🎉' : '📢'}</div>
+        <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          {publicado ? (
+            <div style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+            }}>
+              <svg width="40" height="40" fill="none" stroke="white" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          ) : (
+            <div style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
+            }}>
+              <svg width="40" height="40" fill="none" stroke="white" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+          )}
+        </div>
         <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#1e293b', marginBottom: '8px' }}>
           {publicado ? 'Horario Publicado Oficialmente' : 'Listo para publicar'}
         </h2>
@@ -303,7 +332,7 @@ export default function PublicarPage() {
         {!publicado ? (
           <button className="btn-primary" style={{ fontSize: '16px', padding: '12px 32px' }}
             onClick={publicarHorario} disabled={publishing || !asignaciones.length}>
-            {publishing ? 'Publicando...' : '🚀 Publicar Horario Oficial'}
+            {publishing ? 'Publicando...' : 'Publicar Horario Oficial'}
           </button>
         ) : (
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
