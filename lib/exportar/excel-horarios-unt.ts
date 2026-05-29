@@ -343,6 +343,7 @@ export async function exportarHorariosFormatoUNT(config: ConfigExportUNT) {
       });
   }
 
+
   // Generar archivo y descargar
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
