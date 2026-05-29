@@ -5,8 +5,58 @@ import { query, queryOne } from '@/lib/db';
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-  const ciclos = await query(`SELECT * FROM ciclos ORDER BY año DESC, semestre`);
-  return NextResponse.json({ data: ciclos });
+
+  const { searchParams } = new URL(req.url);
+  const buscar = searchParams.get('buscar') || '';
+  const anio = searchParams.get('anio') || '';
+  const semestre = searchParams.get('semestre') || '';
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = parseInt(searchParams.get('limit') || '10');
+  const reporte = searchParams.get('reporte') === 'true';
+
+  let querySql = `SELECT * FROM ciclos WHERE 1=1`;
+  const params: any[] = [];
+  let paramIndex = 1;
+
+  if (buscar) {
+    querySql += ` AND nombre ILIKE $${paramIndex}`;
+    params.push(`%${buscar}%`);
+    paramIndex++;
+  }
+
+  if (anio) {
+    querySql += ` AND año = $${paramIndex}`;
+    params.push(anio);
+    paramIndex++;
+  }
+
+  if (semestre) {
+    querySql += ` AND semestre = $${paramIndex}`;
+    params.push(semestre);
+    paramIndex++;
+  }
+
+  querySql += ` ORDER BY año DESC, semestre`;
+
+  if (reporte) {
+    const ciclos = await query(querySql, params);
+    return NextResponse.json({ data: ciclos });
+  }
+
+  const offset = (page - 1) * limit;
+  querySql += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+  params.push(limit, offset);
+
+  const ciclos = await query(querySql, params);
+  const totalResult = await query(`SELECT COUNT(*) as total FROM ciclos WHERE 1=1` +
+    (buscar ? ` AND nombre ILIKE $1` : '') +
+    (anio ? ` AND año = $${(buscar ? 2 : 1)}` : '') +
+    (semestre ? ` AND semestre = $${(buscar ? (anio ? 3 : 2) : (anio ? 2 : 1))}` : ''),
+    params.slice(0, paramIndex - 1)
+  );
+  const total = totalResult[0]?.total || 0;
+
+  return NextResponse.json({ data: ciclos, total });
 }
 
 export async function POST(req: NextRequest) {
