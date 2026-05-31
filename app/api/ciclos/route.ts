@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
+import { registrarAuditoria } from '@/lib/auditoria';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -69,6 +70,16 @@ export async function POST(req: NextRequest) {
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
       [body.nombre, body.año, body.semestre, body.fecha_inicio, body.fecha_fin, body.activo || false]
     );
+
+    await registrarAuditoria({
+      usuario_id: session.id,
+      accion: 'CREATE',
+      tabla_afectada: 'ciclos',
+      registro_id: ciclo?.id,
+      datos_nuevos: ciclo,
+      descripcion: `Ciclo creado: ${ciclo?.nombre}`,
+    });
+
     return NextResponse.json({ data: ciclo }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
