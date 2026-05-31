@@ -69,7 +69,6 @@ export default function DisponibilidadPage() {
       setDocentes(docRes.cargaDocentes || []);
       setSlots(dashRes.slots || []);
 
-<<<<<<< HEAD
       // ── Validaciones de acceso para docentes ──────────────────────────────
       if (isDocente) {
         // 1. Debe estar en Fase 2
@@ -114,10 +113,6 @@ export default function DisponibilidadPage() {
           setDisponibilidad(dict);
           if (dispData.docente_id) setDocenteId(dispData.docente_id);
         }
-=======
-      if (user?.rol.codigo === 'docente') {
-        await cargarDisponibilidad(null);
->>>>>>> 525e6a0 (feature(backend): Cambiado funcionamiento interno de roles y añadido rol Director de Escuela, con sus respectivos permisos.)
       } else if (docRes.cargaDocentes?.length > 0) {
         setDocenteId(docRes.cargaDocentes[0].id);
         await cargarDisponibilidad(docRes.cargaDocentes[0].id);
