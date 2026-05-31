@@ -30,11 +30,10 @@ export default function DisponibilidadPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<any>(null);
 
-  // ── Control de acceso ──────────────────────────────────────────────────────
   const [accesoError, setAccesoError] = useState<string | null>(null);
   const [soloLectura, setSoloLectura] = useState(false);
 
-  const isAdminOrSec = user?.rol === 'admin' || user?.rol === 'secretaria';
+  const isAdminOrSec = user?.rol.codigo === 'admin' || user?.rol.codigo === 'secretaria';
   const isDocente = user?.rol === 'docente';
 
   const cargarDisponibilidad = useCallback(async (dId: string | null) => {

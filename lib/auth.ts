@@ -6,6 +6,15 @@ import { generateToken, verifyToken, UserSession } from './jwt';
 
 export { type UserSession };
 
+export interface UserRoleProfile {
+  codigo: UserSession['rol'];
+  nombre: string;
+}
+
+export interface UserProfile extends Omit<UserSession, 'rol'> {
+  rol: UserRoleProfile;
+}
+
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }
@@ -19,6 +28,24 @@ export async function getSession(): Promise<UserSession | null> {
   const token = cookieStore.get('auth-token')?.value;
   if (!token) return null;
   return await verifyToken(token);
+}
+
+export async function getSessionProfile(): Promise<UserProfile | null> {
+  const session = await getSession();
+  if (!session) return null;
+
+  const rol = await queryOne<UserRoleProfile>(
+    'SELECT codigo, nombre FROM roles WHERE codigo = $1',
+    [session.rol]
+  );
+
+  return {
+    ...session,
+    rol: {
+      codigo: session.rol,
+      nombre: rol?.nombre || session.rol,
+    },
+  };
 }
 
 export async function login(email: string, password: string, ip?: string): Promise<{ user: UserSession; token: string } | null> {

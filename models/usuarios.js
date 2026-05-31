@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const Sequelize = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   return Usuarios.init(sequelize, DataTypes);
@@ -30,9 +31,8 @@ class Usuarios extends Sequelize.Model {
       allowNull: false
     },
     rol: {
-      type: DataTypes.ENUM("admin","secretaria","docente"),
-      allowNull: false,
-      defaultValue: "docente"
+      type: DataTypes.STRING(50),
+      allowNull: false
     },
     activo: {
       type: DataTypes.BOOLEAN,
@@ -57,6 +57,12 @@ class Usuarios extends Sequelize.Model {
         unique: true,
         fields: [
           { name: "id" },
+        ]
+      },
+      {
+        name: "usuarios_rol_key",
+        fields: [
+          { name: "rol" },
         ]
       },
     ]

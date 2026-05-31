@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session || !['admin', 'secretaria'].includes(session.rol)) {
+  if (!session || !['admin', 'secretaria', 'director_escuela'].includes(session.rol)) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
   }
 
@@ -57,7 +57,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session || session.rol !== 'admin') {
+  if (!session || !['admin', 'secretaria', 'director_escuela'].includes(session.rol)) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
   }
 

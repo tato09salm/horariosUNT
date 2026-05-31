@@ -1,8 +1,8 @@
 module.exports = {
-      up: async (qi, Sequelize) => {
+      up: async qi => {
         await qi.sequelize.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";');
         const enums = [
-          "CREATE TYPE rol_usuario AS ENUM ('admin', 'secretaria', 'docente');",
+          "CREATE TYPE rol_usuario AS ENUM ('admin', 'secretaria', 'docente', 'director_escuela');",
           "CREATE TYPE categoria_docente AS ENUM ('principal', 'asociado', 'auxiliar', 'jefe_practica');",
           "CREATE TYPE condicion_docente AS ENUM ('nombrado', 'contratado');",
           "CREATE TYPE tipo_grado AS ENUM ('bachiller', 'licenciado', 'magister', 'doctor');",

@@ -47,8 +47,8 @@ export default function HorariosPage() {
   const [showDeleteModal, setShowDeleteModal] = useState<string|null>(null);
 
   const user = useUser();
-  const isAdminOrSec = user?.rol === 'admin' || user?.rol === 'secretaria';
-  const isDocente = user?.rol === 'docente';
+  const isAdminOrSec = user?.rol.codigo === 'admin' || user?.rol.codigo === 'secretaria';
+  const isDocente = user?.rol.codigo === 'docente';
   const [miHorario, setMiHorario] = useState<any[]>([]);
   const [loadingMiHorario, setLoadingMiHorario] = useState(false);
 

@@ -4,7 +4,7 @@ import { getAuditoria } from '@/lib/auditoria';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session || session.rol !== 'admin') {
+  if (!session || !['admin', 'director_escuela'].includes(session.rol)) {
     return NextResponse.json({ error: 'Solo administradores' }, { status: 403 });
   }
 

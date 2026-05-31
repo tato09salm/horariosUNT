@@ -6,7 +6,7 @@ import { enviarCredencialesUsuario } from '@/lib/email';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session || session.rol !== 'admin') {
+  if (!session || !['admin', 'director_escuela'].includes(session.rol)) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
   }
 
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     const offset = (page - 1) * limit;
 
     let whereConditions = '';
-    const params: any[] = [];
+    const params: (string | number)[] = [];
     let idx = 1;
 
     if (buscar) {
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
       params
     );
     const countsByRole: Record<string, number> = {};
-    countsResult.forEach((r: any) => {
+    countsResult.forEach((r: { rol: string; count: string }) => {
       countsByRole[r.rol] = parseInt(r.count);
     });
 
@@ -80,9 +80,10 @@ export async function GET(req: NextRequest) {
       totalPages: Math.ceil(total / limit),
       countsByRole
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error GET usuarios:', error);
-    return NextResponse.json({ error: 'Error al cargar usuarios' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error al cargar usuarios';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -126,7 +127,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ data: usuario }, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error al crear usuario';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

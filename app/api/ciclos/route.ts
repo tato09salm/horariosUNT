@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session || session.rol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
+  if (!session || !['admin', 'director_escuela'].includes(session.rol)) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
   try {
     const body = await req.json();
     const ciclo = await queryOne(
