@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const DataTypes = require("sequelize").DataTypes;
 const _SequelizeMeta = require("./SequelizeMeta");
 const _Ambientes = require("./ambientes");
@@ -15,6 +16,7 @@ const _ProgramacionCursos = require("./programacion_cursos");
 const _Programaciones = require("./programaciones");
 const _SlotsTiempo = require("./slots_tiempo");
 const _Usuarios = require("./usuarios");
+const _Rol = require("./rol");
 const _Curriculas = require("./curriculas");
 const _MallaCurricular = require("./malla_curricular");
 const _Configuracion = require("./configuracion");
@@ -36,6 +38,7 @@ function initModels(sequelize) {
   const Programaciones = _Programaciones(sequelize, DataTypes);
   const SlotsTiempo = _SlotsTiempo(sequelize, DataTypes);
   const Usuarios = _Usuarios(sequelize, DataTypes);
+  const Rol = _Rol(sequelize, DataTypes);
   const Curriculas = _Curriculas(sequelize, DataTypes);
   const MallaCurricular = _MallaCurricular(sequelize, DataTypes);
   const Configuracion = _Configuracion(sequelize, DataTypes);
@@ -90,6 +93,8 @@ function initModels(sequelize) {
   Usuarios.hasMany(Programaciones, { as: "programaciones", foreignKey: "created_by"});
   Programaciones.belongsTo(Usuarios, { as: "publicado_por_usuario", foreignKey: "publicado_por"});
   Usuarios.hasMany(Programaciones, { as: "publicado_por_programaciones", foreignKey: "publicado_por"});
+  Usuarios.belongsTo(Rol, { as: "rol", foreignKey: "rol", targetKey: "codigo"});
+  Rol.hasMany(Usuarios, { as: "usuarios", foreignKey: "rol"});
 
   Curriculas.belongsToMany(Cursos, { as: 'cursos', through: MallaCurricular, foreignKey: "curricula_id", otherKey: "curso_id" });
   Cursos.belongsToMany(Curriculas, { as: 'curriculas', through: MallaCurricular, foreignKey: "curso_id", otherKey: "curricula_id" });
@@ -115,6 +120,7 @@ function initModels(sequelize) {
     Programaciones,
     SlotsTiempo,
     Usuarios,
+    Rol,
     Curriculas,
     MallaCurricular,
     Configuracion,
