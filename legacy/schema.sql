@@ -9,7 +9,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ============= TABLAS BASE =============
 
 -- Roles del sistema
-CREATE TYPE rol_usuario AS ENUM ('admin', 'secretaria', 'docente');
+CREATE TYPE rol_usuario AS ENUM ('admin', 'secretaria', 'docente', 'director_escuela');
 
 -- Usuarios del sistema
 CREATE TABLE usuarios (
@@ -232,7 +232,8 @@ INSERT INTO ambientes (codigo, nombre, tipo, capacidad, piso, edificio) VALUES
 -- Usuario admin por defecto (password: admin123)
 INSERT INTO usuarios (nombre, apellidos, email, password_hash, rol) VALUES
 ('Administrador', 'Sistema', 'admin@unt.edu.pe', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin'),
-('María', 'García López', 'secretaria@unt.edu.pe', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'secretaria');
+('María', 'García López', 'secretaria@unt.edu.pe', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'secretaria'),
+('Sanchez', 'Perez, Roberto', 'director@unitru.edu.pe', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'director_escuela');
 
 -- Cursos EIS
 INSERT INTO cursos (escuela_id, codigo, nombre, creditos, horas_teoria, horas_practica, ciclo_plan) 
