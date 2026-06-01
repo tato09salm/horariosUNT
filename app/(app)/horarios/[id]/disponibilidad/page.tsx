@@ -34,7 +34,7 @@ export default function DisponibilidadPage() {
   const [soloLectura, setSoloLectura] = useState(false);
 
   const isAdminOrSec = user?.rol.codigo === 'admin' || user?.rol.codigo === 'secretaria';
-  const isDocente = user?.rol === 'docente';
+  const isDocente = user?.rol.codigo === 'docente';
 
   const cargarDisponibilidad = useCallback(async (dId: string | null) => {
     let url = `/api/horarios/disponibilidad?programacion_id=${progId}`;
