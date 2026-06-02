@@ -24,7 +24,7 @@ $user_db  = $config["DB_USER"]
 
 Write-Host "Conectando a $name_db..." -ForegroundColor Cyan
 
-Write-Host "`n[1/8] Migraciones (002-008)..." -ForegroundColor Yellow
+Write-Host "`n[1/10] Migraciones (002-010)..." -ForegroundColor Yellow
 psql -U $user_db -h $host_db -p $port_db -d $name_db --set=client_encoding=UTF8 -f lib/migrations/002_disponibilidad_prioridad.sql
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 psql -U $user_db -h $host_db -p $port_db -d $name_db --set=client_encoding=UTF8 -f lib/migrations/003_cursos_bloques_docentes.sql
@@ -38,6 +38,10 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 psql -U $user_db -h $host_db -p $port_db -d $name_db --set=client_encoding=UTF8 -f lib/migrations/007_flex_conflictivos_csp.sql
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 psql -U $user_db -h $host_db -p $port_db -d $name_db --set=client_encoding=UTF8 -f lib/migrations/008_flex_paralelismo_csp.sql
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+psql -U $user_db -h $host_db -p $port_db -d $name_db --set=client_encoding=UTF8 -f lib/migrations/009_carga_curricular_2026i_ciclov_labs.sql
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+psql -U $user_db -h $host_db -p $port_db -d $name_db --set=client_encoding=UTF8 -f lib/migrations/010-fix-programacion-cursos-uk.sql
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "`n[2/3] Regenerando disponibilidad (008 ya aplicó poblar)..." -ForegroundColor Yellow

@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useTheme } from '@/lib/theme';
+import { useUser } from '../layout';
 
 const categorias = ['principal', 'asociado', 'auxiliar', 'jefe_practica'];
 const condiciones = ['nombrado', 'contratado'];
@@ -53,6 +54,8 @@ function getPeruTodayISO(): string {
 
 export default function DocentesPage() {
   const { darkMode } = useTheme();
+  const user = useUser();
+  const isAdmin = user?.rol === 'admin';
 
   // ── Persistir filtros en URL ──────────────────────────────────────────────
   const getParam = (key: string) => typeof window !== 'undefined'
@@ -314,11 +317,13 @@ export default function DocentesPage() {
             }
             <span className="hide-sm">{loadingPDF ? 'Generando...' : 'Reporte'}</span>
           </button>
-          <button className="btn-primary" onClick={nuevo}>
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-            <span className="hide-sm">Nuevo docente</span>
-            <span className="show-sm">Nuevo</span>
-          </button>
+          {isAdmin && (
+            <button className="btn-primary" onClick={nuevo}>
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+              <span className="hide-sm">Nuevo docente</span>
+              <span className="show-sm">Nuevo</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -441,20 +446,24 @@ export default function DocentesPage() {
                   </td>
                   <td>
                     <div style={{display:'flex',gap:'6px'}}>
-                      <button className="btn-secondary btn-crud-edit" style={{padding:'5px 10px',fontSize:'12px'}} onClick={() => editar(d)}>
-                        <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                        <span className="hide-sm">Editar</span>
-                      </button>
-                      <button
-                        className={d.activo ? 'btn-secondary btn-crud-deactivate' : 'btn-primary'}
-                        style={{padding:'5px 10px',fontSize:'12px',minWidth:d.activo?'80px':'60px'}}
-                        onClick={() => toggleEstado(d)}
-                      >
-                        <span className="hide-sm">{d.activo ? 'Desactivar' : 'Activar'}</span>
-                        <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={d.activo ? "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" : "M5 13l4 4L19 7"} />
-                        </svg>
-                      </button>
+                      {isAdmin && (
+                        <>
+                          <button className="btn-secondary btn-crud-edit" style={{padding:'5px 10px',fontSize:'12px'}} onClick={() => editar(d)}>
+                            <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                            <span className="hide-sm">Editar</span>
+                          </button>
+                          <button
+                            className={d.activo ? 'btn-secondary btn-crud-deactivate' : 'btn-primary'}
+                            style={{padding:'5px 10px',fontSize:'12px',minWidth:d.activo?'80px':'60px'}}
+                            onClick={() => toggleEstado(d)}
+                          >
+                            <span className="hide-sm">{d.activo ? 'Desactivar' : 'Activar'}</span>
+                            <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={d.activo ? "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" : "M5 13l4 4L19 7"} />
+                            </svg>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
