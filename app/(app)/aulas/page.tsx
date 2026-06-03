@@ -20,7 +20,9 @@ export default function AulasPage() {
   const [stats, setStats] = useState({ aulas: 0, laboratorios: 0, otros: 0 });
   const { darkMode } = useTheme();
   const user = useUser();
-  const isAdmin = user?.rol === 'admin';
+  const isAdmin = user?.rol.codigo === 'admin';
+  const isDirector = user?.rol.codigo === 'director_escuela';
+  const canWrite = isAdmin || isDirector; // Director puede escribir
   const limit = 10;
   const [showModal, setShowModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -215,7 +217,7 @@ export default function AulasPage() {
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             <span className="hide-sm">Reporte</span>
           </button>
-          {isAdmin && (
+          {canWrite && (
             <button className="btn-primary" onClick={() => { setForm({...empty}); setShowModal(true); setMsg(null); }}>
               <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
               <span className="hide-sm">Nuevo ambiente</span>
@@ -308,7 +310,7 @@ export default function AulasPage() {
                   </td>
                   <td>
                     <div style={{display:'flex',gap:'6px'}}>
-                      {isAdmin && (
+                      {canWrite && (
                         <>
                           <button className="btn-secondary btn-crud-edit" style={{padding:'5px 10px',fontSize:'12px'}} onClick={() => editar(a)}>
                             <span className="hide-sm">Editar</span>

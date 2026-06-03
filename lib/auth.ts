@@ -34,16 +34,18 @@ export async function getSessionProfile(): Promise<UserProfile | null> {
   const session = await getSession();
   if (!session) return null;
 
-  const rol = await queryOne<UserRoleProfile>(
-    'SELECT codigo, nombre FROM roles WHERE codigo = $1',
-    [session.rol]
-  );
+  const nombresRoles: Record<string, string> = {
+    admin: 'Administrador',
+    secretaria: 'Secretaria',
+    docente: 'Docente',
+    director_escuela: 'Director de Escuela',
+  };
 
   return {
     ...session,
     rol: {
       codigo: session.rol,
-      nombre: rol?.nombre || session.rol,
+      nombre: nombresRoles[session.rol] || session.rol,
     },
   };
 }
@@ -80,7 +82,8 @@ export async function login(email: string, password: string, ip?: string): Promi
   return { user: session, token };
 }
 
-export function requireRole(session: UserSession | null, roles: string[]): boolean {
+export function requireRole(session: UserSession | UserProfile | null, roles: string[]): boolean {
   if (!session) return false;
-  return roles.includes(session.rol);
+  const rolCode = typeof session.rol === 'string' ? session.rol : session.rol.codigo;
+  return roles.includes(rolCode);
 }
