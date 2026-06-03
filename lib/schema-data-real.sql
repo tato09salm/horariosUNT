@@ -401,7 +401,7 @@ BEGIN
     (eis_id, 'IS-505', 'Arquitectura de computadoras', 3, 1, 2, 5, 1),
     (eis_id, 'IS-506', 'Teleinformática(e)', 2, 1, 2, 5, 1),
     (eis_id, 'IND-501', 'Investigación de Operaciones', 2, 1, 2, 5, 1),
-    (eis_id, 'CF-501', 'Contabilidad Gerencial', 2, 1, 2, 5, 1),
+    (eis_id, 'CF-501', 'Contabilidad Gerencial', 2, 1, 2, 5, 1)
     -- Ciclo VII
     (eis_id, 'IS-701', 'Ingeniería de Software I', 2, 2, 1, 7, 1),
     (eis_id, 'IS-702', 'Redes y Comunicaciones I', 4, 1, 1, 7, 1),
@@ -468,6 +468,13 @@ BEGIN
     (eis_id, 'IND-1001', 'Responsabilidad Social Corp.', 2, 2, 2, 10, 2)
 
     ON CONFLICT (codigo) DO NOTHING;
+    
+    -- Catálogo: Horas laboratorio y cantidad de turnos para cursos de Ciclo V 2026-I
+    UPDATE cursos c SET
+      horas_laboratorio = 2,
+      cantidad_labs = 2,
+      bloque_indivisible = true
+    WHERE c.codigo IN ('IND-501', 'CF-501');
 END $$;
 
 
@@ -530,7 +537,8 @@ BEGIN
     INSERT INTO grupos (ciclo_id, curso_id, numero_grupo, max_alumnos, num_alumnos) VALUES
     (c_26_i, cur_is501, 1, 30, 25), (c_26_i, cur_is502, 2, 30, 25), (c_26_i, cur_is503, 3, 30, 25),
     (c_26_i, cur_is504, 4, 30, 25), (c_26_i, cur_is505, 5, 30, 25), (c_26_i, cur_is506, 6, 30, 25),
-    (c_26_i, cur_ind501, 7, 30, 25), (c_26_i, cur_cf501, 8, 30, 25);
+    (c_26_i, cur_ind501, 7, 30, 25), (c_26_i, cur_ind501, 8, 30, 25), (c_26_i, cur_ind501, 9, 30, 25),
+    (c_26_i, cur_cf501, 10, 30, 25);
 
     -- Ciclo VII
     SELECT id INTO cur_is701 FROM cursos WHERE codigo = 'IS-701'; SELECT id INTO cur_is702 FROM cursos WHERE codigo = 'IS-702';

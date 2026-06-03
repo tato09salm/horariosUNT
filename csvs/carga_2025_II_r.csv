@@ -1,0 +1,100 @@
+CICLO,CODIGO,CURSO,GRUPO,DOCENTE,T,P,L,C
+II,EG-201,Ética Convivencia Humana y Ciudadanía,G1 (Teoria),42424242,2,0,0,0
+II,EG-201,Ética Convivencia Humana y Ciudadanía,G1 (Practica),42424242,0,2,0,0
+II,EG-202,Sociedad Cultura y Ecología,G1 (Teoria),40404040,2,0,0,0
+II,EG-202,Sociedad Cultura y Ecología,G1 (Practica),40404040,0,2,0,0
+II,EG-203,Cultura Investigativa y Pensamiento Crítico,G1 (Teoria),41414141,2,0,0,0
+II,EG-203,Cultura Investigativa y Pensamiento Crítico,G1 (Practica),41414141,0,2,0,0
+II,EG-204,Análisis Matemático,G1 (Teoria),43434343,2,0,0,0
+II,EG-204,Análisis Matemático,G1 (Practica),43434343,0,4,0,0
+II,EG-205,Física General,G1 (Teoria),77777777,2,0,0,0
+II,EG-205,Física General,G1 (Practica),77777777,0,2,0,0
+II,EG-205,Física General,G1 (Laboratorio),44444445,0,0,2,0
+II,EE-201,Programación Orientada a Objetos I,G1 (Teoria),20202020,2,0,0,0
+II,EE-201,Programación Orientada a Objetos I,G1 (Laboratorio),20202020,0,0,4,0
+II,EL-201,Taller de Manejo de TIC (e),G1 (Practica),30303030,0,2,0,0
+II,EL-202,Taller de Danzas Folklóricas (e),G1 (Practica),30303030,0,2,0,0
+II,EL-203,Taller de Deporte (e),G1 (Practica),30303030,0,2,0,0
+IV,EP-401,Economía General,G1 (Teoria),52525252,2,0,0,0
+IV,EP-401,Economía General,G1 (Practica),52525252,0,2,0,0
+IV,EE-401,Diseño Web,G1 (Teoria),22222223,1,0,0,0
+IV,EE-401,Diseño Web,G1 (Practica),22222223,0,1,0,0
+IV,EE-401,Diseño Web,G1 (Laboratorio),22222223,0,0,3,0
+IV,EP-402,Pensamiento de Diseño,G1 (Teoria),38383838,2,0,0,0
+IV,EP-402,Pensamiento de Diseño,G1 (Practica),38383838,0,2,0,0
+IV,EP-403,Gestión por Procesos,G1 (Teoria),31313131,2,0,0,0
+IV,EP-403,Gestión por Procesos,G1 (Practica),31313131,0,2,0,0
+IV,EE-402,Sistemas Digitales,G1 (Teoria),30303030,2,0,0,0
+IV,EE-402,Sistemas Digitales,G1 (Practica),30303030,0,2,0,0
+IV,EE-403,Estructura de Datos Orientado a Objetos,G1 (Teoria),11111111,2,0,0,0
+IV,EE-403,Estructura de Datos Orientado a Objetos,G1 (Practica),11111111,0,1,0,0
+IV,EE-403,Estructura de Datos Orientado a Objetos,G1 (Laboratorio),11111111,0,0,3,0
+IV,EL-401,Computación Gráfica y Visual (e),G1 (Teoria),29292929,1,0,0,0
+IV,EL-401,Computación Gráfica y Visual (e),G1 (Practica),29292929,0,1,0,0
+IV,EL-401,Computación Gráfica y Visual (e),G1 (Laboratorio),29292929,0,0,3,0
+IV,EL-402,Plataformas Tecnológicas (e),G1 (Teoria),31313131,2,0,0,0
+IV,EL-402,Plataformas Tecnológicas (e),G1 (Laboratorio),31313131,0,0,2,0
+VI,EP-601,Finanzas Corporativas,G1 (Teoria),33333334,1,0,0,0
+VI,EP-601,Finanzas Corporativas,G1 (Practica),33333334,0,2,0,0
+VI,EP-601,Finanzas Corporativas,G1 (Laboratorio),33333334,0,0,2,0
+VI,EE-601,Sistemas Inteligentes,G1 (Teoria),11111111,1,0,0,0
+VI,EE-601,Sistemas Inteligentes,G1 (Practica),11111111,0,2,0,0
+VI,EE-601,Sistemas Inteligentes,G1 (Laboratorio),11111111,0,0,2,0
+VI,EP-602,Ingeniería Económica,G1 (Teoria),37373737,1,0,0,0
+VI,EP-602,Ingeniería Económica,G1 (Practica),37373737,0,2,0,0
+VI,EP-602,Ingeniería Económica,G1 (Laboratorio),37373737,0,0,2,0
+VI,EE-602,Ingeniería de Datos II,G1 (Teoria),28282828,2,0,0,0
+VI,EE-602,Ingeniería de Datos II,G1 (Practica),28282828,0,1,0,0
+VI,EE-602,Ingeniería de Datos II,G1 (Laboratorio),28282828,0,0,3,0
+VI,EE-603,Sistemas Operativos,G1 (Teoria),30303030,1,0,0,0
+VI,EE-603,Sistemas Operativos,G1 (Practica),30303030,0,2,0,0
+VI,EE-603,Sistemas Operativos,G1 (Laboratorio),30303030,0,0,2,0
+VI,EE-604,Ingeniería de Requerimientos,G1 (Teoria),29292929,1,0,0,0
+VI,EE-604,Ingeniería de Requerimientos,G1 (Practica),29292929,0,2,0,0
+VI,EE-604,Ingeniería de Requerimientos,G1 (Laboratorio),29292929,0,0,2,0
+VI,EL-601,Ingeniería Ambiental (e),G1 (Teoria),57575757,2,0,0,0
+VI,EL-601,Ingeniería Ambiental (e),G1 (Practica),57575757,0,2,0,0
+VI,EL-602,Gestión del Talento Humano (e),G1 (Teoria),25252525,2,0,0,0
+VI,EL-602,Gestión del Talento Humano (e),G1 (Practica),25252525,0,2,0,0
+VIII,EP-801,Marketing y Medios Sociales,G1 (Teoria),36363636,1,0,0,0
+VIII,EP-801,Marketing y Medios Sociales,G1 (Practica),36363636,0,2,0,0
+VIII,EP-801,Marketing y Medios Sociales,G1 (Laboratorio),36363636,0,0,2,0
+VIII,EE-801,Seguridad de la Información,G1 (Teoria),22222222,1,0,0,0
+VIII,EE-801,Seguridad de la Información,G1 (Practica),22222222,0,2,0,0
+VIII,EE-801,Seguridad de la Información,G1 (Laboratorio),22222222,0,0,2,0
+VIII,EE-802,Internet de las Cosas,G1 (Teoria),38383838,1,0,0,0
+VIII,EE-802,Internet de las Cosas,G1 (Practica),38383838,0,1,0,0
+VIII,EE-802,Internet de las Cosas,G1 (Laboratorio),38383838,0,0,3,0
+VIII,EE-803,Inteligencia de Negocios,G1 (Teoria),35353535,1,0,0,0
+VIII,EE-803,Inteligencia de Negocios,G1 (Practica),35353535,0,2,0,0
+VIII,EE-803,Inteligencia de Negocios,G1 (Laboratorio),35353535,0,0,2,0
+VIII,EE-804,Redes y Comunicaciones II,G1 (Teoria),21212121,1,0,0,0
+VIII,EE-804,Redes y Comunicaciones II,G1 (Practica),21212121,0,1,0,0
+VIII,EE-804,Redes y Comunicaciones II,G1 (Laboratorio),21212121,0,0,3,0
+VIII,EE-805,Ingeniería del Software II,G1 (Teoria),34343434,2,0,0,0
+VIII,EE-805,Ingeniería del Software II,G1 (Practica),34343434,0,1,0,0
+VIII,EE-805,Ingeniería del Software II,G1 (Laboratorio),34343434,0,0,3,0
+VIII,EL-801,Deontología y Derecho Informático (e),G1 (Teoria),62626262,2,0,0,0
+VIII,EL-801,Deontología y Derecho Informático (e),G1 (Practica),62626262,0,2,0,0
+VIII,EL-802,Arquitectura basada en Microservicios (e),G1 (Teoria),22222223,2,0,0,0
+VIII,EL-802,Arquitectura basada en Microservicios (e),G1 (Laboratorio),22222223,0,0,2,0
+X,EE-X01,Sistemas de Información Empresarial,G1 (Teoria),33333333,2,0,0,0
+X,EE-X01,Sistemas de Información Empresarial,G1 (Practica),33333333,0,1,0,0
+X,EE-X01,Sistemas de Información Empresarial,G1 (Laboratorio),33333333,0,0,3,0
+X,EE-X02,Gobierno de TIC,G1 (Teoria),22222222,1,0,0,0
+X,EE-X02,Gobierno de TIC,G1 (Practica),22222222,0,2,0,0
+X,EE-X02,Gobierno de TIC,G1 (Laboratorio),22222222,0,0,2,0
+X,EI-X01,Tesis II,G1 (Teoria),35353535,2,0,0,0
+X,EI-X01,Tesis II,G1 (Practica),35353535,0,2,0,0
+X,EI-X01,Tesis II,G1 (Laboratorio),35353535,0,0,2,0
+X,EE-X03,Arquitectura Empresarial,G1 (Teoria),21212121,1,0,0,0
+X,EE-X03,Arquitectura Empresarial,G1 (Practica),21212121,0,2,0,0
+X,EE-X03,Arquitectura Empresarial,G1 (Laboratorio),21212121,0,0,2,0
+X,EP-X01,Responsabilidad Social Corporativa,G1 (Teoria),37373737,2,0,0,0
+X,EP-X01,Responsabilidad Social Corporativa,G1 (Practica),37373737,0,2,0,0
+X,EE-X04,Aplicaciones Móviles,G1 (Teoria),29292929,1,0,0,0
+X,EE-X04,Aplicaciones Móviles,G1 (Practica),29292929,0,1,0,0
+X,EE-X04,Aplicaciones Móviles,G1 (Laboratorio),29292929,0,0,3,0
+X,EE-X05,Prácticas Pre Profesionales,G1 (Teoria),36363636,2,0,0,0
+X,EE-X05,Prácticas Pre Profesionales,G1 (Practica),36363636,0,1,0,0
+X,EE-X05,Prácticas Pre Profesionales,G1 (Laboratorio),36363636,0,0,3,0
