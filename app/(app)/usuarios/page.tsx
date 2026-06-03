@@ -32,7 +32,9 @@ export default function UsuariosPage() {
   const [buscar, setBuscar] = useState('');
   const [filtroRol, setFiltroRol] = useState('');
   const limit = 10;
-  const canWrite = user?.rol.codigo === 'admin';
+  const isAdmin = user?.rol.codigo === 'admin';
+  const isDirector = user?.rol.codigo === 'director_escuela';
+  const canWrite = isAdmin; // Director solo lectura en página de usuarios
 
   const cargar = useCallback(() => {
     setLoading(true);

@@ -55,7 +55,9 @@ function getPeruTodayISO(): string {
 export default function DocentesPage() {
   const { darkMode } = useTheme();
   const user = useUser();
-  const isAdmin = user?.rol === 'admin';
+  const isAdmin = user?.rol.codigo === 'admin';
+  const isDirector = user?.rol.codigo === 'director_escuela';
+  const canWrite = isAdmin || isDirector; // Director puede escribir
 
   // ── Persistir filtros en URL ──────────────────────────────────────────────
   const getParam = (key: string) => typeof window !== 'undefined'
@@ -317,7 +319,7 @@ export default function DocentesPage() {
             }
             <span className="hide-sm">{loadingPDF ? 'Generando...' : 'Reporte'}</span>
           </button>
-          {isAdmin && (
+          {canWrite && (
             <button className="btn-primary" onClick={nuevo}>
               <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
               <span className="hide-sm">Nuevo docente</span>
@@ -446,7 +448,7 @@ export default function DocentesPage() {
                   </td>
                   <td>
                     <div style={{display:'flex',gap:'6px'}}>
-                      {isAdmin && (
+                      {canWrite && (
                         <>
                           <button className="btn-secondary btn-crud-edit" style={{padding:'5px 10px',fontSize:'12px'}} onClick={() => editar(d)}>
                             <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>

@@ -49,8 +49,10 @@ export default function HorariosPage() {
   const [restaurandoId, setRestaurandoId] = useState<string|null>(null);
 
   const user = useUser();
-  const isAdminOrSec = user?.rol === 'admin' || user?.rol === 'secretaria';
-  const isDocente = user?.rol === 'docente';
+  const isAdminOrSec = user?.rol.codigo === 'admin' || user?.rol.codigo === 'secretaria';
+  const isDirector = user?.rol.codigo === 'director_escuela';
+  const isDocente = user?.rol.codigo === 'docente';
+  const canEdit = isAdminOrSec; // Director solo lectura
   const [miHorario, setMiHorario] = useState<any[]>([]);
   const [loadingMiHorario, setLoadingMiHorario] = useState(false);
 
@@ -251,7 +253,7 @@ export default function HorariosPage() {
               onClick={() => setVista('horario')}
             >📅 Horario General</button>
           </div>
-          {vista === 'programaciones' && isAdminOrSec && (
+          {vista === 'programaciones' && canEdit && (
             <button className="btn-primary" onClick={() => setShowCrear(true)}>
               <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
               Nueva programación
@@ -278,7 +280,7 @@ export default function HorariosPage() {
       {vista === 'programaciones' && (
         <div>
           {/* Subvista selector (Activas / Canceladas) */}
-          {isAdminOrSec && (
+          {canEdit && (
             <div style={{display:'flex',gap:'8px',marginBottom:'16px'}}>
               <button
                 style={{padding:'8px 16px',fontSize:'13px',fontWeight:'600',border:'none',cursor:'pointer',borderRadius:'8px',background:subVista==='activas'?'#1a3a5c':'var(--bg-card)',color:subVista==='activas'?'white':'var(--text-secondary)'}}
@@ -302,7 +304,7 @@ export default function HorariosPage() {
                   <div style={{fontSize:'48px',marginBottom:'12px',opacity:0.4}}>📋</div>
                   <h3 style={{fontSize:'18px',fontWeight:'600',color:'var(--text-primary)',margin:'0 0 8px'}}>No hay programaciones activas para este ciclo</h3>
                   <p style={{color:'var(--text-secondary)',fontSize:'14px',margin:'0 0 20px'}}>Crea una nueva programación para comenzar el proceso de asignación de horarios.</p>
-                  {isAdminOrSec && (
+                  {canEdit && (
                     <button className="btn-primary" onClick={() => setShowCrear(true)}>
                       <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
                       Crear programación
@@ -377,7 +379,7 @@ export default function HorariosPage() {
 
                           {/* Acciones */}
                           <div style={{display:'flex',gap:'10px',alignItems:'center',justifyContent:'flex-end'}}>
-                            {prog.estado !== 'publicado' && prog.estado !== 'cancelado' && isAdminOrSec && (
+                            {prog.estado !== 'publicado' && prog.estado !== 'cancelado' && canEdit && (
                               <button className="btn-danger" style={{padding:'6px 14px',fontSize:'13px'}} onClick={() => setShowDeleteModal(prog.id)}>
                                 Cancelar
                               </button>
@@ -459,7 +461,7 @@ export default function HorariosPage() {
 
                           {/* Acciones (solo Restaurar) */}
                           <div style={{display:'flex',gap:'10px',alignItems:'center',justifyContent:'flex-end'}}>
-                            {isAdminOrSec && (
+                            {canEdit && (
                               <button className="btn-primary" style={{padding:'6px 14px',fontSize:'13px'}} onClick={() => setRestaurandoId(prog.id)}>
                                 🔄 Restaurar
                               </button>
