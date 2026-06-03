@@ -102,7 +102,7 @@ export default function DashboardPage() {
   const [programaciones, setProgramaciones] = useState<DashboardProgramacion[]>([]);
 
   const user = useUser();
-  const isDocente = user?.rol === 'docente';
+  const isDocente = user?.rol.codigo === 'docente';
   const { darkMode } = useTheme();
 
   const fetchDashboard = async (selectedCicloId?: string): Promise<DashboardApiResponse | null> => {

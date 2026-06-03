@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const offset = (page - 1) * limit;
 
   // Lógica de verificación y creación automática de usuarios para docentes existentes
-  if (verificarUsuarios && (session.rol === 'admin' || session.rol === 'secretaria')) {
+  if (verificarUsuarios && ['admin', 'secretaria', 'director_escuela'].includes(session.rol)) {
     try {
       const docentesSinUsuario = await query(`
         SELECT d.* FROM docentes d
@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session || !['admin', 'secretaria'].includes(session.rol)) {
+  if (!session || !['admin', 'secretaria', 'director_escuela'].includes(session.rol)) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
   }
 

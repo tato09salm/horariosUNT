@@ -69,7 +69,9 @@ export default function CiclosPage() {
   const [showModal,        setShowModal]        = useState(false);
   const [showConfirm,      setShowConfirm]      = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [showActualConfirm, setShowActualConfirm] = useState(false);
   const [cicloAEliminar,   setCicloAEliminar]   = useState<{ id: string; nombre: string } | null>(null);
+  const [cicloActual,      setCicloActual]      = useState<{ id: string; nombre: string } | null>(null);
   const [editando,         setEditando]         = useState<Partial<Ciclo>>(emptyCiclo);
   const editandoOriginal                        = useRef<Partial<Ciclo>>(emptyCiclo);
   const [saving,           setSaving]           = useState(false);
@@ -118,12 +120,13 @@ export default function CiclosPage() {
       if (!editando.nombre || !editando.año || !editando.semestre)
         throw new Error('Nombre, año y semestre son requeridos');
 
+      const { activo: _activo, ...payload } = editando;
       const method = editando.id ? 'PUT' : 'POST';
       const url    = editando.id ? `/api/ciclos/${editando.id}` : '/api/ciclos';
       const res    = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editando),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al guardar');
@@ -158,6 +161,30 @@ export default function CiclosPage() {
   function handleEliminar(ciclo: Ciclo) {
     setCicloAEliminar({ id: ciclo.id, nombre: ciclo.nombre });
     setShowConfirm(true);
+  }
+
+  function activarCiclo(ciclo: Ciclo) {
+    setCicloActual({ id: ciclo.id, nombre: ciclo.nombre });
+    setShowActualConfirm(true);
+  }
+
+  async function confirmarCicloActual() {
+    if (!cicloActual) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/ciclos/${cicloActual.id}/actual`, { method: 'PUT' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al establecer el ciclo actual');
+
+      setShowActualConfirm(false);
+      setCicloActual(null);
+      setToast({ type: 'success', text: `Ciclo ${cicloActual.nombre} establecido como actual` });
+      cargar();
+    } catch (e: any) {
+      setToast({ type: 'error', text: e.message || 'Error al cambiar el ciclo actual' });
+    } finally {
+      setSaving(false);
+    }
   }
 
   function nuevo() {
@@ -447,19 +474,38 @@ export default function CiclosPage() {
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      {isAdmin && (
-                        <>
-                          <button className="btn-secondary btn-crud-edit" style={{ padding: '5px 10px', fontSize: '12px' }} onClick={() => editar(c)}>
-                            <span className="hide-sm">Editar</span>
-                            <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        {!c.activo && (
+                          <button
+                            className="btn-primary"
+                            style={{ padding: '5px 10px', fontSize: '12px' }}
+                            onClick={() => activarCiclo(c)}
+                            disabled={saving}
+                          >
+                            <span className="hide-sm">Establecer como actual</span>
+                            <span className="show-sm">Actual</span>
                           </button>
-                          <button className="btn-secondary btn-crud-deactivate" style={{ padding: '5px 10px', fontSize: '12px' }} onClick={() => handleEliminar(c)}>
-                            <span className="hide-sm">Desactivar</span>
-                            <svg className="show-sm" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                          </button>
-                        </>
-                      )}
-                    </div>
+                        )}
+
+                        {isAdmin && (
+                          <>
+                            <button
+                              className="btn-secondary btn-crud-edit"
+                              style={{ padding: '5px 10px', fontSize: '12px' }}
+                              onClick={() => editar(c)}
+                            >
+                              <span className="hide-sm">Editar</span>
+                            </button>
+
+                            <button
+                              className="btn-secondary btn-crud-deactivate"
+                              style={{ padding: '5px 10px', fontSize: '12px' }}
+                              onClick={() => handleEliminar(c)}
+                            >
+                              <span className="hide-sm">Desactivar</span>
+                            </button>
+                          </>
+                        )}
+                      </div>
                   </td>
                 </tr>
               ))}
@@ -520,13 +566,9 @@ export default function CiclosPage() {
                   <label className="form-label">Fecha fin</label>
                   <input type="date" className="form-input" value={editando.fecha_fin?.split('T')[0] || ''} onChange={e => setEditando(p => ({ ...p, fecha_fin: e.target.value }))}/>
                 </div>
-                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input type="checkbox" id="activo" checked={editando.activo || false} onChange={e => setEditando(p => ({ ...p, activo: e.target.checked }))}/>
-                  <label htmlFor="activo" className="form-label" style={{ margin: 0 }}>Activo (solo un ciclo puede estar activo)</label>
-                </div>
               </div>
               <p style={{ margin: '16px 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                <span style={{ color: '#dc2626', fontWeight: 600 }}>*</span> Campo obligatorio
+                <span style={{ color: '#dc2626', fontWeight: 600 }}>*</span> Campo obligatorio. El ciclo actual se define con el botón de la tabla.
               </p>
             </div>
             <div className="modal-footer">
@@ -586,6 +628,33 @@ export default function CiclosPage() {
             <div className="modal-footer" style={{ borderTop: 'none', paddingTop: 0, marginTop: '8px' }}>
               <button className="btn-secondary" onClick={() => { setShowConfirm(false); setCicloAEliminar(null); }}>Cancelar</button>
               <button className="btn-danger" onClick={eliminarCiclo} disabled={saving}>{saving ? 'Eliminando...' : 'Sí, eliminar'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmación Establecer actual */}
+      {showActualConfirm && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: '400px' }}>
+            <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#2563eb' }}>
+                <div style={{ background: darkMode ? 'rgba(59,130,246,0.18)' : '#dbeafe', padding: '8px', borderRadius: '50%' }}>
+                  <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h2 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>¿Establecer como actual?</h2>
+              </div>
+            </div>
+            <div className="modal-body" style={{ paddingTop: '16px' }}>
+              <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                El ciclo <strong>{cicloActual?.nombre}</strong> pasará a ser el ciclo académico actual y el resto quedará inactivo.
+              </p>
+            </div>
+            <div className="modal-footer" style={{ borderTop: 'none', paddingTop: 0, marginTop: '8px' }}>
+              <button className="btn-secondary" onClick={() => { setShowActualConfirm(false); setCicloActual(null); }}>Cancelar</button>
+              <button className="btn-primary" onClick={confirmarCicloActual} disabled={saving}>{saving ? 'Cambiando...' : 'Sí, establecer'}</button>
             </div>
           </div>
         </div>

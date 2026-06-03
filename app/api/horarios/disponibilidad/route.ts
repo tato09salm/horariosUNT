@@ -18,6 +18,15 @@ export async function GET(req: NextRequest) {
     const doc = await queryOne(`SELECT id FROM docentes WHERE usuario_id = $1`, [session.id]);
     if (!doc) return NextResponse.json({ error: 'No tienes un perfil de docente asociado' }, { status: 404 });
     docente_id = doc.id;
+
+    // Validar que el docente tenga al menos un curso en esta programación
+    const tieneCursos = await queryOne(`
+      SELECT 1 FROM programacion_cursos 
+      WHERE programacion_id = $1 AND docente_id = $2 LIMIT 1
+    `, [prog_id, doc.id]);
+    if (!tieneCursos) return NextResponse.json({
+      error: 'No estás registrado como docente en ningún curso de esta programación.'
+    }, { status: 403 });
   }
 
   if (!docente_id) return NextResponse.json({ error: 'docente_id requerido' }, { status: 400 });

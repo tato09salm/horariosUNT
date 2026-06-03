@@ -11,7 +11,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Roles del sistema
 DO $$ BEGIN
-    CREATE TYPE rol_usuario AS ENUM ('admin', 'secretaria', 'docente');
+    CREATE TYPE rol_usuario AS ENUM ('admin', 'secretaria', 'docente', 'director_escuela');
 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- Usuarios del sistema
@@ -278,7 +278,8 @@ ON CONFLICT (codigo) DO NOTHING;
 -- 5. USUARIOS ADMIN
 INSERT INTO usuarios (nombre, apellidos, email, password_hash, rol) VALUES
 ('Administrador', 'Sistema', 'admin@unt.edu.pe', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin'),
-('María', 'García López', 'secretaria@unt.edu.pe', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'secretaria')
+('María', 'García López', 'secretaria@unt.edu.pe', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'secretaria'),
+('Sanchez', 'Perez, Roberto', 'director@unitru.edu.pe', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'director_escuela')
 ON CONFLICT (email) DO NOTHING;
 
 -- ========================================
@@ -1192,4 +1193,3 @@ END $$;
 -- ========================================
 -- FIN DEL SCRIPT
 -- ========================================
-

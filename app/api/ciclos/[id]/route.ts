@@ -1,87 +1,83 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { queryOne } from '@/lib/db';
+import { registrarAuditoria } from '@/lib/auditoria';
 
-// GET /api/ciclos/[id] - Obtener un ciclo
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
 
   const { id } = await params;
   const ciclo = await queryOne('SELECT * FROM ciclos WHERE id = $1', [id]);
-  
-  if (!ciclo) {
-    return NextResponse.json({ error: 'Ciclo no encontrado' }, { status: 404 });
-  }
-  
+  if (!ciclo) return NextResponse.json({ error: 'Ciclo no encontrado' }, { status: 404 });
+
   return NextResponse.json({ data: ciclo });
 }
 
-// PUT /api/ciclos/[id] - Actualizar ciclo
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session || session.rol !== 'admin') {
+  if (!session || !['admin', 'director_escuela'].includes(session.rol)) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
   }
 
+  const { id } = await params;
   try {
-    const { id } = await params;
     const body = await req.json();
-    const { nombre, año, semestre, fecha_inicio, fecha_fin, activo } = body;
-
-    // Si activo es true, desactivamos los demás ciclos
-    if (activo === true) {
-      await queryOne('UPDATE ciclos SET activo = false WHERE id != $1', [id]);
+    if (!body.nombre || !body.año || !body.semestre) {
+      return NextResponse.json({ error: 'Nombre, año y semestre son requeridos' }, { status: 400 });
     }
 
-    // IMPORTANTE: NO uses updated_at porque la tabla ciclos NO tiene esa columna
+    const anterior = await queryOne('SELECT * FROM ciclos WHERE id = $1', [id]);
+    if (!anterior) return NextResponse.json({ error: 'Ciclo no encontrado' }, { status: 404 });
+
     const ciclo = await queryOne(
-      `UPDATE ciclos 
-       SET nombre = $1, año = $2, semestre = $3, 
-           fecha_inicio = $4, fecha_fin = $5, activo = $6
-       WHERE id = $7
+      `UPDATE ciclos
+       SET nombre = $1, año = $2, semestre = $3, fecha_inicio = $4, fecha_fin = $5
+       WHERE id = $6
        RETURNING *`,
-      [nombre, año, semestre, fecha_inicio, fecha_fin, activo, id]
+      [body.nombre, body.año, body.semestre, body.fecha_inicio || null, body.fecha_fin || null, id]
     );
 
-    if (!ciclo) {
-      return NextResponse.json({ error: 'Ciclo no encontrado' }, { status: 404 });
-    }
+    await registrarAuditoria({
+      usuario_id: session.id,
+      accion: 'UPDATE',
+      tabla_afectada: 'ciclos',
+      registro_id: id,
+      datos_anteriores: anterior,
+      datos_nuevos: ciclo,
+      descripcion: `Ciclo actualizado: ${ciclo?.nombre}`,
+    });
 
     return NextResponse.json({ data: ciclo });
   } catch (error: any) {
-    console.error('Error en PUT ciclo:', error);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
 
-// DELETE /api/ciclos/[id] - Eliminar ciclo
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session || session.rol !== 'admin') {
+  if (!session || !['admin', 'director_escuela'].includes(session.rol)) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
   }
 
-  try {
-    const { id } = await params;
-    const ciclo = await queryOne('DELETE FROM ciclos WHERE id = $1 RETURNING id', [id]);
-    
-    if (!ciclo) {
-      return NextResponse.json({ error: 'Ciclo no encontrado' }, { status: 404 });
-    }
-    
-    return NextResponse.json({ message: 'Ciclo eliminado correctamente' });
-  } catch (error: any) {
-    console.error('Error en DELETE ciclo:', error);
-    return NextResponse.json({ error: error.message }, { status: 400 });
-  }
+  const { id } = await params;
+  const anterior = await queryOne('SELECT * FROM ciclos WHERE id = $1', [id]);
+  if (!anterior) return NextResponse.json({ error: 'Ciclo no encontrado' }, { status: 404 });
+
+  const ciclo = await queryOne(
+    'UPDATE ciclos SET activo = false WHERE id = $1 RETURNING *',
+    [id]
+  );
+
+  await registrarAuditoria({
+    usuario_id: session.id,
+    accion: 'DELETE',
+    tabla_afectada: 'ciclos',
+    registro_id: id,
+    datos_anteriores: anterior,
+    datos_nuevos: ciclo,
+    descripcion: `Ciclo desactivado: ${anterior.nombre}`,
+  });
+
+  return NextResponse.json({ data: ciclo });
 }

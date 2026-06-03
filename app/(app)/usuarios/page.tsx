@@ -3,13 +3,24 @@ import { useState, useEffect, useCallback } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useTheme } from '@/lib/theme';
+import { useUser } from '../layout';
 
 interface Usuario { id:string; nombre:string; apellidos:string; email:string; rol:string; activo:boolean; created_at:string; }
 
+const roleLabels: Record<string, string> = {
+  admin: 'ADMINISTRADOR(A)',
+  director_escuela: 'DIRECTOR DE ESCUELA',
+  secretaria: 'SECRETARIO/A',
+  docente: 'DOCENTE',
+};
+
+const roleOrder = ['admin', 'director_escuela', 'secretaria', 'docente'];
+
 export default function UsuariosPage() {
+  const user = useUser();
   const { darkMode } = useTheme();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [countsByRole, setCountsByRole] = useState<Record<string, number>>({ admin: 0, secretaria: 0, docente: 0 });
+  const [countsByRole, setCountsByRole] = useState<Record<string, number>>({ admin: 0, director_escuela: 0, secretaria: 0, docente: 0 });
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<any>({ nombre:'', apellidos:'', email:'', password:'', rol:'secretaria' });
@@ -21,6 +32,7 @@ export default function UsuariosPage() {
   const [buscar, setBuscar] = useState('');
   const [filtroRol, setFiltroRol] = useState('');
   const limit = 10;
+  const canWrite = user?.rol.codigo === 'admin';
 
   const cargar = useCallback(() => {
     setLoading(true);
@@ -35,7 +47,7 @@ export default function UsuariosPage() {
       .then(d => {
         setUsuarios(d.data || []);
         setTotal(d.total || 0);
-        setCountsByRole(d.countsByRole || { admin: 0, secretaria: 0, docente: 0 });
+        setCountsByRole(d.countsByRole || { admin: 0, director_escuela: 0, secretaria: 0, docente: 0 });
       })
       .catch(() => setMsg({ type: 'error', text: 'Error al cargar usuarios' }))
       .finally(() => setLoading(false));
@@ -94,14 +106,14 @@ export default function UsuariosPage() {
       // Mostrar filtros aplicados en el reporte
       let filtrosTexto = '';
       if (buscar) filtrosTexto += ` | Búsqueda: "${buscar}"`;
-      if (filtroRol) filtrosTexto += ` | Rol: ${filtroRol === 'admin' ? 'Administrador' : filtroRol === 'secretaria' ? 'Secretaria' : 'Docente'}`;
+      if (filtroRol) filtrosTexto += ` | Rol: ${roleLabels[filtroRol] || filtroRol}`;
       doc.text(`Total de registros: ${usuariosFull.length}${filtrosTexto}`, 14, 57);
 
       const tableData = usuariosFull.map((u: Usuario, i: number) => [
         i + 1,
         `${u.nombre.toUpperCase()} ${u.apellidos.toUpperCase()}`,
         u.email,
-        u.rol === 'admin' ? 'ADMINISTRADOR' : u.rol === 'secretaria' ? 'SECRETARIA' : 'DOCENTE',
+        roleLabels[u.rol] || u.rol.toUpperCase(),
         u.activo ? 'ACTIVO' : 'INACTIVO',
         new Date(u.created_at).toLocaleDateString('es-PE')
       ]);
@@ -128,15 +140,6 @@ export default function UsuariosPage() {
     }
   }
 
-  const rolColor: Record<string,string> = { admin:'#fee2e2|#991b1b', secretaria:'#dbeafe|#1e40af', docente:'#d1fae5|#065f46' };
-
-  // Contar usuarios por rol (basado en el total filtrado, no en los paginados)
-  const totalPorRol = {
-    admin: 0, secretaria: 0, docente: 0
-  };
-  // Para contar los totales, necesitamos hacer una consulta aparte o usar el total
-  // Por simplicidad, mostramos los conteos de la página actual
-
   return (
     <div className="page-container">
       <div className="header-responsive" style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'24px',flexWrap:'wrap',gap:'16px'}}>
@@ -151,18 +154,20 @@ export default function UsuariosPage() {
             </svg>
             <span className="hide-sm">Reporte</span>
           </button>
-          <button className="btn-primary" onClick={()=>{setForm({nombre:'',apellidos:'',email:'',password:'temporal123',rol:'secretaria'});setShowModal(true);setMsg(null);}}>
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-            <span className="hide-sm">Nuevo usuario</span>
-            <span className="show-sm">Nuevo</span>
-          </button>
+          {canWrite && (
+            <button className="btn-primary" onClick={()=>{setForm({nombre:'',apellidos:'',email:'',password:'temporal123',rol:'secretaria'});setShowModal(true);setMsg(null);}}>
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+              <span className="hide-sm">Nuevo usuario</span>
+              <span className="show-sm">Nuevo</span>
+            </button>
+          )}
         </div>
       </div>
       {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
       
       {/* Resumen roles - mostrando totales de la página actual */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'12px',marginBottom:'20px'}}>
-        {['admin','secretaria','docente'].map(rol=>{
+        {roleOrder.map(rol=>{
           const count = countsByRole[rol] || 0;
           const brightColors: Record<string, string> = {
             admin: darkMode ? '#f472b6' : '#991b1b',
@@ -183,7 +188,7 @@ export default function UsuariosPage() {
               </div>
               <div>
                 <p style={{fontSize:'22px',fontWeight:'700',color: brightColors[rol],margin:'0 0 2px'}}>{count}</p>
-                <p style={{fontSize:'12px',color: darkMode ? '#94a3b8' : '#64748b',margin:0,textTransform:'capitalize'}}>{rol}s</p>
+                <p style={{fontSize:'12px',color: darkMode ? '#94a3b8' : '#64748b',margin:0,textTransform:'capitalize'}}>{roleLabels[rol]}</p>
               </div>
             </div>
           );
@@ -197,7 +202,8 @@ export default function UsuariosPage() {
           <select className="form-input" style={{width:'180px'}} value={filtroRol} onChange={e => setFiltroRol(e.target.value)}>
             <option value="">Todos los roles</option>
             <option value="admin">Administradores</option>
-            <option value="secretaria">Secretarias</option>
+            <option value="director_escuela">Directores de escuela</option>
+            <option value="secretaria">Secretarios/as</option>
             <option value="docente">Docentes</option>
           </select>
           {(buscar || filtroRol) && (
@@ -231,11 +237,13 @@ export default function UsuariosPage() {
                 usuarios.map((u,i)=>{
                   const brightColors: Record<string, string> = {
                     admin: darkMode ? '#f472b6' : '#991b1b',
+                    director_escuela: darkMode ? '#c084fc' : '#6b21a8',
                     secretaria: darkMode ? '#60a5fa' : '#1e40af',
                     docente: darkMode ? '#34d399' : '#065f46'
                   };
                   const brightBg: Record<string, string> = {
                     admin: darkMode ? 'rgba(244,114,182,0.1)' : '#fee2e2',
+                    director_escuela: darkMode ? 'rgba(192,132,252,0.1)' : '#f3e8ff',
                     secretaria: darkMode ? 'rgba(96,165,250,0.1)' : '#dbeafe',
                     docente: darkMode ? 'rgba(52,211,153,0.1)' : '#d1fae5'
                   };
@@ -256,7 +264,7 @@ export default function UsuariosPage() {
                       <td style={{color: darkMode ? '#94a3b8' : '#64748b',fontSize:'13px'}}>{u.email}</td>
                       <td>
                         <span style={{display:'inline-flex',alignItems:'center',padding:'2px 10px',borderRadius:'9999px',fontSize:'11px',fontWeight:'600',background:brightBg[u.rol]||'#f1f5f9',color:brightColors[u.rol]||'#475569',textTransform:'uppercase'}}>
-                          {u.rol === 'admin' ? 'ADMINISTRADOR' : u.rol === 'secretaria' ? 'SECRETARIA' : 'DOCENTE'}
+                        {roleLabels[u.rol] || u.rol.toUpperCase()}
                         </span>
                       </td>
                       <td>
@@ -291,7 +299,7 @@ export default function UsuariosPage() {
       </div>
 
       {/* Modal Crear Usuario */}
-      {showModal && (
+      {canWrite && showModal && (
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowModal(false)}>
           <div className="modal">
             <div className="modal-header">
@@ -311,11 +319,13 @@ export default function UsuariosPage() {
                   <label className="form-label">Rol *</label>
                   <select className="form-input" value={form.rol||'secretaria'} onChange={e=>setForm((p:any)=>({...p,rol:e.target.value}))}>
                     <option value="admin">Administrador</option>
+                    <option value="director_escuela">Director de Escuela</option>
                     <option value="secretaria">Secretaria</option>
                     <option value="docente">Docente</option>
                   </select>
                   <p style={{fontSize:'11px',color:'#94a3b8',marginTop:'4px',margin:'4px 0 0'}}>
                     {form.rol==='admin' && '⚠ Acceso total al sistema incluyendo auditoría y usuarios'}
+                    {form.rol==='director_escuela' && '✓ Gestión de docentes, cursos, aulas y usuarios de su escuela'}
                     {form.rol==='secretaria' && '✓ Gestión de horarios, docentes, cursos y reportes'}
                     {form.rol==='docente' && '○ Solo visualización de horarios y dashboard'}
                   </p>
