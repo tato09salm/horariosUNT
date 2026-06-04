@@ -103,6 +103,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (message.includes('unique') || message.includes('duplicate')) {
       return NextResponse.json({ error: 'Este docente ya está asignado a este grupo' }, { status: 409 });
     }
+    console.error('[programacion-cursos POST]', message);
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

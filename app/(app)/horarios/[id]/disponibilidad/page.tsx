@@ -30,11 +30,72 @@ export default function DisponibilidadPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<any>(null);
 
+  // Configuración de período de disponibilidad
+  const [disponibilidadPeriodo, setDisponibilidadPeriodo] = useState<any>(null);
+  const [fechaInicio, setFechaInicio] = useState('');
+  const [fechaCierre, setFechaCierre] = useState('');
+  const [enviarNotificacion, setEnviarNotificacion] = useState(false);
+
   const [accesoError, setAccesoError] = useState<string | null>(null);
   const [soloLectura, setSoloLectura] = useState(false);
 
   const isAdminOrSec = user?.rol.codigo === 'admin' || user?.rol.codigo === 'secretaria';
   const isDocente = user?.rol.codigo === 'docente';
+
+  const cargarDisponibilidadPeriodo = useCallback(async () => {
+    if (!progId) return;
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}/disponibilidad-periodo`);
+      const data = await res.json();
+      if (res.ok && data.data) {
+        setDisponibilidadPeriodo(data.data);
+        // Convertir a hora local (Perú) para datetime-local
+        const fechaInicio = data.data.fecha_inicio ? new Date(data.data.fecha_inicio) : null;
+        const fechaCierre = data.data.fecha_cierre ? new Date(data.data.fecha_cierre) : null;
+        
+        // Ajustar a zona horaria local del navegador (asumiendo Perú)
+        if (fechaInicio) {
+          const offset = fechaInicio.getTimezoneOffset() * 60000;
+          const localDate = new Date(fechaInicio.getTime() - offset);
+          setFechaInicio(localDate.toISOString().slice(0, 16));
+        }
+        if (fechaCierre) {
+          const offset = fechaCierre.getTimezoneOffset() * 60000;
+          const localDate = new Date(fechaCierre.getTime() - offset);
+          setFechaCierre(localDate.toISOString().slice(0, 16));
+        }
+      }
+    } catch (e) {
+      console.error('Error cargando período de disponibilidad:', e);
+    }
+  }, [progId]);
+
+  const guardarDisponibilidadPeriodo = async () => {
+    if (!progId || !fechaInicio || !fechaCierre) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}/disponibilidad-periodo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fecha_inicio: fechaInicio,
+          fecha_cierre: fechaCierre,
+          enviar_notificacion: enviarNotificacion
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setDisponibilidadPeriodo(data.data);
+      // Don't reset checkbox - allow user to send multiple notifications
+      await cargarDisponibilidadPeriodo(); // Reload to get updated state
+      setMsg({ type: 'success', text: 'Período de disponibilidad configurado correctamente' });
+    } catch (e: any) {
+      setMsg({ type: 'error', text: e.message });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const cargarDisponibilidad = useCallback(async (dId: string | null) => {
     let url = `/api/horarios/disponibilidad?programacion_id=${progId}`;
@@ -61,13 +122,13 @@ export default function DisponibilidadPage() {
       const [progRes, docRes, dashRes] = await Promise.all([
         fetch(`/api/horarios/programaciones/${progId}`).then(r => r.json()),
         fetchProgramacionCursos(progId),
-        fetch('/api/dashboard').then(r => r.json()),
+        fetch('/api/dashboard').then(r => r.json()).catch(() => ({ slots: [] })),
       ]);
 
       const progData = progRes.data;
       setProg(progData);
       setDocentes(docRes.cargaDocentes || []);
-      setSlots(dashRes.slots || []);
+      setSlots(dashRes?.slots || []);
 
       // ── Validaciones de acceso para docentes ──────────────────────────────
       if (isDocente) {
@@ -122,7 +183,7 @@ export default function DisponibilidadPage() {
     }
   }, [progId, user, isDocente, cargarDisponibilidad]);
 
-  useEffect(() => { cargarDatos(); }, [cargarDatos]);
+  useEffect(() => { cargarDatos(); cargarDisponibilidadPeriodo(); }, [cargarDatos, cargarDisponibilidadPeriodo]);
 
   const toggleSlot = (dia: string, slotId: string) => {
     // Bloquear edición si es solo lectura o estado no editable
@@ -309,7 +370,16 @@ export default function DisponibilidadPage() {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', margin: '0 0 4px' }}>{prog.nombre}</h1>
+          <h1
+            style={{
+              fontSize: '24px',
+              fontWeight: '700',
+              color: 'var(--text-primary)',
+              margin: '0 0 4px'
+            }}
+          >
+            {prog.nombre}
+          </h1>
           <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Fase 2: Disponibilidad Docente (doble prioridad)</p>
         </div>
         {isAdminOrSec && (
@@ -328,6 +398,140 @@ export default function DisponibilidadPage() {
 
       {bannerSoloLectura}
       {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
+
+      {/* Sección de configuración de período de disponibilidad (solo admin/secretaria) */}
+      {isAdminOrSec && (
+        <div className="card" style={{ marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 16px' }}>Configuración del Período de Disponibilidad</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 600 }}>Fecha y Hora de Inicio:</label>
+              <input
+                type="datetime-local"
+                className="form-input"
+                value={fechaInicio}
+                onChange={e => setFechaInicio(e.target.value)}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 600 }}>Fecha y Hora de Cierre:</label>
+              <input
+                type="datetime-local"
+                className="form-input"
+                value={fechaCierre}
+                onChange={e => setFechaCierre(e.target.value)}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+              />
+            </div>
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <div
+              className="notif-card"
+              role="switch"
+              aria-checked={enviarNotificacion}
+              tabIndex={0}
+              onClick={() => setEnviarNotificacion(!enviarNotificacion)}
+              onKeyDown={e => {
+                if (e.key === ' ' || e.key === 'Enter') {
+                  e.preventDefault();
+                  setEnviarNotificacion(!enviarNotificacion);
+                }
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-card)',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                ...(enviarNotificacion ? {
+                  border: '1px solid #3b82f6',
+                  background: 'rgba(59, 130, 246, 0.05)',
+                } : {}),
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '8px',
+                  background: enviarNotificacion ? '#3b82f6' : 'var(--border-color)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s',
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={enviarNotificacion ? '#fff' : 'var(--text-secondary)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                  </svg>
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <h3 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
+                      Notificar a docentes asignados
+                    </h3>
+                    <span style={{
+                      fontSize: '11px',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      background: enviarNotificacion ? '#3b82f6' : 'var(--border-color)',
+                      color: enviarNotificacion ? '#fff' : 'var(--text-secondary)',
+                      fontWeight: '500',
+                    }}>
+                      {enviarNotificacion ? 'Activo' : 'Desactivado'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
+                    Se enviará un correo automático al actualizar el período
+                  </p>
+                </div>
+              </div>
+              <div style={{
+                width: '44px',
+                height: '24px',
+                borderRadius: '12px',
+                background: enviarNotificacion ? '#3b82f6' : 'var(--border-color)',
+                position: 'relative',
+                transition: 'all 0.2s',
+              }}>
+                <div style={{
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '50%',
+                  background: '#fff',
+                  position: 'absolute',
+                  top: '2px',
+                  left: enviarNotificacion ? '22px' : '2px',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                }}></div>
+              </div>
+            </div>
+          </div>
+          {disponibilidadPeriodo && (
+            <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '6px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
+                <strong>Período actual:</strong><br />
+                Inicio: {new Date(disponibilidadPeriodo.fecha_inicio).toLocaleString('es-PE', { timeZone: 'America/Lima' })}<br />
+                Cierre: {new Date(disponibilidadPeriodo.fecha_cierre).toLocaleString('es-PE', { timeZone: 'America/Lima' })}<br />
+                Notificación enviada: {disponibilidadPeriodo.notificacion_enviada ? 'Sí' : 'No'}
+              </p>
+            </div>
+          )}
+          <button
+            className="btn-primary"
+            onClick={guardarDisponibilidadPeriodo}
+            disabled={saving || !fechaInicio || !fechaCierre}
+          >
+            {saving ? 'ACTUALIZANDO...' : 'ACTUALIZAR PERÍODO'}
+          </button>
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center', justifyContent: 'space-between' }}>

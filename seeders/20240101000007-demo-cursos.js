@@ -2,7 +2,7 @@ module.exports = {
   up: async (qi) => {
     const eis_id = (await qi.sequelize.query("SELECT id FROM escuelas WHERE codigo = 'EIS';"))[0][0].id;
     await qi.bulkInsert('cursos', [
-      { escuela_id: eis_id, codigo: 'EG-101', nombre: 'Desarrollo del Pensamiento Lógico Matemático', creditos: 3, horas_teoria: 2, horas_practica: 2, horas_laboratorio: 0, ciclo_plan: 1, semestre: 1 },
+      { escuela_id: eis_id, codigo: 'EG-101', nombre: 'Desarrollo del Pensamiento Lógico Matemático', creditos: 3, horas_teoria: 1, horas_practica: 4, horas_laboratorio: 0, ciclo_plan: 1, semestre: 1 },
           { escuela_id: eis_id, codigo: 'EG-102', nombre: 'Lectura Crítica y Redacción de Textos Académicos', creditos: 3, horas_teoria: 2, horas_practica: 2, horas_laboratorio: 0, ciclo_plan: 1, semestre: 1 },
           { escuela_id: eis_id, codigo: 'EG-103', nombre: 'Desarrollo Personal', creditos: 3, horas_teoria: 2, horas_practica: 2, horas_laboratorio: 0, ciclo_plan: 1, semestre: 1 },
           { escuela_id: eis_id, codigo: 'EG-104', nombre: 'Introducción al Análisis Matemático', creditos: 4, horas_teoria: 2, horas_practica: 4, horas_laboratorio: 0, ciclo_plan: 1, semestre: 1 },
