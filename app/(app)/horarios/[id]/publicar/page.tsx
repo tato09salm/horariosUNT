@@ -283,7 +283,28 @@ export default function PublicarPage() {
         </div>
       </div>
 
-      {msg && <div className={`alert alert-${msg.type}`} style={{ marginBottom: '20px' }}>{msg.text}</div>}
+      {msg && (
+        <div className={`alert alert-${msg.type}`} style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>{msg.text}</span>
+          <button
+            onClick={() => setMsg(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'inherit',
+              fontSize: '20px',
+              cursor: 'pointer',
+              padding: '0 8px',
+              marginLeft: '16px',
+              opacity: 0.7,
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Panel de publicación */}
       <div className="card horarios-publicar-summary" style={{ maxWidth: '700px', margin: '0 auto 32px', textAlign: 'center' }}>

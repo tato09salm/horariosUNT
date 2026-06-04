@@ -19,11 +19,12 @@ interface ConfigExportacion {
 }
 
 export function agruparBloquesContiguos(asignaciones: any[]): BloqueAgrupado[] {
+  const normalizeDay = (d: string) => d.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const dayOrder: Record<string, number> = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 };
   
   const sorted = [...asignaciones].sort((a, b) => {
-    const dayA = dayOrder[a.dia.toLowerCase()] || 99;
-    const dayB = dayOrder[b.dia.toLowerCase()] || 99;
+    const dayA = dayOrder[normalizeDay(a.dia)] || 99;
+    const dayB = dayOrder[normalizeDay(b.dia)] || 99;
     if (dayA !== dayB) return dayA - dayB;
     
     const cA = a.curso_codigo || '';
@@ -51,13 +52,14 @@ export function agruparBloquesContiguos(asignaciones: any[]): BloqueAgrupado[] {
     return timeA.localeCompare(timeB);
   });
 
-  const result: BloqueAgrupado[] = [];
+  const result: (BloqueAgrupado & { docente_id?: any })[] = [];
   for (const a of sorted) {
     const curso_codigo = a.curso_codigo || '';
     const curso_nombre = a.curso_nombre || '';
     const grupo = a.grupo || '';
     const aula = a.aula || '';
     const docente_nombre = a.docente_nombre || '';
+    const docente_id = a.docente_id || null;
     const tipo_sesion = a.tipo_sesion || '';
     const dia = a.dia || '';
     const hora_inicio = a.hora_inicio?.slice(0, 5) || '';
@@ -71,6 +73,7 @@ export function agruparBloquesContiguos(asignaciones: any[]): BloqueAgrupado[] {
         grupo,
         aula,
         docente_nombre,
+        docente_id,
         tipo_sesion,
         dia,
         hora_inicio,
@@ -82,11 +85,12 @@ export function agruparBloquesContiguos(asignaciones: any[]): BloqueAgrupado[] {
     }
     const last = result[result.length - 1];
     const sameSession =
-      last.dia.toLowerCase() === dia.toLowerCase() &&
+      normalizeDay(last.dia) === normalizeDay(dia) &&
       last.curso_codigo === curso_codigo &&
       last.grupo === grupo &&
       last.tipo_sesion === tipo_sesion &&
       last.docente_nombre === docente_nombre &&
+      String(last.docente_id) === String(docente_id) &&
       last.aula === aula;
 
     if (sameSession && last.hora_fin === hora_inicio) {
@@ -99,6 +103,7 @@ export function agruparBloquesContiguos(asignaciones: any[]): BloqueAgrupado[] {
         grupo,
         aula,
         docente_nombre,
+        docente_id,
         tipo_sesion,
         dia,
         hora_inicio,
@@ -183,7 +188,12 @@ export async function exportarHorariosExcel(config: ConfigExportacion) {
   // 5. Hojas por Docente
   for (const docente of config.docentes) {
     const tieneAsignaciones = config.asignaciones.some(
-      a => a.docente_id === docente.id || a.docente_nombre?.toLowerCase() === docente.nombre?.toLowerCase()
+      a => String(a.docente_id) === String(docente.id) || 
+        (a.docente_nombre && docente.nombre && docente.apellidos && (
+          a.docente_nombre.toLowerCase().includes(docente.nombre.toLowerCase()) && 
+          a.docente_nombre.toLowerCase().includes(docente.apellidos.toLowerCase())
+        )) ||
+        a.docente_nombre?.toLowerCase() === docente.nombre?.toLowerCase()
     );
     if (tieneAsignaciones) {
       await generarHojaDocente(workbook, datos, docente);

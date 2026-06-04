@@ -65,38 +65,68 @@ export default function ReportesPage() {
     setLoading(true);
     setHasSearched(false);
     try {
+      console.log('=== STARTING generarReporte ===');
+      console.log('cicloId:', cicloId);
+      console.log('docenteId:', docenteId);
+      console.log('ambienteId:', ambienteId);
+      
+      // First try /api/horarios for live data
+      let asignacionesData: any[] = [];
+      console.log('First trying /api/horarios...');
       const q = new URLSearchParams({ciclo_id:cicloId});
-      if (tipoReporte==='docente' && docenteId) q.set('docente_id',docenteId);
-      if (tipoReporte==='operacional' && ambienteId) q.set('ambiente_id',ambienteId);
+      if (docenteId) q.set('docente_id', docenteId);
+      if (ambienteId) q.set('ambiente_id', ambienteId);
       const res = await fetch(`/api/horarios?${q}`);
       const data = await res.json();
-      let asignacionesData = data.data || [];
+      asignacionesData = data.data || [];
+      console.log('ASIGNACIONES FROM /api/horarios:', asignacionesData);
 
+      // If /api/horarios is empty, try programaciones export
       if (asignacionesData.length === 0 && cicloId) {
+        console.log('Trying programaciones export...');
         const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`).then(r => r.json());
+        console.log('progsRes:', progsRes);
         const progs = progsRes.data || [];
+        console.log('progs:', progs);
         const selectedProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
-
+        console.log('selectedProg:', selectedProg);
         if (selectedProg) {
+          console.log('Fetching export for selectedProg.id:', selectedProg.id);
           const exportRes = await fetch(`/api/horarios/programaciones/${selectedProg.id}/exportar`);
+          console.log('exportRes.status:', exportRes.status);
           if (exportRes.ok) {
             const exportData = await exportRes.json();
+            console.log('exportData:', exportData);
+            console.log('EXPORT DATA ASIGNACIONES:', exportData.asignaciones);
             asignacionesData = (exportData.asignaciones || []).map((a: any) => ({
               dia: a.dia,
               hora_inicio: a.hora_inicio,
               hora_fin: a.hora_fin,
               curso_nombre: a.curso_nombre,
               curso_codigo: a.curso_codigo,
+              grupo: a.grupo, // Keep original grupo too!
               numero_grupo: parseInt(String(a.grupo || '').replace('G', ''), 10) || 1,
               tipo: a.tipo_sesion || a.tipo,
               ambiente_nombre: a.aula || '',
               ambiente_codigo: a.aula || '',
               docente_nombre: a.docente_nombre || '',
               docente_id: a.docente_id || null,
+              ciclo_plan: a.ciclo_plan || a.ciclo,
             }));
+            console.log('ASIGNACIONES AFTER MAPPING:', asignacionesData);
 
             if (docenteId) {
-              asignacionesData = asignacionesData.filter((a: any) => a.docente_id === docenteId);
+              const docSeleccionado = docentes.find(d => String(d.id) === String(docenteId));
+              const apellidos = docSeleccionado?.apellidos?.toLowerCase() || '';
+              console.log('ASIGNACIONES BEFORE DOCENTE FILTER:', asignacionesData.map(a => ({curso: a.curso_codigo, hora_inicio: a.hora_inicio, dia: a.dia, docente_id: a.docente_id, docente_nombre: a.docente_nombre})));
+              
+              asignacionesData = asignacionesData.filter((a: any) => {
+                const idCoincide = a.docente_id && String(a.docente_id) === String(docenteId);
+                const nombreCoincide = a.docente_nombre && apellidos && a.docente_nombre.toLowerCase().includes(apellidos);
+                return idCoincide || nombreCoincide;
+              });
+              
+              console.log('ASIGNACIONES AFTER DOCENTE FILTER:', asignacionesData.map(a => ({curso: a.curso_codigo, hora_inicio: a.hora_inicio, dia: a.dia, docente_id: a.docente_id})));
             }
             if (ambienteId) {
               const amb = ambientes.find(a => a.id === ambienteId);
@@ -124,6 +154,7 @@ export default function ReportesPage() {
         };
       });
 
+      console.log('SETTING ASIGNACIONES:', normalized);
       setAsignaciones(normalized);
       if (cicloId) {
         const d = await fetch(`/api/dashboard?ciclo_id=${cicloId}`).then(r=>r.json());
@@ -254,6 +285,7 @@ export default function ReportesPage() {
       grupo: string;
       aula: string;
       docente_nombre: string;
+      docente_id?: any;
       tipo_sesion: string;
       dia: string;
       hora_inicio: string;
@@ -262,14 +294,36 @@ export default function ReportesPage() {
       ciclo: number;
     }
 
+    // Helper to get group string, avoiding double G prefix
+    const getGrupoString = (asig: any): string => {
+      if (typeof asig.grupo === 'string' && asig.grupo.startsWith('G')) {
+        return asig.grupo;
+      }
+      const numGrupo = asig.numero_grupo || asig.grupo;
+      return numGrupo ? `G${numGrupo}` : '';
+    };
+
     function agruparBloquesContiguos(asigList: any[]): BloqueAgrupado[] {
+      // Normalizar acentos para asegurar un agrupamiento correcto
+      const normalizeDay = (d: string) => d.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  
       const ordenDias = (dia: string): number => {
         const orden = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
-        return orden.indexOf(dia.toLowerCase());
+        return orden.indexOf(normalizeDay(dia));
+      };
+
+      // Calcular la duración real a partir de las horas, no forzar 1
+      const calcularDuracion = (inicio: string, fin: string) => {
+        if (!inicio || !fin) return 1;
+        const hIni = parseInt(inicio.split(':')[0], 10);
+        const hFin = parseInt(fin.split(':')[0], 10);
+        return Math.max(1, hFin - hIni);
       };
 
       const ordenadas = [...asigList].sort((a, b) => {
-        if (a.dia !== b.dia) return ordenDias(a.dia) - ordenDias(b.dia);
+        if (normalizeDay(a.dia) !== normalizeDay(b.dia)) {
+          return ordenDias(a.dia) - ordenDias(b.dia);
+        }
         return a.hora_inicio.localeCompare(b.hora_inicio);
       });
       
@@ -278,38 +332,43 @@ export default function ReportesPage() {
       
       for (const asig of ordenadas) {
         const currentCycle = asig.ciclo_plan || asig.ciclo || 0;
+        const grupoStr = getGrupoString(asig);
+        const aulaStr = asig.ambiente_codigo || asig.aula || asig.ambiente_nombre || '';
+        
         const isContinuation = bloqueActual && 
-          bloqueActual.dia === asig.dia &&
+          normalizeDay(bloqueActual.dia) === normalizeDay(asig.dia) &&
           bloqueActual.curso_codigo === asig.curso_codigo &&
-          bloqueActual.grupo === `G${asig.numero_grupo || asig.grupo}` &&
-          bloqueActual.aula === (asig.ambiente_codigo || asig.aula || asig.ambiente_nombre) &&
-          bloqueActual.docente_nombre === asig.docente_nombre &&
+          bloqueActual.grupo === grupoStr &&
+          bloqueActual.aula === aulaStr &&
+          (String(bloqueActual.docente_id) === String(asig.docente_id) || bloqueActual.docente_nombre === asig.docente_nombre) &&
           bloqueActual.tipo_sesion === asig.tipo &&
           bloqueActual.hora_fin === asig.hora_inicio;
 
         if (isContinuation && bloqueActual) {
           bloqueActual.hora_fin = asig.hora_fin;
-          bloqueActual.duracion_horas += 1;
+          bloqueActual.duracion_horas = calcularDuracion(bloqueActual.hora_inicio, asig.hora_fin);
         } else {
           if (bloqueActual) bloques.push(bloqueActual);
           
           bloqueActual = {
             curso_codigo: asig.curso_codigo || '',
             curso_nombre: asig.curso_nombre || '',
-            grupo: `G${asig.numero_grupo || asig.grupo || ''}`,
-            aula: asig.ambiente_codigo || asig.aula || asig.ambiente_nombre || '',
+            grupo: grupoStr,
+            aula: aulaStr,
             docente_nombre: asig.docente_nombre || '',
+            docente_id: asig.docente_id,
             tipo_sesion: asig.tipo || '',
             dia: asig.dia,
             hora_inicio: asig.hora_inicio,
             hora_fin: asig.hora_fin,
-            duracion_horas: 1,
+            duracion_horas: calcularDuracion(asig.hora_inicio, asig.hora_fin), // Evitar que se pierdan las horas
             ciclo: currentCycle
           };
         }
       }
       
       if (bloqueActual) bloques.push(bloqueActual);
+      console.log('Agrupados bloques:', bloques);
       return bloques;
     }
 
@@ -320,6 +379,8 @@ export default function ReportesPage() {
       tipoReporteHorario: 'docente' | 'operacional',
       mapaColores: any
     ) {
+      console.log('CONSTRUIR FILAS: slotsOrdenados:', slotsOrdenados);
+      console.log('CONSTRUIR FILAS: bloquesAgrupados:', bloquesAgrupados);
       const formatearBloque = (bloque: BloqueAgrupado, mostrarDuracion = false) => {
         const tipoEtiqueta = bloque.tipo_sesion === 'asesoria' ? 'C' : bloque.tipo_sesion[0].toUpperCase();
         const detalle = tipoReporteHorario === 'docente' ? `Aula: ${bloque.aula}` : `Docente: ${bloque.docente_nombre}`;
@@ -333,9 +394,11 @@ export default function ReportesPage() {
         ].join('\n');
       };
 
-      const bloquesPorInicio = new Map<string, BloqueAgrupado[]>();
-      const llaveInicio = (dia: string, horaInicio: string) => `${dia.toLowerCase()}|${horaInicio}`;
+      // Normalizar acentos
+      const normalizeDay = (d: string) => d.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const llaveInicio = (dia: string, horaInicio: string) => `${normalizeDay(dia)}|${horaInicio}`;
 
+      const bloquesPorInicio = new Map<string, BloqueAgrupado[]>();
       bloquesAgrupados.forEach((bloque) => {
         const key = llaveInicio(bloque.dia, bloque.hora_inicio);
         const lista = bloquesPorInicio.get(key) || [];
@@ -359,12 +422,17 @@ export default function ReportesPage() {
             return;
           }
 
-          if (esRefrigerio) {
+          // Extraer bloques primero antes de forzar el Refrigerio
+          const key = llaveInicio(dia, slot.hora_inicio);
+          const bloquesEnInicio = bloquesPorInicio.get(key) || [];
+          console.log(`Checking for key: ${key}, bloques found:`, bloquesEnInicio);
+          
+          // Si es refrigerio PERO no hay clases programadas, ponemos hora libre
+          if (esRefrigerio && bloquesEnInicio.length === 0) {
             fila.push('HORA LIBRE (REFRIGERIO)');
             return;
           }
 
-          const bloquesEnInicio = bloquesPorInicio.get(llaveInicio(dia, slot.hora_inicio)) || [];
           if (bloquesEnInicio.length === 0) {
             fila.push('');
             return;
@@ -515,12 +583,30 @@ export default function ReportesPage() {
     } else {
       // Reporte operacional semanal agrupado y pintado
       const docGrp: Record<string,any[]> = {};
-      asignaciones.forEach(a => {
-        if (a.tipo === 'asesoria') return; // Excluir asesoría de los PDFs para ahorrar espacio
-        const k = tipoReporte==='docente' ? a.docente_nombre : a.ambiente_nombre;
-        if (!docGrp[k]) docGrp[k] = [];
-        docGrp[k].push(a);
-      });
+      console.log('asignaciones recibidas:', asignaciones);
+      
+      // If it's a docente report and we have docenteId, use docenteId to filter!
+      if (tipoReporte === 'docente' && docenteId) {
+        const docente = docentes.find(d => String(d.id) === String(docenteId));
+        const apellidos = docente?.apellidos?.toLowerCase() || '';
+        
+        const docAsig = asignaciones.filter(a => 
+          (a.docente_id && String(a.docente_id) === String(docenteId)) || 
+          (a.docente_nombre && apellidos && a.docente_nombre.toLowerCase().includes(apellidos))
+        );
+        
+        const key = docente ? `${docente.nombre} ${docente.apellidos}` : (docAsig[0]?.docente_nombre || 'Docente');
+        docGrp[key] = docAsig;
+        console.log('Docente asignaciones filtradas:', docAsig);
+      } else {
+        // Otherwise group by name/ambiente as before
+        asignaciones.forEach(a => {
+          if (a.tipo === 'asesoria') return; // Excluir asesoría de los PDFs para ahorrar espacio
+          const k = tipoReporte==='docente' ? a.docente_nombre : a.ambiente_nombre;
+          if (!docGrp[k]) docGrp[k] = [];
+          docGrp[k].push(a);
+        });
+      }
 
       const items = Object.entries(docGrp);
       items.forEach(([tituloGrp, grpAsignaciones], idxPage) => {
@@ -579,7 +665,14 @@ export default function ReportesPage() {
         const diasSem = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
         const headersTable = ['Hora', ...diasSem];
 
-        let sortedSlots = [...slots].sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio));
+        // Deduplicate slots by hora_inicio first!
+        const uniqueSlotsMap = new Map();
+        [...slots].sort((a,b)=>a.hora_inicio.localeCompare(b.hora_inicio)).forEach(slot => {
+          if (!uniqueSlotsMap.has(slot.hora_inicio)) {
+            uniqueSlotsMap.set(slot.hora_inicio, slot);
+          }
+        });
+        let sortedSlots = Array.from(uniqueSlotsMap.values());
         
         // Recortar slots vacíos al final del día para garantizar que la tabla quepa en una hoja
         let maxSlotIndex = 0;
@@ -701,8 +794,9 @@ export default function ReportesPage() {
               if (!slot) return;
               const dia = diasSem[data.column.index - 1];
 
+              const normalizeDay = (d: string) => d.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
               const bloquesEnInicio = bloquesAgrupados.filter(b => 
-                b.dia.toLowerCase() === dia.toLowerCase() &&
+                normalizeDay(b.dia) === normalizeDay(dia) &&
                 b.hora_inicio === slot.hora_inicio
               );
 

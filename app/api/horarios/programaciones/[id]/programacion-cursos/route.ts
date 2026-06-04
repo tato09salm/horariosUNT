@@ -100,8 +100,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ data: pc }, { status: 201 });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error';
-    if (message.includes('unique') || message.includes('duplicate')) {
-      return NextResponse.json({ error: 'Este docente ya está asignado a este grupo' }, { status: 409 });
+    if (message.includes('unique') || message.includes('duplicate') || message.includes('unicidad') || message.includes('duplicada')) {
+      return NextResponse.json({ error: 'No se puede asignar el mismo docente más de una vez al mismo grupo. Por favor, selecciona un docente diferente.' }, { status: 409 });
     }
     console.error('[programacion-cursos POST]', message);
     return NextResponse.json({ error: message }, { status: 400 });

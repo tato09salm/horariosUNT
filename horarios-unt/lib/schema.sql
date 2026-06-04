@@ -4,8 +4,8 @@
 -- ========================================
 
 -- Extensiones
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
+-- CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+/*
 -- ============= TABLAS BASE =============
 
 -- Roles del sistema
@@ -271,3 +271,4 @@ VALUES
 ('D008', 'María', 'Reyes Gutiérrez', '89012345', 'mreyes@unt.edu.pe', 'principal', 'contratado', '2003-01-10', 'doctor', 16),
 ('D009', 'Pedro', 'Aguilar Herrera', '90123456', 'paguilar@unt.edu.pe', 'asociado', 'contratado', '2008-03-01', 'magister', 16),
 ('D010', 'Rosa', 'Infante Quiñones', '01234567', 'rinfante@unt.edu.pe', 'auxiliar', 'contratado', '2018-08-01', 'bachiller', 16);
+*/

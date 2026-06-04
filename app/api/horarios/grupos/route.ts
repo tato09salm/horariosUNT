@@ -14,7 +14,8 @@ export async function GET(req: NextRequest) {
     const programacion_id = searchParams.get('programacion_id');
     const curso_id = searchParams.get('curso_id');
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '100');
+    // Si se filtra por programacion_id, no aplicar límite para obtener todos los grupos
+    const limit = programacion_id ? 1000 : parseInt(searchParams.get('limit') || '100');
     const offset = (page - 1) * limit;
 
     let sql = `
@@ -174,4 +175,4 @@ export async function POST(req: NextRequest) {
     
     return NextResponse.json({ error: 'Error al crear el grupo' }, { status: 500 });
   }
-}
+}
