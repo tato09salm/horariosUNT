@@ -99,7 +99,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               (programacion_id, curso_id, grupo_id, docente_id, horas_teoria, horas_practica, horas_laboratorio, horas_consejeria)
              VALUES 
               ($1, $2, $3, $4, $5, $6, $7, $8)
-             ON CONFLICT ON CONSTRAINT programacion_cursos_programacion_id_grupo_id_uk 
+             ON CONFLICT ON CONSTRAINT programacion_cursos_programacion_id_grupo_id_docente_id_uk 
              DO UPDATE SET
                curso_id = EXCLUDED.curso_id,
                docente_id = EXCLUDED.docente_id,

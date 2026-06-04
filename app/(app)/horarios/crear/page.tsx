@@ -42,6 +42,8 @@ export default function CrearHorarioPage() {
   const [searchGrupoId, setSearchGrupoId] = useState<string | null>(null);
   const [docenteSearch, setDocenteSearch] = useState('');
   const [alertasOpen, setAlertasOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // =================== CARGA INICIAL ===================
   const cargarConfiguracion = useCallback(async () => {
@@ -80,9 +82,12 @@ export default function CrearHorarioPage() {
         const grpRes = await fetch(`/api/horarios/grupos?programacion_id=${progId}`).then(r => r.json());
         setGrupos(grpRes.data || []);
 
-        // Auto-seleccionar cursos que ya tienen grupos
-        const ids = Array.from(new Set((grpRes.data || []).map((g: any) => g.curso_id))) as string[];
-        setSelectedCursosIds(ids);
+        // Auto-seleccionar cursos que ya tienen grupos (datos importados)
+        // Esto permite que la importación funcione y los cambios persistan al reiniciar
+        if (grpRes.data && grpRes.data.length > 0) {
+          const ids = Array.from(new Set(grpRes.data.map((g: any) => g.curso_id))) as string[];
+          setSelectedCursosIds(ids);
+        }
       }
     } catch (e) {
       console.error('Error prog:', e);
@@ -362,6 +367,162 @@ export default function CrearHorarioPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const exportarCSV = async () => {
+    if (!progId) return;
+    
+    setLoading(true);
+    setMsg({ type: 'info', text: 'Generando CSV de configuración...' });
+
+    try {
+      // Consultar configuración actual desde programacion_cursos
+      const res = await fetch(`/api/horarios/programaciones/${progId}/programacion-cursos`);
+      const json = await res.json();
+      
+      if (!res.ok) throw new Error(json.error || 'Error al obtener configuración');
+      
+      const configData = json.data || [];
+      
+      console.table(
+        configData.map((x: any) => ({
+          codigo: x.curso_codigo,
+          nombre: x.curso_nombre
+        }))
+      );
+
+      if (configData.length === 0) {
+        setMsg({ type: 'warning', text: 'No hay configuración para exportar' });
+        setLoading(false);
+        return;
+      }
+
+      // Generar CSV
+      const header = ['CICLO', 'CODIGO', 'CURSO', 'GRUPO', 'DOCENTE', 'T', 'P', 'L', 'C'];
+      const csvRows = [header.join(',')];
+      
+      // Ordenar filas: ciclo, código, tipo de grupo (Teoria → Practica → Laboratorio)
+      const getActividadOrder = (actividad: string) => {
+        if (actividad === 'Teoria') return 1;
+        if (actividad === 'Practica') return 2;
+        return 3; // Laboratorio
+      };
+      
+      const sortedData = [...configData].sort((a: any, b: any) => {
+        const cicloA = a.ciclo_plan || 0;
+        const cicloB = b.ciclo_plan || 0;
+
+        if (cicloA !== cicloB) {
+          return cicloA - cicloB;
+        }
+        
+        const codigoA = a.curso_codigo || '';
+        const codigoB = b.curso_codigo || '';
+        if (codigoA !== codigoB) return codigoA.localeCompare(codigoB);
+        
+        const horasTA = a.horas_teoria || 0;
+        const horasPA = a.horas_practica || 0;
+        let actividadA = 'Laboratorio';
+        if (horasTA > 0) actividadA = 'Teoria';
+        else if (horasPA > 0) actividadA = 'Practica';
+        
+        const horasTB = b.horas_teoria || 0;
+        const horasPB = b.horas_practica || 0;
+        let actividadB = 'Laboratorio';
+        if (horasTB > 0) actividadB = 'Teoria';
+        else if (horasPB > 0) actividadB = 'Practica';
+        
+        return getActividadOrder(actividadA) - getActividadOrder(actividadB);
+      });
+      
+      sortedData.forEach((row: any) => {
+        const cicloRomano = toRoman(row.ciclo_plan || 0);
+        
+        // Determinar tipo de actividad basado en T, P, L
+        const horasT = row.horas_teoria || 0;
+        const horasP = row.horas_practica || 0;
+        const horasL = row.horas_laboratorio || 0;
+        
+        let actividadLabel = 'Laboratorio';
+        if (horasT > 0) actividadLabel = 'Teoria';
+        else if (horasP > 0) actividadLabel = 'Practica';
+        
+        const grupoLabel = `G${row.numero_grupo} (${actividadLabel})`;
+        
+        // Eliminar comas del nombre del curso
+        const cursoNombre = (row.curso_nombre || '').replace(/,/g, '');
+        
+        const csvRow = [
+          cicloRomano,
+          row.curso_codigo || '',
+          cursoNombre,
+          grupoLabel,
+          row.docente_dni || '',
+          horasT,
+          horasP,
+          horasL,
+          row.horas_consejeria || 0
+        ];
+        csvRows.push(csvRow.join(','));
+      });
+      
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', `configuracion_carga_${prog.nombre.replace(/\s+/g, '_')}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setMsg({ type: 'success', text: `CSV exportado con ${configData.length} registros` });
+    } catch (err: any) {
+      setMsg({ type: 'error', text: 'Error exportando: ' + err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const limpiarCampos = async () => {
+    if (!window.confirm('¿Está seguro de eliminar toda la configuración de carga docente? Esta acción no se puede deshacer.')) return;
+    
+    if (!progId) return;
+    
+    setLoading(true);
+    setMsg({ type: 'info', text: 'Eliminando configuración...' });
+
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}/limpiar`, {
+        method: 'DELETE'
+      });
+      const json = await res.json();
+      
+      if (!res.ok) throw new Error(json.error || 'Error al eliminar configuración');
+
+      // Limpiar estados
+      setSelectedCiclosPlan([]);
+      setSelectedCursosIds([]);
+      setGrupos([]);
+      setAsignaciones([]);
+      setSearchGrupoId(null);
+      setDocenteSearch('');
+      setAlertasOpen(false);
+
+      // Recargar programación para confirmar que la base de datos quedó vacía
+      await cargarProgramacion();
+
+      setMsg({
+        type: 'success',
+        text: 'Configuración eliminada correctamente'
+      });
+    } catch (err: any) {
+      setMsg({ type: 'error', text: 'Error eliminando: ' + err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // =================== CÁLCULO DE CURSOS ===================
   const cursosFiltrados = useMemo(() => {
     const result: any[] = [];
@@ -437,8 +598,60 @@ export default function CrearHorarioPage() {
     d.dni?.includes(docenteSearch) || d.email?.toLowerCase().includes(docenteSearch.toLowerCase())
   ) : [];
 
+  // Calcular posición del dropdown cuando se abre el buscador
+  useEffect(() => {
+    if (searchGrupoId && searchInputRef.current) {
+      const rect = searchInputRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width
+      });
+
+      // Recalcular posición al hacer scroll
+      const handleScroll = () => {
+        if (searchInputRef.current) {
+          const rect = searchInputRef.current.getBoundingClientRect();
+          setDropdownPosition({
+            top: rect.bottom + 4,
+            left: rect.left,
+            width: rect.width
+          });
+        }
+      };
+
+      window.addEventListener('scroll', handleScroll);
+      return () => window.removeEventListener('scroll', handleScroll);
+    } else {
+      setDropdownPosition(null);
+    }
+  }, [searchGrupoId]);
+
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando...</div>;
   if (!prog) return <div style={{ padding: '40px', textAlign: 'center' }}>Programación no encontrada.</div>;
+
+  // Dropdown global para búsqueda de docentes (fuera del contexto de la tabla)
+  const dropdownElement = searchGrupoId && dropdownPosition && filteredDocentes.length > 0 ? (
+    <div 
+      style={{ position: 'fixed', top: dropdownPosition.top, left: dropdownPosition.left, width: dropdownPosition.width, background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', boxShadow: '0 8px 16px rgba(0,0,0,0.15)', zIndex: 9999, maxHeight: '300px', overflowY: 'auto' }}
+      onMouseEnter={(e) => e.stopPropagation()}
+    >
+      {filteredDocentes.map(d => {
+        // Encontrar el curso y grupo correspondientes
+        const grupoEncontrado = grupos.find(g => g.id === searchGrupoId);
+        const cursoEncontrado = cursosCurricula.find(c => c.id === grupoEncontrado?.curso_id);
+        return (
+          <div key={d.id} style={{ padding: '12px', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', transition: 'background 0.15s' }} onClick={() => cursoEncontrado && addDocente(cursoEncontrado, searchGrupoId, d)} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-card-hover)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <div style={{ fontWeight: '600', fontSize: '13px', color: 'var(--text-primary)', marginBottom: '4px' }}>{d.nombre} {d.apellidos}</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', gap: '12px' }}>
+              <span>COD: {d.usuario_id || '0000'}</span>
+              <span>DNI: {d.dni}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  ) : null;
 
   return (
     <div className="horarios-crear-page" style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
@@ -464,6 +677,12 @@ export default function CrearHorarioPage() {
           <input type="file" accept=".csv" ref={fileInputRef} style={{ display: 'none' }} onChange={importarCSV} />
           <button className="btn-secondary horarios-crear-import-btn" onClick={() => fileInputRef.current?.click()} disabled={saving || loading}>
             📥 IMPORTAR CSV
+          </button>
+          <button className="btn-secondary horarios-crear-import-btn" onClick={exportarCSV} disabled={saving || loading}>
+            📤 EXPORTAR CSV
+          </button>
+          <button className="btn-secondary" onClick={limpiarCampos} disabled={saving || loading}>
+            🧹 LIMPIAR CAMPOS
           </button>
           <button className="btn-primary" onClick={avanzarFase} disabled={saving || alerts.length > 0 || cursosFiltrados.length === 0} title={alerts.length > 0 ? "Existen errores por corregir" : ""}>
             {saving ? 'AVANZANDO...' : 'AVANZAR A FASE 2 →'}
@@ -553,7 +772,7 @@ export default function CrearHorarioPage() {
                     <th style={{ padding: '10px 12px', textAlign: 'left' }}>CÓDIGO</th>
                     <th style={{ padding: '10px 12px', textAlign: 'left' }}>CURSO</th>
                     <th style={{ padding: '10px 12px', textAlign: 'center' }}>GRUPO</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'left' }}>DOCENTE</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', minWidth: '280px' }}>DOCENTE</th>
                     <th style={{ padding: '10px 12px', textAlign: 'center', width: '60px' }}>T</th>
                     <th style={{ padding: '10px 12px', textAlign: 'center', width: '60px' }}>P</th>
                     <th style={{ padding: '10px 12px', textAlign: 'center', width: '60px' }}>L</th>
@@ -699,32 +918,37 @@ export default function CrearHorarioPage() {
 
                                         {/* Add Teacher Button Row */}
                                         <tr style={{ background: 'var(--bg-card)' }}>
-                                          <td style={{ padding: '8px 12px', position: 'relative' }}>
+                                          <td style={{ padding: '12px', position: 'relative' }}>
                                             {searchGrupoId === grupo.id ? (
-                                              <div>
+                                              <div style={{ position: 'relative' }}>
                                                 <input
+                                                  ref={searchInputRef}
                                                   type="text"
                                                   autoFocus
                                                   className="form-input"
                                                   placeholder="🔍 Buscar nombre o DNI..."
                                                   value={docenteSearch}
                                                   onChange={e => setDocenteSearch(e.target.value)}
-                                                  style={{ width: '100%', fontSize: '12px', padding: '6px' }}
+                                                  style={{ width: '100%', fontSize: '13px', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
                                                 />
-                                                {filteredDocentes.length > 0 && (
-                                                  <div style={{ position: 'absolute', top: '100%', left: '12px', right: '12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 20, maxHeight: '200px', overflowY: 'auto' }}>
-                                                    {filteredDocentes.map(d => (
-                                                      <div key={d.id} style={{ padding: '8px', borderBottom: '1px solid var(--border-color)', cursor: 'pointer' }} onClick={() => addDocente(curso, grupo.id, d)}>
-                                                        <div style={{ fontWeight: '600', fontSize: '12px', color: 'var(--text-primary)' }}>{d.nombre} {d.apellidos}</div>
-                                                        <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>COD: {d.usuario_id || '0000'} | DNI: {d.dni}</div>
-                                                      </div>
-                                                    ))}
-                                                  </div>
-                                                )}
-                                                <button style={{ fontSize: '11px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', marginTop: '4px' }} onClick={() => setSearchGrupoId(null)}>Cancelar</button>
+                                                <button style={{ fontSize: '12px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', marginTop: '8px', padding: '4px 8px', borderRadius: '4px', fontWeight: '500' }} onClick={() => setSearchGrupoId(null)}>Cancelar</button>
                                               </div>
                                             ) : (
-                                              <button style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '4px', color: 'var(--text-primary)', fontWeight: '600', fontSize: '10px', padding: '4px 8px', cursor: 'pointer', display: 'block', margin: '0 auto' }} onClick={() => { setSearchGrupoId(grupo.id); setDocenteSearch(''); }}>
+                                              <button
+                                                className="btn-secondary horarios-crear-add-group-btn"
+                                                style={{
+                                                  padding: '4px 8px',
+                                                  fontSize: '10px',
+                                                  border: '1px dashed var(--border-color)',
+                                                  background: 'var(--bg-card)',
+                                                  color: 'var(--text-primary)',
+                                                  cursor: 'pointer'
+                                                }}
+                                                onClick={() => {
+                                                  setSearchGrupoId(grupo.id);
+                                                  setDocenteSearch('');
+                                                }}
+                                              >
                                                 + AGREGAR DOCENTE
                                               </button>
                                             )}
@@ -749,6 +973,9 @@ export default function CrearHorarioPage() {
         </div>
 
       </div>
+      
+      {/* Dropdown global para búsqueda de docentes */}
+      {dropdownElement}
     </div>
   );
 }
