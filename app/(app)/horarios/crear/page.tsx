@@ -80,13 +80,18 @@ export default function CrearHorarioPage() {
 
       if (progId) {
         const grpRes = await fetch(`/api/horarios/grupos?programacion_id=${progId}`).then(r => r.json());
+        console.log('[CARGAR PROGRAMACION] Grupos recibidos:', grpRes.data?.length, grpRes.data);
         setGrupos(grpRes.data || []);
 
         // Auto-seleccionar cursos que ya tienen grupos (datos importados)
         // Esto permite que la importación funcione y los cambios persistan al reiniciar
         if (grpRes.data && grpRes.data.length > 0) {
           const ids = Array.from(new Set(grpRes.data.map((g: any) => g.curso_id))) as string[];
+          console.log('[CARGAR PROGRAMACION] Cursos seleccionados desde grupos:', ids);
           setSelectedCursosIds(ids);
+        } else {
+          console.log('[CARGAR PROGRAMACION] No hay grupos, limpiando selección');
+          setSelectedCursosIds([]);
         }
       }
     } catch (e) {
@@ -693,7 +698,28 @@ export default function CrearHorarioPage() {
         </div>
       </div>
 
-      {msg && <div className={`alert alert-${msg.type}`} style={{ marginBottom: '20px' }}>{msg.text}</div>}
+      {msg && (
+        <div className={`alert alert-${msg.type}`} style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>{msg.text}</span>
+          <button
+            onClick={() => setMsg(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'inherit',
+              fontSize: '20px',
+              cursor: 'pointer',
+              padding: '0 8px',
+              marginLeft: '16px',
+              opacity: 0.7,
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '24px' }}>
 

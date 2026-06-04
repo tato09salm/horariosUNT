@@ -53,10 +53,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         const curso = mapCursos[codigoCurso];
-        if (!curso) continue; // Si el curso no existe en la BD, lo saltamos
+        if (!curso) {
+          console.log('❌ Curso no encontrado:', codigoCurso);
+          continue;
+        }
 
         const docente = mapDocentes[docenteDni];
-        if (!docente) continue; // Si el docente no existe, lo saltamos
+        if (!docente) {
+          console.log('❌ Docente no encontrado:', docenteDni);
+          continue;
+        }
+
+        console.log('✅ Importando:', codigoCurso, grupoDato, docenteDni);
 
         // Extraer tipo de actividad y número
         // Ej: "G1 (Teoría)", "G2 (Laboratorio)", "GA", "GB", "GC"

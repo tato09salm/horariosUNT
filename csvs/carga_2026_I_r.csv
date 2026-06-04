@@ -1,172 +1,153 @@
 CICLO,CODIGO,CURSO,GRUPO,DOCENTE,T,P,L,C
-I,EE-102,Introducción a la Programación,G1 (Teoria),49494949,2,0,0,0
-I,EE-102,Introducción a la Programación,G1 (Laboratorio),49494949,0,0,2,0
-I,EE-102,Introducción a la Programación,G2 (Teoria),49494949,2,0,0,0
-I,EE-102,Introducción a la Programación,G2 (Laboratorio),49494949,0,0,2,0
-I,EE-101,Introducción a la Ing. de Sistemas,G1 (Teoria),22222222,1,0,0,0
-I,EE-101,Introducción a la Ing. de Sistemas,G1 (Practica),22222222,0,2,0,0
-I,EE-102,Introducción a la Programación (EG),G1 (Teoria),33333333,2,0,0,0
-I,EE-102,Introducción a la Programación (EG),G1 (Laboratorio),33333333,0,0,2,0
-I,EE-102,Introducción a la Programación (EG),G2 (Teoria),33333333,2,0,0,0
-I,EE-102,Introducción a la Programación (EG),G2 (Laboratorio),33333333,0,0,2,0
-I,EG-103,Desarrollo Personal,G1 (Teoria),12345678,2,0,0,0
-I,EG-103,Desarrollo Personal,G1 (Practica),12345678,0,2,0,0
-I,EG-101,Desarrollo del Pensamiento Lógico Matemático,G1 (Teoria),87654321,1,0,0,0
-I,EG-101,Desarrollo del Pensamiento Lógico Matemático,G1 (Practica),87654321,0,4,0,0
-I,EG-102,Lectura Crítica y Redac. Textos Académicos,G1 (Teoria),11223344,2,0,0,0
-I,EG-102,Lectura Crítica y Redac. Textos Académicos,G1 (Practica),11223344,0,2,0,0
-I,EG-104,Introducción al Análisis Matemático,G1 (Teoria),45454545,2,0,0,0
-I,EG-104,Introducción al Análisis Matemático,G1 (Practica),45454545,0,4,0,0
-I,EG-105,Estadística General,G1 (Teoria),55667788,2,0,0,0
-I,EG-105,Estadística General,G1 (Practica),55667788,0,2,0,0
-III,EE-302,Programación Orientada a Objetos II,G1 (Teoria),20202020,2,0,0,0
-III,EE-302,Programación Orientada a Objetos II,G1 (Laboratorio),20202020,0,0,4,0
-III,EE-302,Programación Orientada a Objetos II,G2 (Teoria),20202020,2,0,0,0
-III,EE-302,Programación Orientada a Objetos II,G2 (Laboratorio),20202020,0,0,4,0
-III,EE-302,Programación Orientada a Objetos II,G3 (Teoria),20202020,2,0,0,0
-III,EE-302,Programación Orientada a Objetos II,G3 (Laboratorio),20202020,0,0,4,0
+I,EE-101,Introducción a la Ingeniería de Sistemas,G1 (Teoria),22222222,1,0,0,0
+I,EE-101,Introducción a la Ingeniería de Sistemas,G1 (Practica),22222222,0,2,0,0
+I,EE-102,Introducción a la Programación,G1 (Teoria),11111111,2,0,0,0
+I,EE-102,Introducción a la Programación,G4 (Laboratorio),33333333,0,0,2,0
+I,EE-102,Introducción a la Programación,G1 (Laboratorio),11111111,0,0,2,0
+I,EE-102,Introducción a la Programación,G3 (Laboratorio),33333333,0,0,2,0
+I,EE-102,Introducción a la Programación,G2 (Laboratorio),11111111,0,0,2,0
+I,EG-101,Desarrollo del Pensamiento Lógico Matemático,G1 (Teoria),55555555,1,0,0,0
+I,EG-101,Desarrollo del Pensamiento Lógico Matemático,G1 (Practica),55555555,0,4,0,0
+I,EG-102,Lectura Crítica y Redacción de Textos Académicos,G1 (Teoria),66666666,2,0,0,0
+I,EG-102,Lectura Crítica y Redacción de Textos Académicos,G1 (Practica),66666666,0,2,0,0
+I,EG-103,Desarrollo Personal,G1 (Teoria),44444444,2,0,0,0
+I,EG-103,Desarrollo Personal,G1 (Practica),44444444,0,2,0,0
+I,EG-104,Introducción al Análisis Matemático,G1 (Teoria),77777777,2,0,0,0
+I,EG-104,Introducción al Análisis Matemático,G1 (Practica),77777777,0,4,0,0
+I,EG-105,Estadística General,G1 (Teoria),99999999,2,0,0,0
+I,EG-105,Estadística General,G1 (Practica),99999999,0,2,0,0
+I,EG-105,Estadística General,G2 (Practica),88888888,0,2,0,0
+I,EL-101,Técnicas de comunicación eficaz (e),G1 (Practica),70707070,0,2,0,0
+I,EL-102,Taller de Música (e),G1 (Practica),70808080,0,2,0,0
+I,EL-103,Taller de Liderazgo y trabajo en equipo (e),G1 (Practica),70909090,0,2,0,0
 III,EE-301,Sistémica,G1 (Teoria),21212121,1,0,0,0
-III,EE-301,Sistémica,G1 (Practica),21212121,0,1,0,0
-III,EE-301,Sistémica,G2 (Teoria),21212121,1,0,0,0
-III,EE-301,Sistémica,G2 (Practica),21212121,0,1,0,0
-III,EE-301,Sistémica,G3 (Teoria),21212121,1,0,0,0
-III,EE-301,Sistémica,G3 (Practica),21212121,0,1,0,0
+III,EE-301,Sistémica,G1 (Practica),21212121,0,2,0,0
+III,EE-301,Sistémica,G3 (Laboratorio),21212121,0,0,2,0
+III,EE-301,Sistémica,G1 (Laboratorio),21212121,0,0,2,0
+III,EE-301,Sistémica,G2 (Laboratorio),21212121,0,0,2,0
+III,EE-302,Programación Orientada a Objetos II,G1 (Teoria),20202020,2,0,0,0
+III,EE-302,Programación Orientada a Objetos II,G3 (Laboratorio),20202020,0,0,4,0
+III,EE-302,Programación Orientada a Objetos II,G1 (Laboratorio),20202020,0,0,4,0
+III,EE-302,Programación Orientada a Objetos II,G2 (Laboratorio),20202020,0,0,4,0
 III,EL-301,Ingeniería Gráfica (e),G1 (Teoria),22222223,1,0,0,0
 III,EL-301,Ingeniería Gráfica (e),G1 (Practica),22222223,0,1,0,0
-III,EP-303,Matemática Aplicada,G1 (Teoria),23232323,2,0,0,0
-III,EP-303,Matemática Aplicada,G1 (Practica),23232323,0,2,0,0
-III,EP-302,Estadística Aplicada,G1 (Teoria),24242424,2,0,0,0
-III,EP-302,Estadística Aplicada,G1 (Practica),24242424,0,2,0,0
-III,EP-302,Estadística Aplicada,G2 (Teoria),24242424,2,0,0,0
-III,EP-302,Estadística Aplicada,G2 (Practica),24242424,0,2,0,0
-III,EP-302,Estadística Aplicada,G3 (Teoria),24242424,2,0,0,0
-III,EP-302,Estadística Aplicada,G3 (Practica),24242424,0,2,0,0
+III,EL-301,Ingeniería Gráfica (e),G2 (Laboratorio),22222223,0,0,3,0
+III,EL-301,Ingeniería Gráfica (e),G1 (Laboratorio),22222223,0,0,3,0
+III,EL-302,Sicología Organizacional (e),G1 (Teoria),27272727,2,0,0,0
+III,EL-302,Sicología Organizacional (e),G1 (Practica),27272727,0,2,0,0
 III,EP-301,Administración General,G1 (Teoria),25252525,2,0,0,0
 III,EP-301,Administración General,G1 (Practica),25252525,0,2,0,0
-III,EP-304,Física Electrónica,G1 (Teoria),26262626,2,0,0,0
-III,EP-304,Física Electrónica,G1 (Practica),26262626,0,2,0,0
-III,EP-304,Física Electrónica,G1 (Laboratorio),26262626,0,0,2,0
-III,EP-304,Física Electrónica,G2 (Teoria),26262626,2,0,0,0
-III,EP-304,Física Electrónica,G2 (Practica),26262626,0,2,0,0
+III,EP-302,Estadística Aplicada,G1 (Teoria),24242424,1,0,0,0
+III,EP-302,Estadística Aplicada,G1 (Practica),24242424,0,2,0,0
+III,EP-302,Estadística Aplicada,G1 (Laboratorio),24242424,0,0,2,0
+III,EP-302,Estadística Aplicada,G3 (Laboratorio),24242424,0,0,2,0
+III,EP-302,Estadística Aplicada,G2 (Laboratorio),24242424,0,0,2,0
+III,EP-303,Matemática Aplicada,G1 (Teoria),23232323,1,0,0,0
+III,EP-303,Matemática Aplicada,G1 (Practica),23232323,0,2,0,0
+III,EP-303,Matemática Aplicada,G1 (Laboratorio),23232323,0,0,2,0
+III,EP-304,Física Electrónica,G1 (Teoria),26262626,1,0,0,0
+III,EP-304,Física Electrónica,G1 (Practica),26262626,0,4,0,0
 III,EP-304,Física Electrónica,G2 (Laboratorio),26262626,0,0,2,0
-III,EL-302,Psicología Organizacional (e),G1 (Teoria),27272727,2,0,0,0
-III,EL-302,Psicología Organizacional (e),G1 (Practica),27272727,0,2,0,0
+III,EP-304,Física Electrónica,G1 (Laboratorio),26262626,0,0,2,0
+III,EP-304,Física Electrónica,G3 (Laboratorio),26262626,0,0,2,0
+III,EP-304,Física Electrónica,G4 (Laboratorio),26262626,0,0,2,0
+V,EE-501,Tecnologías Web,G1 (Teoria),29292929,1,0,0,0
+V,EE-501,Tecnologías Web,G1 (Practica),29292929,0,1,0,0
+V,EE-501,Tecnologías Web,G3 (Laboratorio),29292929,0,0,3,0
+V,EE-501,Tecnologías Web,G1 (Laboratorio),29292929,0,0,3,0
+V,EE-501,Tecnologías Web,G2 (Laboratorio),29292929,0,0,3,0
 V,EE-502,Ingeniería de Datos I,G1 (Teoria),28282828,2,0,0,0
 V,EE-502,Ingeniería de Datos I,G1 (Practica),28282828,0,1,0,0
-V,EE-502,Ingeniería de Datos I,G1 (Laboratorio),28282828,0,0,3,0
-V,EE-502,Ingeniería de Datos I,G2 (Teoria),28282828,2,0,0,0
-V,EE-502,Ingeniería de Datos I,G2 (Practica),28282828,0,1,0,0
 V,EE-502,Ingeniería de Datos I,G2 (Laboratorio),28282828,0,0,3,0
-V,EE-502,Ingeniería de Datos I,G3 (Teoria),28282828,2,0,0,0
-V,EE-502,Ingeniería de Datos I,G3 (Practica),28282828,0,1,0,0
+V,EE-502,Ingeniería de Datos I,G1 (Laboratorio),28282828,0,0,3,0
 V,EE-502,Ingeniería de Datos I,G3 (Laboratorio),28282828,0,0,3,0
+V,EE-503,Organización y Arquitectura de Computadoras,G1 (Teoria),30303030,1,0,0,0
+V,EE-503,Organización y Arquitectura de Computadoras,G1 (Practica),30303030,0,2,0,0
+V,EE-503,Organización y Arquitectura de Computadoras,G2 (Laboratorio),30303030,0,0,2,0
+V,EE-503,Organización y Arquitectura de Computadoras,G3 (Laboratorio),30303030,0,0,2,0
+V,EE-503,Organización y Arquitectura de Computadoras,G1 (Laboratorio),30303030,0,0,2,0
 V,EE-504,Sistemas de Información,G1 (Teoria),22222223,2,0,0,0
 V,EE-504,Sistemas de Información,G1 (Practica),22222223,0,2,0,0
-V,EE-504,Sistemas de Información,G1 (Laboratorio),22222223,0,0,2,0
-V,EE-504,Sistemas de Información,G2 (Teoria),22222223,2,0,0,0
-V,EE-504,Sistemas de Información,G2 (Practica),22222223,0,2,0,0
 V,EE-504,Sistemas de Información,G2 (Laboratorio),22222223,0,0,2,0
-V,EE-504,Sistemas de Información,G3 (Teoria),22222223,2,0,0,0
-V,EE-504,Sistemas de Información,G3 (Practica),22222223,0,2,0,0
+V,EE-504,Sistemas de Información,G1 (Laboratorio),22222223,0,0,2,0
 V,EE-504,Sistemas de Información,G3 (Laboratorio),22222223,0,0,2,0
-V,EL-502,Transformación Digital,G1 (Teoria),21212121,2,0,0,0
-V,EL-502,Transformación Digital,G1 (Laboratorio),21212121,0,0,2,0
-V,EL-502,Transformación Digital,G2 (Teoria),21212121,2,0,0,0
-V,EL-502,Transformación Digital,G2 (Laboratorio),21212121,0,0,2,0
-V,EE-501,Tecnología Web,G1 (Teoria),29292929,1,0,0,0
-V,EE-501,Tecnología Web,G1 (Practica),29292929,0,1,0,0
-V,EE-501,Tecnología Web,G1 (Laboratorio),29292929,0,0,3,0
-V,EE-501,Tecnología Web,G2 (Teoria),29292929,1,0,0,0
-V,EE-501,Tecnología Web,G2 (Practica),29292929,0,1,0,0
-V,EE-501,Tecnología Web,G2 (Laboratorio),29292929,0,0,3,0
-V,EE-501,Tecnología Web,G3 (Teoria),29292929,1,0,0,0
-V,EE-501,Tecnología Web,G3 (Practica),29292929,0,1,0,0
-V,EE-501,Tecnología Web,G3 (Laboratorio),29292929,0,0,3,0
-V,EE-503,Arquitectura de Computadoras,G1 (Teoria),30303030,1,0,0,0
-V,EE-503,Arquitectura de Computadoras,G1 (Practica),30303030,0,2,0,0
-V,EE-503,Arquitectura de Computadoras,G1 (Laboratorio),30303030,0,0,2,0
-V,EE-503,Arquitectura de Computadoras,G2 (Teoria),30303030,1,0,0,0
-V,EE-503,Arquitectura de Computadoras,G2 (Practica),30303030,0,2,0,0
-V,EE-503,Arquitectura de Computadoras,G2 (Laboratorio),30303030,0,0,2,0
-V,EE-503,Arquitectura de Computadoras,G3 (Teoria),30303030,1,0,0,0
-V,EE-503,Arquitectura de Computadoras,G3 (Practica),30303030,0,2,0,0
-V,EE-503,Arquitectura de Computadoras,G3 (Laboratorio),30303030,0,0,2,0
 V,EL-501,Teleinformática (e),G1 (Teoria),31313131,1,0,0,0
-V,EL-501,Teleinformática (e),G1 (Laboratorio),31313131,0,0,4,0
-V,EP-502,Investigación de Operaciones,G1 (Teoria),32323232,2,0,0,0
-V,EP-502,Investigación de Operaciones,G1 (Laboratorio),32323232,0,0,2,0
-V,EP-502,Investigación de Operaciones,G2 (Teoria),32323232,2,0,0,0
-V,EP-502,Investigación de Operaciones,G2 (Laboratorio),32323232,0,0,2,0
-V,EP-502,Investigación de Operaciones,G3 (Teoria),32323232,2,0,0,0
-V,EP-502,Investigación de Operaciones,G3 (Laboratorio),32323232,0,0,2,0
-V,EP-501,Contabilidad Gerencial,G1 (Teoria),33333334,2,0,0,0
+V,EL-501,Teleinformática (e),G1 (Practica),31313131,0,2,0,0
+V,EL-501,Teleinformática (e),G2 (Laboratorio),31313131,0,0,2,0
+V,EL-501,Teleinformática (e),G1 (Laboratorio),31313131,0,0,2,0
+V,EL-502,Transformación Digital (e),G1 (Teoria),21212121,2,0,0,0
+V,EL-502,Transformación Digital (e),G1 (Laboratorio),21212121,0,0,2,0
+V,EL-502,Transformación Digital (e),G2 (Laboratorio),21212121,0,0,2,0
+V,EP-501,Contabilidad Gerencial,G1 (Teoria),33333334,1,0,0,0
 V,EP-501,Contabilidad Gerencial,G1 (Practica),33333334,0,2,0,0
 V,EP-501,Contabilidad Gerencial,G1 (Laboratorio),33333334,0,0,2,0
-VII,EE-704,Ingeniería de Software I,G3 (Teoria),34343434,2,0,0,0
-VII,EE-704,Ingeniería de Software I,G3 (Practica),34343434,0,1,0,0
-VII,EE-704,Ingeniería de Software I,G3 (Laboratorio),34343434,0,0,3,0
-VII,EE-704,Ingeniería de Software I,G1 (Teoria),34343434,2,0,0,0
-VII,EE-704,Ingeniería de Software I,G1 (Practica),34343434,0,1,0,0
-VII,EE-704,Ingeniería de Software I,G1 (Laboratorio),34343434,0,0,3,0
+V,EP-502,Investigación de Operaciones,G1 (Teoria),32323232,1,0,0,0
+V,EP-502,Investigación de Operaciones,G1 (Practica),32323232,0,2,0,0
+V,EP-502,Investigación de Operaciones,G3 (Laboratorio),32323232,0,0,2,0
+V,EP-502,Investigación de Operaciones,G2 (Laboratorio),32323232,0,0,2,0
+V,EP-502,Investigación de Operaciones,G1 (Laboratorio),32323232,0,0,2,0
+VII,EE-701,Gestión de Servicios de TIC,G1 (Teoria),22222222,1,0,0,0
+VII,EE-701,Gestión de Servicios de TIC,G1 (Practica),22222222,0,2,0,0
+VII,EE-701,Gestión de Servicios de TIC,G1 (Laboratorio),22222222,0,0,2,0
+VII,EE-701,Gestión de Servicios de TIC,G2 (Laboratorio),22222222,0,0,2,0
+VII,EE-702,Planeamiento Estratégico de la Información,G1 (Teoria),36363636,1,0,0,0
+VII,EE-702,Planeamiento Estratégico de la Información,G1 (Practica),36363636,0,2,0,0
+VII,EE-702,Planeamiento Estratégico de la Información,G3 (Laboratorio),36363636,0,0,2,0
+VII,EE-702,Planeamiento Estratégico de la Información,G4 (Laboratorio),36363636,0,0,2,0
+VII,EE-702,Planeamiento Estratégico de la Información,G2 (Laboratorio),36363636,0,0,2,0
+VII,EE-702,Planeamiento Estratégico de la Información,G1 (Laboratorio),36363636,0,0,2,0
 VII,EE-703,Redes y Comunicaciones I,G1 (Teoria),30303030,1,0,0,0
 VII,EE-703,Redes y Comunicaciones I,G1 (Practica),30303030,0,1,0,0
-VII,EE-703,Redes y Comunicaciones I,G1 (Laboratorio),30303030,0,0,3,0
-VII,EE-703,Redes y Comunicaciones I,G2 (Teoria),30303030,1,0,0,0
-VII,EE-703,Redes y Comunicaciones I,G2 (Practica),30303030,0,1,0,0
 VII,EE-703,Redes y Comunicaciones I,G2 (Laboratorio),30303030,0,0,3,0
-VII,EE-703,Redes y Comunicaciones I,G3 (Teoria),30303030,1,0,0,0
-VII,EE-703,Redes y Comunicaciones I,G3 (Practica),30303030,0,1,0,0
 VII,EE-703,Redes y Comunicaciones I,G3 (Laboratorio),30303030,0,0,3,0
-VII,EE-704,Ingeniería de Software I,G2 (Teoria),29292929,2,0,0,0
-VII,EE-704,Ingeniería de Software I,G2 (Practica),29292929,0,1,0,0
-VII,EE-704,Ingeniería de Software I,G2 (Laboratorio),29292929,0,0,3,0
-VII,EL-702,Negocios Electrónicos (e),G1 (Teoria),21212121,2,0,0,0
-VII,EL-702,Negocios Electrónicos (e),G1 (Laboratorio),21212121,0,0,2,0
-VII,EE-701,Gestión de Servicios de TI,G1 (Teoria),22222222,1,0,0,0
-VII,EE-701,Gestión de Servicios de TI,G1 (Practica),22222222,0,2,0,0
-VII,EE-701,Gestión de Servicios de TI,G2 (Teoria),22222222,1,0,0,0
-VII,EE-701,Gestión de Servicios de TI,G2 (Practica),22222222,0,2,0,0
+VII,EE-703,Redes y Comunicaciones I,G1 (Laboratorio),30303030,0,0,3,0
+VII,EE-704,Ingeniería del Software I,G1 (Teoria),34343434,2,0,0,0
+VII,EE-704,Ingeniería del Software I,G1 (Practica),34343434,0,1,0,0
+VII,EE-704,Ingeniería del Software I,G1 (Laboratorio),34343434,0,0,3,0
+VII,EE-704,Ingeniería del Software I,G3 (Laboratorio),29292929,0,0,3,0
+VII,EE-704,Ingeniería del Software I,G2 (Laboratorio),29292929,0,0,3,0
 VII,EI-701,Metodología de la Investigación Científica,G1 (Teoria),33333333,2,0,0,0
 VII,EI-701,Metodología de la Investigación Científica,G1 (Practica),33333333,0,2,0,0
-VII,EL-701,Administración de Base de Datos,G1 (Teoria),35353535,1,0,0,0
-VII,EL-701,Administración de Base de Datos,G1 (Practica),35353535,0,1,0,0
-VII,EL-701,Administración de Base de Datos,G2 (Teoria),35353535,1,0,0,0
-VII,EL-701,Administración de Base de Datos,G2 (Practica),35353535,0,1,0,0
-VII,EE-702,Planeación Estratégica de TI,G1 (Teoria),36363636,1,0,0,0
-VII,EE-702,Planeación Estratégica de TI,G1 (Practica),36363636,0,2,0,0
-VII,EE-702,Planeación Estratégica de TI,G2 (Teoria),36363636,1,0,0,0
-VII,EE-702,Planeación Estratégica de TI,G2 (Practica),36363636,0,2,0,0
-VII,EE-702,Planeación Estratégica de TI,G3 (Teoria),36363636,1,0,0,0
-VII,EE-702,Planeación Estratégica de TI,G3 (Practica),36363636,0,2,0,0
-VII,EL-702,Negocios Electrónicos (e),G2 (Teoria),33333333,2,0,0,0
+VII,EL-701,Administración de Base de Datos (e),G1 (Teoria),35353535,1,0,0,0
+VII,EL-701,Administración de Base de Datos (e),G1 (Practica),35353535,0,1,0,0
+VII,EL-701,Administración de Base de Datos (e),G1 (Laboratorio),35353535,0,0,3,0
+VII,EL-701,Administración de Base de Datos (e),G2 (Laboratorio),35353535,0,0,3,0
+VII,EL-702,Negocios Electrónicos (e),G1 (Teoria),21212121,2,0,0,0
 VII,EL-702,Negocios Electrónicos (e),G2 (Laboratorio),33333333,0,0,2,0
-VII,EP-701,Cadena de Suministros (e),G1 (Teoria),37373737,2,0,0,0
-VII,EP-701,Cadena de Suministros (e),G1 (Practica),37373737,0,2,0,0
-IX,EI-901,Tesis I,G1 (Teoria),34343434,2,0,0,0
-IX,EI-901,Tesis I,G1 (Practica),34343434,0,2,0,0
+VII,EL-702,Negocios Electrónicos (e),G1 (Laboratorio),33333333,0,0,2,0
+VII,EP-701,Cadena de Suministro,G1 (Teoria),37373737,2,0,0,0
+VII,EP-701,Cadena de Suministro,G1 (Practica),37373737,0,2,0,0
+IX,EE-901,Gestión de Proyectos de TIC,G1 (Teoria),38383838,1,0,0,0
+IX,EE-901,Gestión de Proyectos de TIC,G1 (Practica),38383838,0,2,0,0
+IX,EE-901,Gestión de Proyectos de TIC,G2 (Laboratorio),38383838,0,0,2,0
+IX,EE-901,Gestión de Proyectos de TIC,G3 (Laboratorio),38383838,0,0,2,0
+IX,EE-901,Gestión de Proyectos de TIC,G1 (Laboratorio),38383838,0,0,2,0
 IX,EE-902,Auditoría Informática,G1 (Teoria),22222222,1,0,0,0
 IX,EE-902,Auditoría Informática,G1 (Practica),22222222,0,2,0,0
-IX,EE-902,Auditoría Informática,G2 (Teoria),22222222,1,0,0,0
-IX,EE-902,Auditoría Informática,G2 (Practica),22222222,0,2,0,0
-IX,EE-901,Gestión de Proyectos de TI,G1 (Teoria),38383838,1,0,0,0
-IX,EE-901,Gestión de Proyectos de TI,G1 (Practica),38383838,0,2,0,0
-IX,EE-901,Gestión de Proyectos de TI,G2 (Teoria),38383838,1,0,0,0
-IX,EE-901,Gestión de Proyectos de TI,G2 (Practica),38383838,0,2,0,0
-IX,EE-901,Gestión de Proyectos de TI,G3 (Teoria),38383838,1,0,0,0
-IX,EE-901,Gestión de Proyectos de TI,G3 (Practica),38383838,0,2,0,0
-IX,EL-901,Emprendimiento Tecnológico,G1 (Teoria),36363636,2,0,0,0
-IX,EL-901,Emprendimiento Tecnológico,G2 (Teoria),36363636,2,0,0,0
-IX,EE-905,Ingeniería Web,G1 (Teoria),49494949,1,0,0,0
-IX,EE-905,Ingeniería Web,G1 (Practica),49494949,0,1,0,0
-IX,EE-905,Ingeniería Web,G2 (Teoria),49494949,1,0,0,0
-IX,EE-905,Ingeniería Web,G2 (Practica),49494949,0,1,0,0
-IX,EE-905,Ingeniería Web,G3 (Teoria),49494949,1,0,0,0
-IX,EE-905,Ingeniería Web,G3 (Practica),49494949,0,1,0,0
+IX,EE-902,Auditoría Informática,G2 (Laboratorio),22222222,0,0,2,0
+IX,EE-902,Auditoría Informática,G1 (Laboratorio),22222222,0,0,2,0
+IX,EE-903,Analítica de Negocios,G1 (Teoria),35353535,1,0,0,0
+IX,EE-903,Analítica de Negocios,G1 (Practica),35353535,0,2,0,0
+IX,EE-903,Analítica de Negocios,G1 (Laboratorio),35353535,0,0,2,0
 IX,EE-904,Computación en la Nube,G1 (Teoria),38383838,1,0,0,0
 IX,EE-904,Computación en la Nube,G1 (Practica),38383838,0,1,0,0
-IX,EE-904,Computación en la Nube,G2 (Teoria),38383838,1,0,0,0
-IX,EE-904,Computación en la Nube,G2 (Practica),38383838,0,1,0,0
-IX,EE-904,Computación en la Nube,G3 (Teoria),38383838,1,0,0,0
-IX,EE-904,Computación en la Nube,G3 (Practica),38383838,0,1,0,0
+IX,EE-904,Computación en la Nube,G1 (Laboratorio),38383838,0,0,3,0
+IX,EE-904,Computación en la Nube,G3 (Laboratorio),38383838,0,0,3,0
+IX,EE-904,Computación en la Nube,G2 (Laboratorio),38383838,0,0,3,0
+IX,EE-905,Ingeniería Web,G1 (Teoria),11111111,1,0,0,0
+IX,EE-905,Ingeniería Web,G1 (Practica),11111111,0,1,0,0
+IX,EE-905,Ingeniería Web,G1 (Laboratorio),11111111,0,0,3,0
+IX,EE-905,Ingeniería Web,G2 (Laboratorio),11111111,0,0,3,0
+IX,EE-905,Ingeniería Web,G3 (Laboratorio),11111111,0,0,3,0
+IX,EI-901,Tesis I,G2 (Teoria),35353535,2,0,0,0
+IX,EI-901,Tesis I,G1 (Teoria),34343434,2,0,0,0
+IX,EI-901,Tesis I,G1 (Practica),34343434,0,2,0,0
+IX,EI-901,Tesis I,G2 (Practica),35353535,0,2,0,0
+IX,EI-901,Tesis I,G1 (Laboratorio),34343434,0,0,2,0
+IX,EI-901,Tesis I,G2 (Laboratorio),35353535,0,0,2,0
+IX,EL-901,Emprendedurismo Tecnológico (e),G1 (Teoria),36363636,2,0,0,0
+IX,EL-901,Emprendedurismo Tecnológico (e),G1 (Laboratorio),36363636,0,0,2,0
+IX,EL-901,Emprendedurismo Tecnológico (e),G2 (Laboratorio),36363636,0,0,2,0
 IX,EL-902,Hackeo Ético (e),G1 (Teoria),31313131,2,0,0,0
-IX,EL-902,Hackeo Ético (e),G2 (Teoria),31313131,2,0,0,0
+IX,EL-902,Hackeo Ético (e),G2 (Laboratorio),31313131,0,0,2,0
+IX,EL-902,Hackeo Ético (e),G1 (Laboratorio),31313131,0,0,2,0

@@ -397,7 +397,28 @@ export default function DisponibilidadPage() {
       </div>
 
       {bannerSoloLectura}
-      {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
+      {msg && (
+        <div className={`alert alert-${msg.type}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>{msg.text}</span>
+          <button
+            onClick={() => setMsg(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'inherit',
+              fontSize: '20px',
+              cursor: 'pointer',
+              padding: '0 8px',
+              marginLeft: '16px',
+              opacity: 0.7,
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Sección de configuración de período de disponibilidad (solo admin/secretaria) */}
       {isAdminOrSec && (
