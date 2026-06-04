@@ -65,18 +65,29 @@ export function aplicarAsignaciones(
   // Agrupar bloques contiguos
   const bloques = agruparAsignacionesContiguas(asignaciones);
   
+  // Agrupar bloques por día y hora_inicio para manejar múltiples cursos en el mismo slot
+  const bloquesPorSlot = new Map<string, Asignacion[]>();
   for (const bloque of bloques) {
-    const filaInicio = horaAFila(bloque.hora_inicio);
+    const key = `${bloque.dia.toLowerCase()}-${bloque.hora_inicio}`;
+    if (!bloquesPorSlot.has(key)) {
+      bloquesPorSlot.set(key, []);
+    }
+    bloquesPorSlot.get(key)!.push(bloque);
+  }
+
+  for (const [key, bloquesEnSlot] of bloquesPorSlot) {
+    if (bloquesEnSlot.length === 0) continue;
+    const primerBloque = bloquesEnSlot[0];
+    const filaInicio = horaAFila(primerBloque.hora_inicio);
     if (filaInicio === null) continue;
-    
-    const filaFin = filaInicio + bloque.duracion_horas - 1;
-    const colDia = COLUMNAS_DIA[bloque.dia.toLowerCase()];
+    const colDia = COLUMNAS_DIA[primerBloque.dia.toLowerCase()];
     if (!colDia) continue;
-    
-    // Color del docente
-    const indiceColor = mapaDocenteColor.get(bloque.docente_id) ?? 0;
-    const color = PALETA_COLORES_UNT[indiceColor % PALETA_COLORES_UNT.length];
-    
+
+    // Calcular filaFin como la última fila del slot (máxima duración en el slot)
+    const filaFin = Math.max(...bloquesEnSlot.map(b => 
+      filaInicio + b.duracion_horas - 1
+    ));
+
     // Desmerge previo para evitar conflictos con merges existentes
     const masters = new Set<string>();
     for (let f = filaInicio; f <= filaFin; f++) {
@@ -97,47 +108,49 @@ export function aplicarAsignaciones(
         // Ignorar si ya no existe el merge
       }
     });
-    
-    // Hacer merge del bloque completo (vertical + horizontal)
+
+    // Hacer merge del rango completo
     const rangoBloque = `${colDia.inicio}${filaInicio}:${colDia.fin}${filaFin}`;
     try {
       ws.mergeCells(rangoBloque);
     } catch (e) {
-      // Si hay solapes residuales, intentar limpiar y reintentar
       try {
         ws.unMergeCells(rangoBloque);
         ws.mergeCells(rangoBloque);
-      } catch (e2) {
-        // Si falla, omitir el merge para evitar romper la exportacion
-      }
+      } catch (e2) {}
     }
-    
-    // Construir contenido (2-3 líneas)
-    const lineas: string[] = [];
-    lineas.push(String(bloque.docente_n));     // Línea 1: número docente
-    lineas.push(bloque.aula);                   // Línea 2: aula
-    
-    const tipo = etiquetaTipoSesion(bloque.tipo_sesion);
-    if (tipo) {
-      lineas.push(tipo);                        // Línea 3: tipo (opcional)
+
+    // Construir contenido con todos los bloques del slot
+    const lineasTotales: string[] = [];
+    bloquesEnSlot.forEach(bloque => {
+      const lineas: string[] = [];
+      lineas.push(String(bloque.docente_n));
+      lineas.push(bloque.aula);
+      const tipo = etiquetaTipoSesion(bloque.tipo_sesion);
+      if (tipo) lineas.push(tipo);
+      lineasTotales.push(...lineas, '───'); // Separador entre cursos
+    });
+    if (lineasTotales.length > 0) {
+      lineasTotales.pop(); // quitar último separador
     }
-    
+
+    // Color: usar color del primer bloque (o gris si múltiples)
+    const color = bloquesEnSlot.length === 1 
+      ? PALETA_COLORES_UNT[(mapaDocenteColor.get(bloquesEnSlot[0].docente_id) ?? 0) % PALETA_COLORES_UNT.length]
+      : 'FFF0F0F0';
+
     // Aplicar contenido y formato
     const cell = ws.getCell(`${colDia.inicio}${filaInicio}`);
-    cell.value = lineas.join('\n');
+    cell.value = lineasTotales.join('\n');
     cell.font = { name: 'Arial', size: 10, bold: true };
-    cell.alignment = { 
-      horizontal: 'center', 
-      vertical: 'middle', 
-      wrapText: true 
+    cell.alignment = {
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true
     };
-    cell.fill = {
-      type: 'pattern', 
-      pattern: 'solid',
-      fgColor: { argb: color }
-    };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
     cell.border = BORDE_FINO;
-    
+
     // Aplicar bordes y fondo a todo el rango del merge
     for (let f = filaInicio; f <= filaFin; f++) {
       const colStart = colDia.inicio.charCodeAt(0);
@@ -146,12 +159,13 @@ export function aplicarAsignaciones(
         const charCol = String.fromCharCode(c);
         const cellTemp = ws.getCell(`${charCol}${f}`);
         cellTemp.border = BORDE_FINO;
-        cellTemp.fill = {
-          type: 'pattern', 
-          pattern: 'solid',
-          fgColor: { argb: color }
-        };
+        cellTemp.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
       }
     }
+
+    // Ajustar altura de la fila para que quepa todo el texto
+    const filaObj = ws.getRow(filaInicio);
+    const alturaNecesaria = Math.max(20, lineasTotales.length * 15);
+    filaObj.height = alturaNecesaria;
   }
 }
