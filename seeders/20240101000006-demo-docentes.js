@@ -41,7 +41,10 @@ module.exports = {
           { nombre: 'Juan Manuel', apellidos: 'Granda Fernández', dni: '54545454', email: 'jgranda@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2014-03-01', grado_academico: 'magister', horas_max_semana: 20 },
           { nombre: 'Luis', apellidos: 'Moncada Albites', dni: '57575757', email: 'lmoncada@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2015-03-01', grado_academico: 'magister', horas_max_semana: 20 },
                     { nombre: 'Camilo', apellidos: 'Suárez Rebaza', dni: '31313131', email: 'csuarez@unt.edu.pe', categoria: 'principal', condicion: 'nombrado', fecha_ingreso: '2007-03-01', grado_academico: 'doctor', horas_max_semana: 20 },
-          { nombre: 'Marco Celi', apellidos: 'Arevalo', dni: '62626262', email: 'marevalo@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2012-03-01', grado_academico: 'magister', horas_max_semana: 20 }
+          { nombre: 'Marco Celi', apellidos: 'Arevalo', dni: '62626262', email: 'marevalo@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2012-03-01', grado_academico: 'magister', horas_max_semana: 20 },
+          { nombre: 'Carlos', apellidos: 'Rojas Taller', dni: '70707070', telefono: '920611225', email: 'crojas@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2014-03-01', grado_academico: 'magister', horas_max_semana: 20 },
+          { nombre: 'Maria', apellidos: 'López Taller', dni: '70808080', telefono: '920611226', email: 'mlopez@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2015-03-01', grado_academico: 'magister', horas_max_semana: 20 },
+          { nombre: 'Pedro', apellidos: 'García Taller', dni: '70909090', telefono: '920611227', email: 'pgarcia@unt.edu.pe', categoria: 'asociado', condicion: 'nombrado', fecha_ingreso: '2016-03-01', grado_academico: 'magister', horas_max_semana: 20 }
           ], {});
         } finally {
           process.env.EMAILS_DISABLED = prevEmailsDisabled;
