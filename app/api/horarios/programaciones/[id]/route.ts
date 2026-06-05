@@ -57,7 +57,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const anterior = await queryOne(`SELECT * FROM programaciones WHERE id = $1`, [id]);
   if (!anterior) return NextResponse.json({ error: 'No encontrada' }, { status: 404 });
 
-  if (anterior.estado === 'publicado') {
+  if (anterior.estado === 'cancelado') {
+    return NextResponse.json({ error: 'No se puede modificar una programación cancelada' }, { status: 400 });
+  }
+
+  const vuelveAProgramacionDesdePublicado = anterior.estado === 'publicado' && body.fase !== undefined && parseInt(body.fase) === 3;
+
+  if (anterior.estado === 'publicado' && !vuelveAProgramacionDesdePublicado) {
     return NextResponse.json({ error: 'No se puede modificar una programación publicada' }, { status: 400 });
   }
 
@@ -95,6 +101,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     updates.push(`estado = $${idx++}`);
     values.push(estadoMap[nuevaFase]);
 
+    if (anterior.estado === 'publicado' && nuevaFase === 3) {
+      await query(`DELETE FROM asignaciones WHERE ciclo_id = $1`, [anterior.ciclo_id]);
+      updates.push('publicado_at = NULL');
+      updates.push('publicado_por = NULL');
+    }
+
     // Si avanza a fase 4 → publicar
     if (nuevaFase === 4) {
       updates.push(`publicado_at = NOW()`);
@@ -131,6 +143,48 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     descripcion: body.fase
       ? `Programación avanzó a fase ${body.fase}: ${result.estado}`
       : `Programación actualizada: ${result.nombre}`,
+  });
+
+  return NextResponse.json({ data: result });
+}
+
+// PATCH — Restaurar programación cancelada
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session || !['admin', 'secretaria'].includes(session.rol)) {
+    return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const anterior = await queryOne(`SELECT * FROM programaciones WHERE id = $1`, [id]);
+  if (!anterior) return NextResponse.json({ error: 'No encontrada' }, { status: 404 });
+
+  if (anterior.estado !== 'cancelado') {
+    return NextResponse.json({ error: 'Solo se puede restaurar programaciones canceladas' }, { status: 400 });
+  }
+
+  // Mapear fase → estado para restaurar
+  const estadoMap: Record<number, string> = {
+    1: 'borrador',
+    2: 'en_disponibilidad',
+    3: 'en_programacion',
+    4: 'publicado',
+  };
+
+  const result = await queryOne(
+    `UPDATE programaciones SET estado = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+    [estadoMap[anterior.fase], id]
+  );
+
+  await registrarAuditoria({
+    usuario_id: session.id,
+    usuario_nombre: `${session.nombre} ${session.apellidos}`,
+    accion: 'UPDATE',
+    tabla_afectada: 'programaciones',
+    registro_id: id,
+    datos_anteriores: anterior,
+    datos_nuevos: result,
+    descripcion: `Programación restaurada: ${result.nombre}`,
   });
 
   return NextResponse.json({ data: result });

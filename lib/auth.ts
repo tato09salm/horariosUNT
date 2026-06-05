@@ -6,6 +6,15 @@ import { generateToken, verifyToken, UserSession } from './jwt';
 
 export { type UserSession };
 
+export interface UserRoleProfile {
+  codigo: UserSession['rol'];
+  nombre: string;
+}
+
+export interface UserProfile extends Omit<UserSession, 'rol'> {
+  rol: UserRoleProfile;
+}
+
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }
@@ -19,6 +28,26 @@ export async function getSession(): Promise<UserSession | null> {
   const token = cookieStore.get('auth-token')?.value;
   if (!token) return null;
   return await verifyToken(token);
+}
+
+export async function getSessionProfile(): Promise<UserProfile | null> {
+  const session = await getSession();
+  if (!session) return null;
+
+  const nombresRoles: Record<string, string> = {
+    admin: 'Administrador',
+    secretaria: 'Secretaria',
+    docente: 'Docente',
+    director_escuela: 'Director de Escuela',
+  };
+
+  return {
+    ...session,
+    rol: {
+      codigo: session.rol,
+      nombre: nombresRoles[session.rol] || session.rol,
+    },
+  };
 }
 
 export async function login(email: string, password: string, ip?: string): Promise<{ user: UserSession; token: string } | null> {
@@ -53,7 +82,8 @@ export async function login(email: string, password: string, ip?: string): Promi
   return { user: session, token };
 }
 
-export function requireRole(session: UserSession | null, roles: string[]): boolean {
+export function requireRole(session: UserSession | UserProfile | null, roles: string[]): boolean {
   if (!session) return false;
-  return roles.includes(session.rol);
+  const rolCode = typeof session.rol === 'string' ? session.rol : session.rol.codigo;
+  return roles.includes(rolCode);
 }

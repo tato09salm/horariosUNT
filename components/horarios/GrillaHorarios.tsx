@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import CeldaHorario from '@/components/horarios/CeldaHorario';
 import LeyendaHorarios from '@/components/horarios/LeyendaHorarios';
+import { DroppableCell } from '@/components/horarios/DroppableCell';
 import { DIAS_SEMANA, DIAS_LABEL } from '@/lib/horario-utils';
 import { generarMapaColores } from '@/lib/colores-curso';
 import { SelectorDocente } from '@/components/horarios/SelectorDocente';
@@ -13,14 +14,37 @@ interface GrillaHorariosProps {
   asignaciones: any[];
   slots: any[];
   docentesConCarga?: Set<string>;
+  ultimoMovimiento?: { origen: any; destino: any } | null;
+  bloquesMovidos?: Set<string>;
+  activeBlockIds?: Set<string>;
+}
+
+function normalizarAsignacion(a: any) {
+  const ambienteCodigo = a.ambiente_codigo || a.aula || '';
+  const ambienteNombre = a.ambiente_nombre || a.aula_nombre || ambienteCodigo || '';
+  const docenteNombre = a.docente_nombre || a.docente || '';
+  const docenteId = a.docente_id || docenteNombre || null;
+
+  return {
+    ...a,
+    docente_id: docenteId,
+    docente_nombre: docenteNombre,
+    ambiente_id: a.ambiente_id || ambienteCodigo || null,
+    ambiente_codigo: ambienteCodigo,
+    ambiente_nombre: ambienteNombre,
+    ambiente_tipo: a.ambiente_tipo || a.tipo_ambiente || '',
+  };
 }
 
 export default function GrillaHorarios({
   asignaciones,
   slots,
   docentesConCarga = new Set(),
+  ultimoMovimiento = null,
+  bloquesMovidos = new Set(),
+  activeBlockIds = new Set(),
 }: GrillaHorariosProps) {
-  const [vista, setVista] = useState<'aula' | 'general' | 'ciclo' | 'docente'>('aula');
+  const [vista, setVista] = useState<'aula' | 'general' | 'ciclo' | 'docente'>('general');
   const [aulaFiltro, setAulaFiltro] = useState<string>('');
   const [docenteFiltro, setDocenteFiltro] = useState<string>('');
   const [diaMobile, setDiaMobile] = useState<string>('lunes');
@@ -35,7 +59,7 @@ export default function GrillaHorarios({
           setTodosDocentes(res.data);
         }
       })
-      .catch(err => console.error("Error loading teachers", err));
+      .catch(err => console.error('Error loading teachers', err));
   }, []);
 
   useEffect(() => {
@@ -46,12 +70,17 @@ export default function GrillaHorarios({
     return () => mq.removeEventListener('change', fn);
   }, []);
 
+  const asignacionesNormalizadas = useMemo(
+    () => asignaciones.map(normalizarAsignacion),
+    [asignaciones]
+  );
+
   const asignacionesVisibles = useMemo(() => {
-    if (docentesConCarga.size === 0) return asignaciones;
-    return asignaciones.filter(
+    if (docentesConCarga.size === 0) return asignacionesNormalizadas;
+    return asignacionesNormalizadas.filter(
       a => a.tipo === 'asesoria' || !a.docente_id || docentesConCarga.has(a.docente_id)
     );
-  }, [asignaciones, docentesConCarga]);
+  }, [asignacionesNormalizadas, docentesConCarga]);
 
   const mapaColores = useMemo(() => {
     return generarMapaColores(asignacionesVisibles);
@@ -64,25 +93,26 @@ export default function GrillaHorarios({
           .filter(a => a.docente_id && (docentesConCarga.size === 0 || docentesConCarga.has(a.docente_id)))
           .map(a => [a.docente_id, a.docente_nombre])
       ).entries()
-    ).map(([id, nombre]) => ({ id, nombre: (nombre as string) || '' }))
-     .sort((a, b) => a.nombre.localeCompare(b.nombre));
+    )
+      .map(([id, nombre]) => ({ id, nombre: (nombre as string) || '' }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [asignacionesVisibles, docentesConCarga]);
 
   const horasAsignadasMap = useMemo(() => {
     const map = new Map<string, number>();
-    asignaciones.forEach(a => {
+    asignacionesNormalizadas.forEach(a => {
       if (a.docente_id) {
         map.set(a.docente_id, (map.get(a.docente_id) || 0) + 1);
       }
     });
     return map;
-  }, [asignaciones]);
+  }, [asignacionesNormalizadas]);
 
   const docentesConHoras = useMemo(() => {
-    const list = todosDocentes.length > 0 
-      ? todosDocentes 
+    const list = todosDocentes.length > 0
+      ? todosDocentes
       : docentesUnicos.map(d => ({ id: d.id, nombre: d.nombre, apellidos: '' }));
-      
+
     return list.map(d => ({
       id: d.id,
       nombre: d.nombre,
@@ -91,7 +121,7 @@ export default function GrillaHorarios({
       categoria: d.categoria || '',
       condicion: d.condicion || '',
       horas_max_semana: d.horas_max_semana || 20,
-      horas_asignadas: horasAsignadasMap.get(d.id) || 0
+      horas_asignadas: horasAsignadasMap.get(d.id) || 0,
     })).sort((a, b) => {
       const nameA = `${a.apellidos}, ${a.nombre}`.toLowerCase();
       const nameB = `${b.apellidos}, ${b.nombre}`.toLowerCase();
@@ -99,7 +129,6 @@ export default function GrillaHorarios({
     });
   }, [todosDocentes, docentesUnicos, horasAsignadasMap]);
 
-  // Set initial docente filter if empty
   useEffect(() => {
     if (vista === 'docente' && !docenteFiltro && docentesUnicos.length > 0) {
       setDocenteFiltro(docentesUnicos[0].id);
@@ -143,35 +172,35 @@ export default function GrillaHorarios({
     return asigArr
       .filter(a => a.dia === dia && a.slot_id === slotId)
       .sort((a, b) => {
-         if (a.condicion_orden !== b.condicion_orden) return (a.condicion_orden || 0) - (b.condicion_orden || 0);
-         return (a.categoria_orden || 0) - (b.categoria_orden || 0);
+        if (a.condicion_orden !== b.condicion_orden) return (a.condicion_orden || 0) - (b.condicion_orden || 0);
+        return (a.categoria_orden || 0) - (b.categoria_orden || 0);
       });
   }
 
-  function renderGrilla(titulo: string, asigGrilla: any[], key: string) {
-    if (asigGrilla.length === 0) return null;
+  function renderGrilla(titulo: string, asigGrilla: any[], key: string, contextData: any = {}) {
+    if (asigGrilla.length === 0 && Object.keys(contextData).length === 0) return null;
+
     return (
       <div key={key} style={{ marginBottom: '40px' }}>
-        <h4 style={{ fontSize: '15px', color: '#0f172a', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px', marginBottom: '16px', fontWeight: '600' }}>
+        <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', borderBottom: '2px solid var(--border-color)', paddingBottom: '8px', marginBottom: '16px', fontWeight: '600' }}>
           {titulo}
         </h4>
-        <div className={`horario-grid horario-grid--responsive${isMobile ? ' horario-grid--mobile-one-day' : ''}`}>
+        <div
+          className={`horario-grid horario-grid--responsive${isMobile ? ' horario-grid--mobile-one-day' : ''}`}
+          style={{ gridTemplateColumns: `90px repeat(${DIAS.length}, 1fr)` }}
+        >
           <div className="horario-header horario-header--show">Hora</div>
           {DIAS.map(d => (
-            <div
-              key={d}
-              className={`horario-header${diasGrilla.includes(d) ? ' horario-header--show' : ''}`}
-            >
+            <div key={d} className={`horario-header${diasGrilla.includes(d) ? ' horario-header--show' : ''}`}>
               {DIAS_LABEL[d]}
             </div>
           ))}
-          {slots.map((slot) => {
+          {slots.map(slot => {
             const isLunch = slot.hora_inicio === '13:00' || slot.hora_inicio === '13:00:00';
             return (
               <div key={slot.id} style={{ display: 'contents' }}>
                 <div
-                  className={`horario-time${isLunch || !isMobile ? ' horario-time--show' : ''}`}
-                  style={isLunch ? { background: '#f1f5f9' } : {}}
+                  className={`horario-time${isLunch || !isMobile ? ' horario-time--show' : ''}${isLunch ? ' horario-time--lunch' : ''}`}
                 >
                   {slot.hora_inicio.substring(0, 5)}<br />{slot.hora_fin.substring(0, 5)}
                 </div>
@@ -185,13 +214,37 @@ export default function GrillaHorarios({
                 ) : (
                   DIAS.map(dia => {
                     const cells = getCell(dia, slot.id, asigGrilla);
+                    const dropId = `${key}-${dia}-${slot.id}`;
+                    // Detectar si esta celda fue origen o destino del último movimiento
+                    const esOrigen = ultimoMovimiento &&
+                      ultimoMovimiento.origen.dia === dia &&
+                      ultimoMovimiento.origen.slot_id === slot.id &&
+                      (!contextData.ambiente_id || ultimoMovimiento.origen.ambiente_id === contextData.ambiente_id);
+                    const esDestino = ultimoMovimiento &&
+                      ultimoMovimiento.destino.dia === dia &&
+                      ultimoMovimiento.destino.slot_id === slot.id &&
+                      (!contextData.ambiente_id || ultimoMovimiento.destino.ambiente_id === contextData.ambiente_id);
                     return (
-                      <div
-                        key={`${dia}-${slot.id}`}
+                      <DroppableCell
+                        key={dropId}
+                        id={dropId}
+                        dia={dia}
+                        slot_id={slot.id}
+                        ambiente_id={contextData.ambiente_id}
+                        ambiente_codigo={contextData.ambiente_codigo}
+                        ambiente_nombre={contextData.ambiente_nombre}
+                        esOrigen={!!esOrigen}
+                        esDestino={!!esDestino}
                         className={`horario-cell${diasGrilla.includes(dia) ? ' horario-cell--show' : ''}`}
                       >
-                        <CeldaHorario asignaciones={cells} compact={compactBlocks} mapaColores={mapaColores} />
-                      </div>
+                        <CeldaHorario
+                          asignaciones={cells}
+                          compact={compactBlocks}
+                          mapaColores={mapaColores}
+                          bloquesMovidos={bloquesMovidos}
+                          activeBlockIds={activeBlockIds}
+                        />
+                      </DroppableCell>
                     );
                   })
                 )}
@@ -208,12 +261,12 @@ export default function GrillaHorarios({
       <LeyendaHorarios mapaColores={mapaColores} asignaciones={asignacionesVisibles} />
 
       {asignacionesVisibles.length > 0 && (
-        <div className="card programar-toolbar" style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px', padding: '16px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
-          <button className={vista === 'aula' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('aula')}>Por aula</button>
+        <div className="card programar-toolbar" style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px', padding: '16px', background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
           <button className={vista === 'general' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('general')}>General</button>
+          <button className={vista === 'aula' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('aula')}>Por aula</button>
           <button className={vista === 'ciclo' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('ciclo')}>Por ciclo</button>
           <button className={vista === 'docente' ? 'btn-primary' : 'btn-secondary'} onClick={() => { setVista('docente'); if (docentesUnicos[0]) setDocenteFiltro(docentesUnicos[0].id); }}>Por docente</button>
-          
+
           {vista === 'aula' && ambientesEnUso.length > 0 && (
             <select className="form-input" style={{ maxWidth: 280 }} value={aulaFiltro} onChange={e => setAulaFiltro(e.target.value)}>
               <option value="">Todas las aulas</option>
@@ -223,36 +276,31 @@ export default function GrillaHorarios({
             </select>
           )}
           {vista === 'docente' && docentesConHoras.length > 0 && (
-            <SelectorDocente 
-              docentes={docentesConHoras} 
-              docenteSeleccionadoId={docenteFiltro} 
-              onSeleccionar={setDocenteFiltro} 
+            <SelectorDocente
+              docentes={docentesConHoras}
+              docenteSeleccionadoId={docenteFiltro}
+              onSeleccionar={setDocenteFiltro}
             />
           )}
         </div>
       )}
 
-      <div className="card" style={{ overflowX: 'auto', padding: '24px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+      <div className="card" style={{ overflowX: 'auto', padding: '24px', background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
         <div className="programar-dia-tabs">
           {DIAS.map(d => (
-            <button
-              key={d}
-              type="button"
-              className={diaMobile === d ? 'active' : ''}
-              onClick={() => setDiaMobile(d)}
-            >
+            <button key={d} type="button" className={diaMobile === d ? 'active' : ''} onClick={() => setDiaMobile(d)}>
               {DIAS_LABEL[d]}
             </button>
           ))}
         </div>
 
         {asignacionesVisibles.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
             No hay asignaciones en este horario.
           </div>
         ) : (
           <div>
-            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 20px', fontStyle: 'italic' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 20px', fontStyle: 'italic' }}>
               {vista === 'aula' && 'Una grilla por aula o laboratorio utilizado en este horario.'}
               {vista === 'general' && 'Todas las asignaciones por franja horaria. Labs en paralelo (distintos ambientes) aparecen en la misma celda.'}
               {vista === 'ciclo' && 'Por ciclo del plan de estudios (II, IV, VI…). Distintas secciones (G1, G2…) pueden coincidir en horario.'}
@@ -268,7 +316,8 @@ export default function GrillaHorarios({
                   asigFiltradas.filter(
                     a => a.tipo !== 'asesoria' && (a.ambiente_id === amb.id || a.ambiente_codigo === amb.codigo)
                   ),
-                  `amb-${amb.codigo}`
+                  `amb-${amb.id || amb.codigo}`,
+                  { ambiente_id: amb.id || amb.codigo, ambiente_codigo: amb.codigo, ambiente_nombre: amb.nombre }
                 )
               )}
             {vista === 'ciclo' &&
@@ -279,16 +328,14 @@ export default function GrillaHorarios({
                   `ciclo-${ciclo}`
                 )
               )}
-            {vista === 'ciclo' && asesoriasAsig.length > 0 &&
-              renderGrilla('Asesorías docentes', asesoriasAsig, 'asesorias')}
+            {vista === 'ciclo' && asesoriasAsig.length > 0 && renderGrilla('Asesorías docentes', asesoriasAsig, 'asesorias')}
             {vista === 'general' &&
               renderGrilla(
                 'Vista general — paralelismo por franja',
                 asigFiltradas.filter(a => a.tipo !== 'asesoria'),
                 'general'
               )}
-            {vista === 'docente' &&
-              renderGrilla('Horario del docente', asigFiltradas, 'docente')}
+            {vista === 'docente' && renderGrilla('Horario del docente', asigFiltradas, 'docente')}
           </div>
         )}
       </div>

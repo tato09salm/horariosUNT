@@ -63,12 +63,12 @@ export default function LeyendaHorarios({
   }, [mapaColores, asignaciones]);
 
   return (
-    <div className="leyenda-horarios card" style={{ padding: '20px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
-      <h4 className="leyenda-horarios__titulo" style={{ fontSize: '16px', fontWeight: '700', color: '#1e293b', margin: '0 0 16px', borderBottom: '2px solid #f1f5f9', paddingBottom: '8px' }}>Leyenda y Guía de Horario</h4>
+    <div className="leyenda-horarios card" style={{ padding: '20px', background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)', marginBottom: '20px' }}>
+      <h4 className="leyenda-horarios__titulo" style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 16px', borderBottom: '2px solid var(--border-color)', paddingBottom: '8px' }}>Leyenda y Guía de Horario</h4>
       
       <div className="leyenda-horarios__grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
         <section>
-          <p className="leyenda-horarios__seccion" style={{ fontWeight: '600', color: '#475569', fontSize: '13px', margin: '0 0 8px' }}>Tipo de Sesión</p>
+          <p className="leyenda-horarios__seccion" style={{ fontWeight: '600', color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 8px' }}>Tipo de Sesión</p>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
             <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ background: '#1e40af', color: 'white', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>T</span> 
@@ -82,15 +82,17 @@ export default function LeyendaHorarios({
               <span style={{ background: '#166534', color: 'white', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>L</span> 
               <span>Laboratorio (🔬)</span>
             </li>
+            {/*
             <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ background: '#7c2d12', color: 'white', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>C</span> 
+              <span style={{ background: '#7c2d12', color: 'white', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>C</span>
               <span>Consejería / Asesoría (💬)</span>
             </li>
+            */}
           </ul>
         </section>
         
         <section>
-          <p className="leyenda-horarios__seccion" style={{ fontWeight: '600', color: '#475569', fontSize: '13px', margin: '0 0 8px' }}>Prioridad Asignada</p>
+          <p className="leyenda-horarios__seccion" style={{ fontWeight: '600', color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 8px' }}>Prioridad Asignada</p>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
             <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>★ P1</span>
@@ -104,7 +106,7 @@ export default function LeyendaHorarios({
         </section>
 
         <section>
-          <p className="leyenda-horarios__seccion" style={{ fontWeight: '600', color: '#475569', fontSize: '13px', margin: '0 0 8px' }}>Código de Asesorías</p>
+          <p className="leyenda-horarios__seccion" style={{ fontWeight: '600', color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 8px' }}>Código de Asesorías</p>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
             <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span 
@@ -124,12 +126,12 @@ export default function LeyendaHorarios({
       </div>
 
       {Object.keys(cursosPorCiclo).length > 0 && (
-        <div style={{ marginTop: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
-          <p className="leyenda-horarios__seccion" style={{ fontWeight: '600', color: '#475569', fontSize: '13px', margin: '0 0 12px' }}>Código de Colores de Curso por Ciclo</p>
+        <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
+          <p className="leyenda-horarios__seccion" style={{ fontWeight: '600', color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 12px' }}>Código de Colores de Curso por Ciclo</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {Object.entries(cursosPorCiclo).sort((a,b) => parseInt(a[0]) - parseInt(b[0])).map(([ciclo, items]) => (
-              <div key={ciclo} style={{ background: '#f8fafc', borderRadius: '8px', padding: '16px', border: '1px solid #e2e8f0' }}>
-                <h4 style={{ margin: '0 0 12px 0', fontWeight: '700', color: '#1e40af', fontSize: '13px' }}>
+              <div key={ciclo} style={{ background: 'var(--bg-card-hover)', borderRadius: '8px', padding: '16px', border: '1px solid var(--border-color)' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontWeight: '700', color: 'var(--text-primary)', fontSize: '13px' }}>
                   Cursos del Ciclo {romanizar(parseInt(ciclo))}
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
@@ -148,10 +150,10 @@ export default function LeyendaHorarios({
                         }}
                       />
                       <div className="info-curso" style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                        <span className="nombre-completo" style={{ fontSize: '13px', color: '#1f2937', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={curso.nombre}>
+                        <span className="nombre-completo" style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={curso.nombre}>
                           {curso.nombre}
                         </span>
-                        <span className="codigo-pequeno" style={{ fontSize: '11px', color: '#6b7280' }}>
+                        <span className="codigo-pequeno" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
                           ({curso.codigo})
                         </span>
                       </div>

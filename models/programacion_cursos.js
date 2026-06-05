@@ -92,12 +92,11 @@ class ProgramacionCursos extends Sequelize.Model {
         ]
       },
       {
-        name: "programacion_cursos_prog_grupo_docente_uk",
+        name: "programacion_cursos_programacion_id_grupo_id_uk",
         unique: true,
         fields: [
           { name: "programacion_id" },
           { name: "grupo_id" },
-          { name: "docente_id" },
         ]
       },
     ]

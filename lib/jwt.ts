@@ -9,7 +9,7 @@ export interface UserSession {
   nombre: string;
   apellidos: string;
   email: string;
-  rol: 'admin' | 'secretaria' | 'docente';
+  rol: 'admin' | 'director_escuela' | 'secretaria' | 'docente';
 }
 
 export async function generateToken(user: UserSession): Promise<string> {
@@ -24,7 +24,7 @@ export async function verifyToken(token: string): Promise<UserSession | null> {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     return payload as unknown as UserSession;
-  } catch (error) {
+  } catch {
     return null;
   }
 }

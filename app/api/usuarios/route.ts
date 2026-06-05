@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession, hashPassword } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
 import { registrarAuditoria } from '@/lib/auditoria';
+import { enviarCredencialesUsuario } from '@/lib/email';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session || session.rol !== 'admin') {
+  if (!session || !['admin', 'director_escuela'].includes(session.rol)) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
   }
 
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
     const offset = (page - 1) * limit;
 
     let whereConditions = '';
-    const params: any[] = [];
+    const params: (string | number)[] = [];
     let idx = 1;
 
     if (buscar) {
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest) {
       params
     );
     const countsByRole: Record<string, number> = {};
-    countsResult.forEach((r: any) => {
+    countsResult.forEach((r: { rol: string; count: string }) => {
       countsByRole[r.rol] = parseInt(r.count);
     });
 
@@ -79,9 +80,10 @@ export async function GET(req: NextRequest) {
       totalPages: Math.ceil(total / limit),
       countsByRole
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error GET usuarios:', error);
-    return NextResponse.json({ error: 'Error al cargar usuarios' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error al cargar usuarios';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -93,7 +95,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const hash = await hashPassword(body.password || 'temporal123');
+    const rawPassword = body.password || 'temporal123';
+    const hash = await hashPassword(rawPassword);
     const usuario = await queryOne(
       `INSERT INTO usuarios (nombre, apellidos, email, password_hash, rol) 
        VALUES ($1, $2, $3, $4, $5) 
@@ -109,8 +112,23 @@ export async function POST(req: NextRequest) {
       descripcion: `Usuario creado: ${body.email}`,
     });
 
+    if (usuario?.email) {
+      try {
+        const nombre = `${usuario.nombre} ${usuario.apellidos}`.trim();
+        await enviarCredencialesUsuario({
+          nombre: nombre || 'Usuario',
+          email: usuario.email,
+          password: rawPassword,
+          rol: usuario.rol,
+        });
+      } catch (emailErr) {
+        console.error(`Error enviando email a ${usuario.email}:`, emailErr);
+      }
+    }
+
     return NextResponse.json({ data: usuario }, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error al crear usuario';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

@@ -79,7 +79,12 @@ export async function getAuditoria(filtros?: {
   const offset = ((filtros?.pagina || 1) - 1) * limite;
 
   const data = await query(
-    `SELECT * FROM auditoria ${where} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx}`,
+    `SELECT a.*, u.rol as usuario_rol
+     FROM auditoria a
+     LEFT JOIN usuarios u ON u.id = a.usuario_id
+     ${where}
+     ORDER BY a.created_at DESC
+     LIMIT $${idx++} OFFSET $${idx}`,
     [...params, limite, offset]
   );
 

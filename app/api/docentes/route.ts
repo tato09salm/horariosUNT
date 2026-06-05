@@ -15,12 +15,13 @@ export async function GET(req: NextRequest) {
   const activo = searchParams.get('activo');
   const reporte = searchParams.get('reporte') === 'true';
   const verificarUsuarios = searchParams.get('verificarUsuarios') === 'true';
+  const notificarUsuarios = searchParams.get('notificar') === 'true';
   const page = parseInt(searchParams.get('page') || '1');
   const limit = parseInt(searchParams.get('limit') || '10');
   const offset = (page - 1) * limit;
 
   // Lógica de verificación y creación automática de usuarios para docentes existentes
-  if (verificarUsuarios && (session.rol === 'admin' || session.rol === 'secretaria')) {
+  if (verificarUsuarios && ['admin', 'secretaria', 'director_escuela'].includes(session.rol)) {
     try {
       const docentesSinUsuario = await query(`
         SELECT d.* FROM docentes d
@@ -52,8 +53,8 @@ export async function GET(req: NextRequest) {
 
           await client.query('UPDATE docentes SET usuario_id = $1 WHERE id = $2', [usuarioId, doc.id]);
           
-          // Notificar por correo si se creó un nuevo usuario
-          if (nuevoUsuario) {
+          // Notificar por correo solo si se solicita explicitamente
+          if (nuevoUsuario && notificarUsuarios) {
             try {
               await enviarCredencialesDocente(`${doc.nombre.toUpperCase()} ${doc.apellidos.toUpperCase()}`, doc.email, doc.dni);
             } catch (emailErr) {
@@ -69,7 +70,9 @@ export async function GET(req: NextRequest) {
           usuario_nombre: `${session.nombre} ${session.apellidos}`,
           accion: 'UPDATE',
           tabla_afectada: 'usuarios/docentes',
-          descripcion: `Se crearon ${creados} usuarios automáticos y se enviaron notificaciones por correo`,
+          descripcion: notificarUsuarios
+            ? `Se crearon ${creados} usuarios automáticos y se enviaron notificaciones por correo`
+            : `Se crearon ${creados} usuarios automáticos sin notificaciones por correo`,
         });
       }
     } catch (err) {
@@ -121,7 +124,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session || !['admin', 'secretaria'].includes(session.rol)) {
+  if (!session || !['admin', 'secretaria', 'director_escuela'].includes(session.rol)) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
   }
 

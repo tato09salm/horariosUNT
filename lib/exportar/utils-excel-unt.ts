@@ -24,10 +24,10 @@ export const COLOR_TEXTO_ROJO = 'FFFF0000';
 
 // Anchos de columna estándar
 export const ANCHOS_COLUMNA: Record<string, number> = {
-  'A': 11, 'B': 13, 'C': 1, 'D': 13, 'E': 1,
+  'A': 11, 'B': 13, 'C': 13, 'D': 13, 'E': 13,
   'F': 4, 'G': 16, 'H': 14,
-  'I': 14, 'J': 1,
-  'K': 14, 'L': 4, 'M': 4, 'N': 4,
+  'I': 14, 'J': 14,
+  'K': 14, 'L': 14, 'M': 14, 'N': 14,
   'O': 8, 'P': 9, 'Q': 11
 };
 

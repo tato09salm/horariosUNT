@@ -120,7 +120,7 @@ export default function AuditoriaPage() {
 
   function getAccionBadge(accion: string) {
     const colors = (colorAccion[accion]||'#f1f5f9|#475569').split('|');
-    return <span style={{display:'inline-flex',alignItems:'center',padding:'2px 8px',borderRadius:'9999px',fontSize:'11px',fontWeight:'600',background:colors[0],color:colors[1]}}>{accion}</span>;
+    return <span style={{display:'inline-flex',alignItems:'center',padding:'2px 8px',borderRadius:'9999px',fontSize:'11px',fontWeight:'600',background: darkMode ? `rgba(${colors[1].startsWith('#') ? '148,163,184' : '0,0,0'}, 0.15)` : colors[0], color: darkMode ? colors[0] : colors[1], border: darkMode ? `1px solid rgba(${colors[1].startsWith('#') ? '148,163,184' : '0,0,0'}, 0.2)` : 'none'}}>{accion.toUpperCase()}</span>;
   }
 
   const totalPaginas = Math.ceil(total / limite);
@@ -129,8 +129,8 @@ export default function AuditoriaPage() {
     <div style={{padding:'32px'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'24px',flexWrap:'wrap',gap:'16px'}}>
         <div>
-          <h1 style={{fontSize:'24px',fontWeight:'700',color: darkMode ? '#fff' : '#1e293b',margin:'0 0 4px'}}>Auditoría del Sistema</h1>
-          <p style={{color: darkMode ? '#94a3b8' : '#64748b',fontSize:'14px',margin:0}}>Registro completo de acciones — Solo administradores</p>
+          <h1 style={{fontSize:'24px',fontWeight:'700',color: 'var(--text-primary)',margin:'0 0 4px'}}>Auditoría del Sistema</h1>
+          <p style={{color: 'var(--text-secondary)',fontSize:'14px',margin:0}}>Registro completo de acciones — Solo administradores</p>
         </div>
         <button className="btn-primary" onClick={generarReporte} disabled={exporting} style={{display:'flex',alignItems:'center',gap:'8px'}}>
           <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -146,71 +146,71 @@ export default function AuditoriaPage() {
           {label:'Página actual', value:`${pagina}/${totalPaginas||1}`, color: darkMode ? '#fbbf24' : '#92400e'},
           {label:'Por página', value:limite, color: darkMode ? '#a78bfa' : '#6b21a8'},
         ].map((s,i)=>(
-          <div key={i} className="card" style={{padding:'16px',textAlign:'center', background: darkMode ? 'var(--bg-card)' : 'white'}}>
+          <div key={i} className="card" style={{padding:'16px',textAlign:'center', background: 'var(--bg-card)', border: '1px solid var(--border-color)'}}>
             <p style={{fontSize:'22px',fontWeight:'700',color:s.color,margin:'0 0 4px'}}>{s.value}</p>
-            <p style={{fontSize:'12px',color: darkMode ? '#94a3b8' : '#64748b',margin:0}}>{s.label}</p>
+            <p style={{fontSize:'12px',color: 'var(--text-muted)',margin:0}}>{s.label.toUpperCase()}</p>
           </div>
         ))}
       </div>
 
       {/* Filtros */}
-      <div className="card" style={{padding:'16px',marginBottom:'16px'}}>
+      <div className="card" style={{padding:'16px',marginBottom:'16px', border: '1px solid var(--border-color)', background: 'var(--bg-card)'}}>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'12px'}}>
           <div>
-            <label className="form-label">Acción</label>
+            <label className="form-label">ACCIÓN</label>
             <select className="form-input" value={filtros.accion} onChange={e=>{ setFiltros(p=>({...p,accion:e.target.value})); setPagina(1); }}>
-              <option value="">Todas</option>
-              {ACCIONES.map(a=><option key={a} value={a}>{a}</option>)}
+              <option value="">TODAS</option>
+              {ACCIONES.map(a=><option key={a} value={a}>{a.toUpperCase()}</option>)}
             </select>
           </div>
           <div>
-            <label className="form-label">Tabla afectada</label>
+            <label className="form-label">TABLA AFECTADA</label>
             <select className="form-input" value={filtros.tabla} onChange={e=>{ setFiltros(p=>({...p,tabla:e.target.value})); setPagina(1); }}>
-              <option value="">Todas</option>
-              {TABLAS.map(t=><option key={t} value={t}>{t}</option>)}
+              <option value="">TODAS</option>
+              {TABLAS.map(t=><option key={t} value={t}>{t.toUpperCase()}</option>)}
             </select>
           </div>
           <div>
-            <label className="form-label">Desde</label>
+            <label className="form-label">DESDE</label>
             <input className="form-input" type="date" value={filtros.desde} onChange={e=>{ setFiltros(p=>({...p,desde:e.target.value})); setPagina(1); }} />
           </div>
           <div>
-            <label className="form-label">Hasta</label>
+            <label className="form-label">HASTA</label>
             <input className="form-input" type="date" value={filtros.hasta} onChange={e=>{ setFiltros(p=>({...p,hasta:e.target.value})); setPagina(1); }} />
           </div>
         </div>
       </div>
 
       {/* Tabla */}
-      <div className="card" style={{padding:0}}>
+      <div className="card" style={{padding:0, border: '1px solid var(--border-color)', background: 'var(--bg-card)'}}>
         <div className="table-container">
           <table>
             <thead>
-              <tr><th>Fecha/Hora</th><th>Usuario</th><th>Rol</th><th>Acción</th><th>Tabla</th><th>Descripción</th><th>IP</th><th></th></tr>
+              <tr><th>FECHA/HORA</th><th>USUARIO</th><th>ROL</th><th>ACCIÓN</th><th>TABLA</th><th>DESCRIPCIÓN</th><th>IP</th><th></th></tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} style={{textAlign:'center',padding:'40px',color:'#94a3b8'}}>Cargando registros...</td></tr>
+                <tr><td colSpan={8} style={{textAlign:'center',padding:'40px',color:'var(--text-muted)'}}>Cargando registros...</td></tr>
               ) : logs.length === 0 ? (
-                <tr><td colSpan={8} style={{textAlign:'center',padding:'40px',color:'#94a3b8'}}>No hay registros</td></tr>
+                <tr><td colSpan={8} style={{textAlign:'center',padding:'40px',color:'var(--text-muted)'}}>No hay registros</td></tr>
               ) : logs.map(log=>(
                 <tr key={log.id}>
-                  <td style={{fontSize:'12px',color:'#64748b',whiteSpace:'nowrap'}}>
+                  <td style={{fontSize:'12px',color:'var(--text-secondary)',whiteSpace:'nowrap'}}>
                     <div>{new Date(log.created_at).toLocaleDateString('es-PE')}</div>
-                    <div style={{color:'#94a3b8'}}>{new Date(log.created_at).toLocaleTimeString('es-PE')}</div>
+                    <div style={{color:'var(--text-muted)'}}>{new Date(log.created_at).toLocaleTimeString('es-PE')}</div>
                   </td>
                   <td>
-                    <div style={{fontWeight:'500',fontSize:'13px'}}>{log.usuario_nombre||'—'}</div>
-                    <div style={{fontSize:'11px',color:'#94a3b8'}}>{log.usuario_email||''}</div>
+                    <div style={{fontWeight:'500',fontSize:'13px', color: 'var(--text-primary)'}}>{log.usuario_nombre||'—'}</div>
+                    <div style={{fontSize:'11px',color:'var(--text-muted)'}}>{log.usuario_email||''}</div>
                   </td>
-                  <td style={{fontSize:'12px',color:'#64748b',textTransform:'capitalize'}}>—</td>
+                  <td style={{fontSize:'12px',color:'var(--text-secondary)',textTransform:'uppercase'}}>{log.usuario_rol?.toUpperCase() || '—'}</td>
                   <td>{getAccionBadge(log.accion)}</td>
-                  <td style={{fontSize:'12px',color:'#64748b',fontFamily:'monospace'}}>{log.tabla_afectada||'—'}</td>
-                  <td style={{fontSize:'12px',color:'#374151',maxWidth:'250px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{log.descripcion||'—'}</td>
-                  <td style={{fontSize:'11px',color:'#94a3b8',fontFamily:'monospace'}}>{log.ip_address||'—'}</td>
+                  <td style={{fontSize:'12px',color:'var(--text-secondary)',fontFamily:'monospace'}}>{log.tabla_afectada?.toUpperCase()||'—'}</td>
+                  <td style={{fontSize:'12px',color:'var(--text-primary)',maxWidth:'250px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{log.descripcion||'—'}</td>
+                  <td style={{fontSize:'11px',color:'var(--text-muted)',fontFamily:'monospace'}}>{log.ip_address||'—'}</td>
                   <td>
                     {(log.datos_anteriores||log.datos_nuevos) && (
-                      <button className="btn-secondary" style={{padding:'4px 10px',fontSize:'11px'}} onClick={()=>setDetalle(log)}>Ver</button>
+                      <button className="btn-secondary btn-crud-edit" style={{padding:'4px 10px',fontSize:'11px'}} onClick={()=>setDetalle(log)}>VER</button>
                     )}
                   </td>
                 </tr>
@@ -223,16 +223,10 @@ export default function AuditoriaPage() {
       {/* Paginación */}
       {totalPaginas > 1 && (
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:'16px'}}>
-          <p style={{fontSize:'13px',color: darkMode ? '#94a3b8' : '#64748b',margin:0}}>Mostrando <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{((pagina-1)*limite)+1}</span>–<span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{Math.min(pagina*limite,total)}</span> de <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{total}</span> registros</p>
+          <p style={{fontSize:'13px',color: 'var(--text-secondary)',margin:0}}>Mostrando <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{((pagina-1)*limite)+1}</span>–<span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{Math.min(pagina*limite,total)}</span> de <span style={{fontWeight:'600',color: darkMode ? '#00A6FF' : '#1e293b'}}>{total}</span> registros</p>
           <div style={{display:'flex',gap:'6px'}}>
-            <button className="btn-secondary" style={{padding:'6px 12px',fontSize:'13px', color: darkMode ? '#00A6FF' : undefined}} disabled={pagina<=1} onClick={()=>setPagina(p=>p-1)}>← Anterior</button>
-            {Array.from({length:Math.min(totalPaginas,5)}).map((_,i)=>{
-              const p = Math.max(1, Math.min(pagina-2,totalPaginas-4)) + i;
-              return (
-                <button key={p} className={pagina===p?'btn-primary':'btn-secondary'} style={{padding:'6px 12px',fontSize:'13px', color: (pagina!==p && darkMode) ? '#00A6FF' : undefined}} onClick={()=>setPagina(p)}>{p}</button>
-              );
-            })}
-            <button className="btn-secondary" style={{padding:'6px 12px',fontSize:'13px', color: darkMode ? '#00A6FF' : undefined}} disabled={pagina>=totalPaginas} onClick={()=>setPagina(p=>p+1)}>Siguiente →</button>
+            <button className="btn-secondary" style={{padding:'6px 12px',fontSize:'13px', color: darkMode ? '#00A6FF' : undefined}} disabled={pagina<=1} onClick={()=>setPagina(p=>p-1)}>← ANTERIOR</button>
+            <button className="btn-secondary" style={{padding:'6px 12px',fontSize:'13px', color: darkMode ? '#00A6FF' : undefined}} disabled={pagina>=totalPaginas} onClick={()=>setPagina(p=>p+1)}>SIGUIENTE →</button>
           </div>
         </div>
       )}

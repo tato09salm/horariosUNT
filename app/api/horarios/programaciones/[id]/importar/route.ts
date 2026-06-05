@@ -53,21 +53,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         const curso = mapCursos[codigoCurso];
-        if (!curso) continue; // Si el curso no existe en la BD, lo saltamos
+        if (!curso) {
+          console.log('❌ Curso no encontrado:', codigoCurso);
+          continue;
+        }
 
         const docente = mapDocentes[docenteDni];
-        if (!docente) continue; // Si el docente no existe, lo saltamos
+        if (!docente) {
+          console.log('❌ Docente no encontrado:', docenteDni);
+          continue;
+        }
+
+        console.log('✅ Importando:', codigoCurso, grupoDato, docenteDni);
 
         // Extraer tipo de actividad y número
-        // Ej: "G1 (Teoría)", "G2 (Laboratorio)"
+        // Ej: "G1 (Teoría)", "G2 (Laboratorio)", "GA", "GB", "GC"
         let tipo_actividad = 'teoria';
         let num_grupo = 1;
 
         if (grupoDato.toLowerCase().includes('practica') || grupoDato.toLowerCase().includes('práctica')) tipo_actividad = 'practica';
         else if (grupoDato.toLowerCase().includes('laboratorio')) tipo_actividad = 'laboratorio';
 
-        const matchNum = grupoDato.match(/G(\d+)/);
-        if (matchNum) num_grupo = parseInt(matchNum[1]);
+        const matchNum = grupoDato.match(/G(\d+)/i);
+        if (matchNum) {
+          num_grupo = parseInt(matchNum[1]);
+        } else {
+          const matchLetter = grupoDato.match(/G([A-Za-z])/i);
+          if (matchLetter) {
+            // Convertir letra a número: A=1, B=2, C=3, etc.
+            num_grupo = matchLetter[1].toUpperCase().charCodeAt(0) - 64;
+          }
+        }
 
         // Asegurar que el grupo existe
         const keyGrupo = `${curso.id}-${tipo_actividad}-${num_grupo}`;
@@ -85,13 +101,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         // Crear registro en programacion_cursos
-        await client.query(
-          `INSERT INTO programacion_cursos 
-            (programacion_id, curso_id, grupo_id, docente_id, horas_teoria, horas_practica, horas_laboratorio, horas_consejeria)
-           VALUES 
-            ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [programacion_id, curso.id, grupo_id, docente.id, horasT, horasP, horasL, horasC]
-        );
+        try {
+          await client.query(
+            `INSERT INTO programacion_cursos 
+              (programacion_id, curso_id, grupo_id, docente_id, horas_teoria, horas_practica, horas_laboratorio, horas_consejeria)
+             VALUES 
+              ($1, $2, $3, $4, $5, $6, $7, $8)
+             ON CONFLICT ON CONSTRAINT programacion_cursos_programacion_id_grupo_id_docente_id_uk 
+             DO UPDATE SET
+               curso_id = EXCLUDED.curso_id,
+               docente_id = EXCLUDED.docente_id,
+               horas_teoria = EXCLUDED.horas_teoria,
+               horas_practica = EXCLUDED.horas_practica,
+               horas_laboratorio = EXCLUDED.horas_laboratorio,
+               horas_consejeria = EXCLUDED.horas_consejeria`,
+            [programacion_id, curso.id, grupo_id, docente.id, horasT, horasP, horasL, horasC]
+          );
+        } catch (conflictError: any) {
+          // Si la constraint correcta no existe aún, usar DO NOTHING
+          await client.query(
+            `INSERT INTO programacion_cursos 
+              (programacion_id, curso_id, grupo_id, docente_id, horas_teoria, horas_practica, horas_laboratorio, horas_consejeria)
+             VALUES 
+              ($1, $2, $3, $4, $5, $6, $7, $8)
+             ON CONFLICT DO NOTHING`,
+            [programacion_id, curso.id, grupo_id, docente.id, horasT, horasP, horasL, horasC]
+          );
+        }
         asigInsertadas++;
       }
 

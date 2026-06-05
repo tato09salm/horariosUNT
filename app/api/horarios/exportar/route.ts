@@ -38,6 +38,12 @@ export async function GET(req: NextRequest) {
     : [];
   const docenteMap = new Map(docentesData.map((d: any) => [d.id, d.nombre_completo]));
 
+  const cursoCodigos = [...new Set(asignaciones.map((a: any) => a.curso_codigo).filter(Boolean))];
+  const cursosData = cursoCodigos.length > 0
+    ? await query(`SELECT codigo, ciclo_plan FROM cursos WHERE codigo = ANY($1)`, [cursoCodigos])
+    : [];
+  const cursoMap = new Map(cursosData.map((c: any) => [c.codigo, c.ciclo_plan]));
+
   // Obtener slots_tiempo
   const slotsData = await query('SELECT id, hora_inicio, hora_fin FROM slots_tiempo');
   const slotMap = new Map(slotsData.map((s: any) => [s.id, { inicio: s.hora_inicio, fin: s.hora_fin }]));
@@ -49,14 +55,20 @@ export async function GET(req: NextRequest) {
       slot_id: a.slot_id,
       hora_inicio: slot.inicio,
       hora_fin: slot.fin,
-    curso_codigo: a.curso_codigo,
-    curso_nombre: a.curso_nombre,
-    grupo: `G${a.numero_grupo}`,
-    tipo: a.tipo,
-    docente: a.docente_id ? (docenteMap.get(a.docente_id) || a.docente_nombre || '') : 'Sin asignar',
-    aula: a.ambiente_codigo,
-    aula_nombre: a.ambiente_nombre,
-    fuente: a.fuente || 'CSP',
+      curso_codigo: a.curso_codigo,
+      curso_nombre: a.curso_nombre,
+      ciclo_plan: Number(a.ciclo_plan || cursoMap.get(a.curso_codigo) || a.ciclo || 0) || null,
+      grupo: `G${a.numero_grupo}`,
+      tipo: a.tipo,
+      docente_id: a.docente_id || null,
+      docente_nombre: a.docente_id ? (docenteMap.get(a.docente_id) || a.docente_nombre || '') : '',
+      docente: a.docente_id ? (docenteMap.get(a.docente_id) || a.docente_nombre || '') : 'Sin asignar',
+      aula: a.ambiente_codigo,
+      aula_nombre: a.ambiente_nombre,
+      ambiente_codigo: a.ambiente_codigo,
+      ambiente_nombre: a.ambiente_nombre,
+      ambiente_id: a.ambiente_id || null,
+      fuente: a.fuente || 'CSP',
     };
   });
 

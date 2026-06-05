@@ -1,5 +1,6 @@
 'use client';
 import BloqueHorario, { type BloqueHorarioProps } from '@/components/horarios/BloqueHorario';
+import { DraggableBlock } from '@/components/horarios/DraggableBlock';
 import { type ColorCurso } from '@/lib/colores-curso';
 
 type Asignacion = BloqueHorarioProps['asignacion'];
@@ -8,17 +9,28 @@ export default function CeldaHorario({
   asignaciones,
   compact = false,
   mapaColores,
+  bloquesMovidos,
+  activeBlockIds,
 }: {
   asignaciones: Asignacion[];
   compact?: boolean;
   mapaColores?: Map<string, ColorCurso>;
+  bloquesMovidos?: Set<string>;
+  activeBlockIds?: Set<string>;
 }) {
   if (!asignaciones.length) return null;
 
   if (asignaciones.length === 1) {
+    const movido = bloquesMovidos?.has(asignaciones[0].id) ?? false;
     return (
       <div className="horario-celda-contenido">
-        <BloqueHorario asignacion={asignaciones[0]} compact={compact} mapaColores={mapaColores} />
+        <DraggableBlock
+          asignacion={asignaciones[0]}
+          compact={compact}
+          mapaColores={mapaColores}
+          movidoManualmente={movido}
+          esParteBloqueActivo={activeBlockIds?.has(asignaciones[0].id) ?? false}
+        />
       </div>
     );
   }
@@ -34,9 +46,19 @@ export default function CeldaHorario({
           gridTemplateColumns: `repeat(${Math.min(asignaciones.length, 2)}, 1fr)`,
         }}
       >
-        {asignaciones.map((a, idx) => (
-          <BloqueHorario key={a.id || `${a.curso_codigo}-${idx}`} asignacion={a} compact mapaColores={mapaColores} />
-        ))}
+        {asignaciones.map((a, idx) => {
+          const movido = bloquesMovidos?.has(a.id) ?? false;
+          return (
+            <DraggableBlock
+              key={a.id || `${a.curso_codigo}-${idx}`}
+              asignacion={a}
+              compact
+              mapaColores={mapaColores}
+              movidoManualmente={movido}
+              esParteBloqueActivo={activeBlockIds?.has(a.id) ?? false}
+            />
+          );
+        })}
       </div>
     </div>
   );
