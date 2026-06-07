@@ -87,7 +87,31 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (nuevaFase > faseActual + 1) {
       return NextResponse.json({ error: 'No se puede saltar fases' }, { status: 400 });
     }
+// Validar que todos los docentes hayan marcado disponibilidad antes de avanzar a Fase 3
+    if (nuevaFase === 3) {
+      const docentesSinDisponibilidad = await query(`
+        SELECT DISTINCT d.nombre, d.apellidos
+        FROM programacion_cursos pc
+        JOIN docentes d ON d.id = pc.docente_id
+        WHERE pc.programacion_id = $1
+          AND pc.docente_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM disponibilidad_docente dd
+            WHERE dd.programacion_id = $1
+              AND dd.docente_id = pc.docente_id
+              AND dd.disponible = true
+          )
+      `, [id]);
 
+      if (docentesSinDisponibilidad.length > 0) {
+        const nombres = docentesSinDisponibilidad
+          .map((d: any) => `${d.apellidos} ${d.nombre}`)
+          .join(', ');
+        return NextResponse.json({
+          error: `No se puede avanzar a Fase 3. Los siguientes docentes aún no han marcado su disponibilidad: ${nombres}`
+        }, { status: 400 });
+      }
+    }
     // Mapear fase → estado
     const estadoMap: Record<number, string> = {
       1: 'borrador',
