@@ -160,7 +160,31 @@ export default function DisponibilidadPage() {
           setLoading(false);
           return;
         }
+// 4. Validar rango de fechas de disponibilidad
+        const periodoRes = await fetch(`/api/horarios/programaciones/${progId}/disponibilidad-periodo`);
+        const periodoData = await periodoRes.json();
 
+        if (periodoRes.ok && periodoData.data) {
+          const ahora = new Date();
+          const inicio = new Date(periodoData.data.fecha_inicio);
+          const cierre = new Date(periodoData.data.fecha_cierre);
+
+          if (ahora < inicio || ahora > cierre) {
+            if (dispData.data?.length > 0) {
+              // Ya registró disponibilidad → solo lectura
+              setSoloLectura(true);
+            } else {
+              // No registró → bloqueado con mensaje
+              setAccesoError(
+                ahora < inicio
+                  ? `El período de disponibilidad aún no ha comenzado. Comienza el ${inicio.toLocaleString('es-PE', { timeZone: 'America/Lima' })}.`
+                  : `El período de disponibilidad ya cerró el ${cierre.toLocaleString('es-PE', { timeZone: 'America/Lima' })}.`
+              );
+              setLoading(false);
+              return;
+            }
+          }
+        }
         // Cargar disponibilidad desde la respuesta ya obtenida
         if (dispData.data) {
           const dict: Record<string, PrioridadSlot> = {};
@@ -358,7 +382,9 @@ export default function DisponibilidadPage() {
         <strong>Vista de solo lectura.</strong>{' '}
         {prog?.estado === 'publicado' || prog?.estado === 'cancelado'
           ? 'La programación ya no permite modificaciones.'
-          : 'Esta programación ya avanzó de fase. Tu disponibilidad registrada se muestra a continuación.'}
+          : prog?.fase > 2
+          ? 'Esta programación ya avanzó de fase. Tu disponibilidad registrada se muestra a continuación.'
+          : 'El período de disponibilidad ha cerrado. Tu disponibilidad registrada se muestra a continuación.'}
       </span>
     </div>
   );
