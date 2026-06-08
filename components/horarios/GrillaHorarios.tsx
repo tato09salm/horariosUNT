@@ -17,6 +17,7 @@ interface GrillaHorariosProps {
   ultimoMovimiento?: { origen: any; destino: any } | null;
   bloquesMovidos?: Set<string>;
   activeBlockIds?: Set<string>;
+  restringidosConfig?: Record<string, string>;
 }
 
 function normalizarAsignacion(a: any) {
@@ -43,6 +44,7 @@ export default function GrillaHorarios({
   ultimoMovimiento = null,
   bloquesMovidos = new Set(),
   activeBlockIds = new Set(),
+  restringidosConfig,
 }: GrillaHorariosProps) {
   const [vista, setVista] = useState<'aula' | 'general' | 'ciclo' | 'docente'>('general');
   const [aulaFiltro, setAulaFiltro] = useState<string>('');
@@ -50,6 +52,49 @@ export default function GrillaHorarios({
   const [diaMobile, setDiaMobile] = useState<string>('lunes');
   const [isMobile, setIsMobile] = useState(false);
   const [todosDocentes, setTodosDocentes] = useState<any[]>([]);
+  const [restringidos, setRestringidos] = useState<Record<string, string>>({});
+  const [loadedRestringidos, setLoadedRestringidos] = useState(false);
+
+  useEffect(() => {
+    if (restringidosConfig) {
+      setRestringidos(restringidosConfig);
+      setLoadedRestringidos(true);
+      return;
+    }
+    fetch('/api/configuracion?clave=HORARIOS_RESTRINGIDOS')
+      .then(r => r.json())
+      .then(res => {
+        let restDict: Record<string, string> = {};
+        if (res.data && res.data.valor) {
+          try {
+            const parsed = JSON.parse(res.data.valor);
+            if (Array.isArray(parsed)) {
+              parsed.forEach(id => {
+                restDict[id] = 'HORA LIBRE (REFRIGERIO)';
+              });
+            } else if (parsed && typeof parsed === 'object') {
+              restDict = parsed;
+            }
+          } catch(e) {}
+        } else {
+          const foodSlot = slots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
+          if (foodSlot) {
+            restDict[foodSlot.id] = 'HORA LIBRE (REFRIGERIO)';
+          }
+        }
+        setRestringidos(restDict);
+        setLoadedRestringidos(true);
+      })
+      .catch(() => {
+        let restDict: Record<string, string> = {};
+        const foodSlot = slots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
+        if (foodSlot) {
+          restDict[foodSlot.id] = 'HORA LIBRE (REFRIGERIO)';
+        }
+        setRestringidos(restDict);
+        setLoadedRestringidos(true);
+      });
+  }, [slots, restringidosConfig]);
 
   useEffect(() => {
     fetch('/api/docentes?reporte=true')
@@ -269,20 +314,22 @@ export default function GrillaHorarios({
             </div>
           ))}
           {slots.map((slot, sIdx) => {
-            const isLunch = slot.hora_inicio === '13:00' || slot.hora_inicio === '13:00:00';
+            const isLunch = loadedRestringidos ? (slot.id in restringidos) : (slot.hora_inicio === '13:00' || slot.hora_inicio === '13:00:00');
+            const lunchMsg = loadedRestringidos ? (restringidos[slot.id] || 'HORA LIBRE (REFRIGERIO)') : 'HORA LIBRE (REFRIGERIO)';
             return (
               <div key={slot.id} style={{ display: 'contents' }}>
                 <div
                   className={`horario-time${isLunch || !isMobile ? ' horario-time--show' : ''}${isLunch ? ' horario-time--lunch' : ''}`}
+                  style={{ gridColumn: 1 }}
                 >
                   {slot.hora_inicio.substring(0, 5)}<br />{slot.hora_fin.substring(0, 5)}
                 </div>
                 {isLunch ? (
                   <div
                     className="horario-cell horario-cell--show horario-cell--lunch"
-                    style={{ gridColumn: isMobile ? 'span 1' : `span ${DIAS.length}` }}
+                    style={{ gridColumn: isMobile ? '2' : `2 / span ${DIAS.length}` }}
                   >
-                    HORA LIBRE (REFRIGERIO)
+                    {lunchMsg}
                   </div>
                 ) : (
                   DIAS.map(dia => {
@@ -308,6 +355,12 @@ export default function GrillaHorarios({
                     const cellStyle: React.CSSProperties = {};
                     if (duration > 1) {
                       cellStyle.gridRow = `span ${duration}`;
+                    }
+                    if (!isMobile) {
+                      const dayIndex = DIAS.indexOf(dia);
+                      cellStyle.gridColumn = dayIndex + 2;
+                    } else {
+                      cellStyle.gridColumn = 2;
                     }
 
                     return (
