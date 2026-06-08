@@ -11,11 +11,12 @@ interface DroppableCellProps {
   esDestino?: boolean;
   className?: string;
   children: React.ReactNode;
+  style?: React.CSSProperties;
 }
 
 export function DroppableCell({
   id, dia, slot_id, ambiente_id, ambiente_codigo, ambiente_nombre,
-  esOrigen, esDestino, className, children
+  esOrigen, esDestino, className, children, style
 }: DroppableCellProps) {
   const { isOver, setNodeRef } = useDroppable({
     id,
@@ -54,6 +55,7 @@ export function DroppableCell({
         opacity,
         transition: 'background-color 0.3s, border 0.3s, box-shadow 0.3s, opacity 0.3s',
         position: 'relative',
+        ...style,
       }}
     >
       {/* Badge de destino */}
