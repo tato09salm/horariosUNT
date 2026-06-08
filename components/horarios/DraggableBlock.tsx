@@ -5,6 +5,7 @@ interface DraggableBlockProps extends BloqueHorarioProps {
   movidoManualmente?: boolean;
   todosEnCelda?: BloqueHorarioProps['asignacion'][]; // todos los bloques visibles en la celda actual
   esParteBloqueActivo?: boolean;
+  duracion?: number;
 }
 
 /**
@@ -18,7 +19,7 @@ function esBloqueado(asignacion: BloqueHorarioProps['asignacion']): boolean {
   return false;
 }
 
-export function DraggableBlock({ asignacion, compact, mapaColores, movidoManualmente, esParteBloqueActivo }: DraggableBlockProps) {
+export function DraggableBlock({ asignacion, compact, mapaColores, movidoManualmente, esParteBloqueActivo, duracion }: DraggableBlockProps) {
   const bloqueado = esBloqueado(asignacion);
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -34,9 +35,11 @@ export function DraggableBlock({ asignacion, compact, mapaColores, movidoManualm
     opacity: isHidden ? 0.3 : 1, // Usar 0.3 para indicar el rastro origen
     zIndex: isDragging ? 999 : 1,
     cursor: bloqueado ? 'not-allowed' : 'grab',
+    height: '100%'
   } : {
     opacity: isHidden ? 0.3 : 1,
     cursor: bloqueado ? 'not-allowed' : 'grab',
+    height: '100%'
   };
 
   return (
@@ -53,6 +56,7 @@ export function DraggableBlock({ asignacion, compact, mapaColores, movidoManualm
         mapaColores={mapaColores}
         movidoManualmente={movidoManualmente}
         bloqueado={bloqueado}
+        duracion={duracion}
       />
     </div>
   );
