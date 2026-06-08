@@ -945,6 +945,7 @@ export default function ProgramarPage() {
           ultimoMovimiento={ultimoMovimiento}
           bloquesMovidos={bloquesMovidos}
           activeBlockIds={new Set(activeBlockAsignaciones.map(a => a.id))}
+          restringidosConfig={prog?.config?.horarios_restringidos}
         />
         
         <DragOverlay>

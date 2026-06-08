@@ -106,6 +106,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Snapshot de horarios restringidos actuales
+    const configRow = await db.Configuracion.findOne({
+      where: { clave: 'HORARIOS_RESTRINGIDOS' }
+    });
+    let horariosRestringidos = {};
+    if (configRow && (configRow as any).valor) {
+      try {
+        horariosRestringidos = JSON.parse((configRow as any).valor);
+      } catch (e) {
+        console.error('Error al parsear HORARIOS_RESTRINGIDOS para snapshot:', e);
+      }
+    }
+
     // Auto-generar nombre: "HORARIO 2024-II"
     const nombre = `HORARIO ${(ciclo as any).año}-${(ciclo as any).semestre}`;
 
@@ -114,7 +127,10 @@ export async function POST(req: NextRequest) {
       nombre,
       fase: 1,
       estado: 'borrador',
-      config: config || {},
+      config: {
+        ...(config || {}),
+        horarios_restringidos: horariosRestringidos
+      },
       created_by: session.id
     });
 

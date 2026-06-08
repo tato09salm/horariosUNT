@@ -371,7 +371,7 @@ export default function PublicarPage() {
             <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Horario generado</h3>
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Vista previa del horario oficial</span>
           </div>
-          <GrillaHorarios asignaciones={asignaciones} slots={slots} />
+          <GrillaHorarios asignaciones={asignaciones} slots={slots} restringidosConfig={prog?.config?.horarios_restringidos} />
         </div>
       )}
 

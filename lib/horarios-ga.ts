@@ -1,4 +1,4 @@
-import { query } from './db';
+import { query, queryOne } from './db';
 
 /**
  * Algoritmo Genético (GA) — Fallback cuando el CSP no encuentra solución completa.
@@ -274,7 +274,53 @@ export async function ejecutarAlgoritmoGenetico(
   if (bloquesSinAsignar.length === 0) return [];
 
   const allSlots = await query(`SELECT * FROM slots_tiempo ORDER BY orden`);
-  const slots = allSlots.filter((s: any) => s.hora_inicio !== '13:00' && s.hora_inicio !== '13:00:00');
+  
+  // Cargar restrictedIds de la programacion o de configuracion
+  let restrictedIds: string[] | null = null;
+  const progRow = await queryOne(`SELECT config FROM programaciones WHERE id = $1`, [programacion_id]);
+  if (progRow && progRow.config) {
+    try {
+      const parsedConfig = typeof progRow.config === 'string' ? JSON.parse(progRow.config) : progRow.config;
+      if (parsedConfig && parsedConfig.horarios_restringidos) {
+        const hr = parsedConfig.horarios_restringidos;
+        if (Array.isArray(hr)) {
+          restrictedIds = hr;
+        } else if (hr && typeof hr === 'object') {
+          restrictedIds = Object.keys(hr);
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing horarios_restringidos from programación config:', e);
+    }
+  }
+
+  if (restrictedIds === null) {
+    const config = await queryOne(`SELECT valor FROM configuracion WHERE clave = 'HORARIOS_RESTRINGIDOS'`);
+    if (config) {
+      try {
+        const parsed = JSON.parse(config.valor);
+        if (Array.isArray(parsed)) {
+          restrictedIds = parsed;
+        } else if (parsed && typeof parsed === 'object') {
+          restrictedIds = Object.keys(parsed);
+        }
+      } catch (e) {
+        console.error('Error parsing HORARIOS_RESTRINGIDOS:', e);
+        restrictedIds = null;
+      }
+    }
+  }
+
+  if (restrictedIds === null) {
+    const foodSlot = allSlots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
+    if (foodSlot) {
+      restrictedIds = [foodSlot.id];
+    } else {
+      restrictedIds = [];
+    }
+  }
+
+  const slots = allSlots.filter((s: any) => !restrictedIds!.includes(s.id));
 
   const ambientes = await query(`SELECT * FROM ambientes WHERE disponible = true`);
   const disponibilidad = await query(`

@@ -72,8 +72,8 @@ function puntuacionDificultad(
   return score;
 }
 
-function rellenarAmbAvailLabs(ambientes: any[], slots: any[], ambAvail: AmbAvailMap) {
-  const util = slotsUtiles(slots);
+function rellenarAmbAvailLabs(ambientes: any[], slots: any[], ambAvail: AmbAvailMap, restrictedIds?: string[]) {
+  const util = slotsUtiles(slots, restrictedIds);
   for (const a of ambientes) {
     if (a.tipo !== 'laboratorio') continue;
     if (!ambAvail.has(a.id)) ambAvail.set(a.id, new Set());
@@ -156,6 +156,51 @@ export async function generarHorarioCSP(programacion_id: string, opciones: CspOp
   const ambientes = await query(`SELECT * FROM ambientes WHERE disponible = true`);
   const slots = await query(`SELECT * FROM slots_tiempo ORDER BY orden`);
 
+  // Cargar restrictedIds de la programacion o de configuracion
+  let restrictedIds: string[] | null = null;
+  const progRow = await queryOne(`SELECT config FROM programaciones WHERE id = $1`, [programacion_id]);
+  if (progRow && progRow.config) {
+    try {
+      const parsedConfig = typeof progRow.config === 'string' ? JSON.parse(progRow.config) : progRow.config;
+      if (parsedConfig && parsedConfig.horarios_restringidos) {
+        const hr = parsedConfig.horarios_restringidos;
+        if (Array.isArray(hr)) {
+          restrictedIds = hr;
+        } else if (hr && typeof hr === 'object') {
+          restrictedIds = Object.keys(hr);
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing horarios_restringidos from programación config:', e);
+    }
+  }
+
+  if (restrictedIds === null) {
+    const config = await queryOne(`SELECT valor FROM configuracion WHERE clave = 'HORARIOS_RESTRINGIDOS'`);
+    if (config) {
+      try {
+        const parsed = JSON.parse(config.valor);
+        if (Array.isArray(parsed)) {
+          restrictedIds = parsed;
+        } else if (parsed && typeof parsed === 'object') {
+          restrictedIds = Object.keys(parsed);
+        }
+      } catch (e) {
+        console.error('Error parsing HORARIOS_RESTRINGIDOS:', e);
+        restrictedIds = null;
+      }
+    }
+  }
+
+  if (restrictedIds === null) {
+    const foodSlot = slots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
+    if (foodSlot) {
+      restrictedIds = [foodSlot.id];
+    } else {
+      restrictedIds = [];
+    }
+  }
+
   const docAvail = new Map<string, Map<string, number>>();
   for (const d of disponibilidad) {
     if (!docAvail.has(d.docente_id)) docAvail.set(d.docente_id, new Map());
@@ -165,7 +210,7 @@ export async function generarHorarioCSP(programacion_id: string, opciones: CspOp
   const ambAvail: AmbAvailMap = dispAmbiente.length > 0
     ? construirAmbAvail(dispAmbiente)
     : new Map();
-  rellenarAmbAvailLabs(ambientes, slots, ambAvail);
+  rellenarAmbAvailLabs(ambientes, slots, ambAvail, restrictedIds);
 
   const docenteCursosMap = new Map<string, string[]>();
   for (const c of cursos) {
@@ -299,7 +344,10 @@ export async function generarHorarioCSP(programacion_id: string, opciones: CspOp
   let bloquesContinuos = 0;
   const totalUnidades = grupos.reduce((s, g) => s + g.units.length, 0) + asesoriaUnits.length;
 
-  const cspOpts = { practicaEnAula: opciones.practicaEnAula ?? false };
+  const cspOpts = { 
+    practicaEnAula: opciones.practicaEnAula ?? false,
+    restrictedIds
+  };
 
   let workCursos: WorkItem[] = grupos.map(g => ({ kind: 'group' as const, group: g }));
   if (opciones.gruposPendientes?.length) {
@@ -404,7 +452,7 @@ export async function generarHorarioCSP(programacion_id: string, opciones: CspOp
       for (const p of passesDoc) {
         const res =
           item.kind === 'asesoria'
-            ? asignarAsesoria(unit, slots, docAvail, occ, p)
+            ? asignarAsesoria(unit, slots, docAvail, occ, p, cspOpts)
             : asignarUnidad(
                 unit,
                 slots,
