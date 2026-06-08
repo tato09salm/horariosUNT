@@ -66,6 +66,8 @@ class DisponibilidadDocente extends Sequelize.Model {
     tableName: 'disponibilidad_docente',
     schema: 'public',
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
     indexes: [
       {
         name: "disponibilidad_docente_pkey",

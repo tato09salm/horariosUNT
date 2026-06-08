@@ -26,6 +26,8 @@ class Escuelas extends Sequelize.Model {
     tableName: 'escuelas',
     schema: 'public',
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: false,
     indexes: [
       {
         name: "escuelas_codigo_key",

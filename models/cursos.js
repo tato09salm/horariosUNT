@@ -81,6 +81,8 @@ class Cursos extends Sequelize.Model {
     tableName: 'cursos',
     schema: 'public',
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: false,
     indexes: [
       {
         name: "cursos_codigo_key",

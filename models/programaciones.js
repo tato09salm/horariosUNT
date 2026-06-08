@@ -64,6 +64,8 @@ class Programaciones extends Sequelize.Model {
     tableName: 'programaciones',
     schema: 'public',
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
     indexes: [
       {
         name: "idx_prog_ciclo",
