@@ -65,6 +65,8 @@ class Auditoria extends Sequelize.Model {
     tableName: 'auditoria',
     schema: 'public',
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: false,
     indexes: [
       {
         name: "auditoria_pkey",

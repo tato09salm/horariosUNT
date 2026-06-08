@@ -48,6 +48,19 @@ export default function HorariosPage() {
   const [showDeleteModal, setShowDeleteModal] = useState<string|null>(null);
   const [restaurandoId, setRestaurandoId] = useState<string|null>(null);
 
+  const [curriculas, setCurriculas] = useState<any[]>([]);
+  const [loadedCurriculas, setLoadedCurriculas] = useState(false);
+  const [showConfigRestringidos, setShowConfigRestringidos] = useState(false);
+  const [restringidosConfig, setRestringidosConfig] = useState<Record<string, string>>({});
+  const [tempRestringidos, setTempRestringidos] = useState<Record<string, string>>({});
+  const [guardandoConfig, setGuardandoConfig] = useState(false);
+
+  useEffect(() => {
+    if (showConfigRestringidos) {
+      setTempRestringidos(restringidosConfig);
+    }
+  }, [showConfigRestringidos, restringidosConfig]);
+
   const user = useUser();
   const isAdminOrSec = user?.rol.codigo === 'admin' || user?.rol.codigo === 'secretaria';
   const isDirector = user?.rol.codigo === 'director_escuela';
@@ -74,13 +87,44 @@ export default function HorariosPage() {
       fetch('/api/docentes').then(r => r.json()),
       fetch('/api/aulas').then(r => r.json()),
       fetch('/api/dashboard').then(r => r.json()),
-    ]).then(([ciclosRes, docRes, ambRes, dashRes]) => {
+      fetch('/api/curriculas?manage=true').then(r => r.json()),
+      fetch('/api/configuracion?clave=HORARIOS_RESTRINGIDOS').then(r => r.json()).catch(() => ({ data: null })),
+    ]).then(([ciclosRes, docRes, ambRes, dashRes, currRes, configRes]) => {
       setCiclos(ciclosRes.data || []);
       setDocentes(docRes.data || []);
       setAmbientes(ambRes.data || []);
-      setSlots(dashRes.slots || []);
+      const activeSlots = dashRes.slots || [];
+      setSlots(activeSlots);
       const activo = ciclosRes.data?.find((c: any) => c.activo);
       if (activo) setCicloId(activo.id);
+
+      const allCurriculas = currRes.data || [];
+      const filtered = allCurriculas.filter((c: any) => c.estado === 'ACTIVA' || c.estado === 'EN_EXTINCION');
+      setCurriculas(filtered);
+      setLoadedCurriculas(true);
+
+      let restDict: Record<string, string> = {};
+      if (configRes.data && configRes.data.valor) {
+        try {
+          const parsed = JSON.parse(configRes.data.valor);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(id => {
+              restDict[id] = 'HORA LIBRE (REFRIGERIO)';
+            });
+          } else if (parsed && typeof parsed === 'object') {
+            restDict = parsed;
+          }
+        } catch(e) {}
+      } else {
+        const foodSlot = activeSlots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
+        if (foodSlot) {
+          restDict[foodSlot.id] = 'HORA LIBRE (REFRIGERIO)';
+        }
+      }
+      setRestringidosConfig(restDict);
+    }).catch(err => {
+      console.error('Error al cargar datos iniciales/currículas:', err);
+      setLoadedCurriculas(true);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -101,10 +145,15 @@ export default function HorariosPage() {
       .then(r => r.json())
       .then(async d => {
         let data = d.data || [];
+        const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`).then(r => r.json());
+        const progs = progsRes.data || [];
+        const selectedProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
+        
+        if (selectedProg && selectedProg.config && selectedProg.config.horarios_restringidos) {
+          setRestringidosConfig(selectedProg.config.horarios_restringidos);
+        }
+
         if (data.length === 0) {
-          const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`).then(r => r.json());
-          const progs = progsRes.data || [];
-          const selectedProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
           if (selectedProg) {
             const exportRes = await fetch(`/api/horarios/programaciones/${selectedProg.id}/exportar`);
             if (exportRes.ok) {
@@ -219,6 +268,15 @@ export default function HorariosPage() {
       <p style={{color:'#64748b'}}>Cargando...</p>
     </div>
   );
+  if (loadedCurriculas && curriculas.length === 0) {
+    return (
+      <div className="page-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center' }}>
+        <div style={{ fontSize: '64px', marginBottom: '20px' }}>⚠️</div>
+        <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#ef4444', margin: '0 0 8px' }}>Inaccesible</h1>
+        <p style={{ fontSize: '18px', color: 'var(--text-secondary)', margin: 0 }}>No hay una currícula configurada</p>
+      </div>
+    );
+  }
 
   return (
     <div className="horarios-index-page" style={{padding:'32px', color: darkMode ? 'var(--text-primary)' : 'var(--text-primary)'}}>
@@ -266,13 +324,22 @@ export default function HorariosPage() {
 
       {/* Selector de ciclo */}
       <div className="card" style={{marginBottom:'16px',padding:'16px'}}>
-        <div style={{display:'flex',gap:'12px',alignItems:'end'}}>
+        <div style={{display:'flex',gap:'12px',alignItems:'end',justifyContent:'space-between',width:'100%',flexWrap:'wrap'}}>
           <div className="form-group" style={{margin:0,minWidth:'200px'}}>
             <label className="form-label">Ciclo académico</label>
             <select className="form-input" value={cicloId} onChange={e => setCicloId(e.target.value)}>
               {ciclos.map(c => <option key={c.id} value={c.id}>{c.nombre} {c.activo ? '(Activo)' : ''}</option>)}
             </select>
           </div>
+          {canEdit && (
+            <button 
+              className="btn-secondary" 
+              style={{height:'40px', display:'flex', alignItems:'center', gap:'6px'}}
+              onClick={() => setShowConfigRestringidos(true)}
+            >
+              🔒 Configurar Horarios Restringidos
+            </button>
+          )}
         </div>
       </div>
 
@@ -479,7 +546,7 @@ export default function HorariosPage() {
       )}
 
       {vista === 'horario' && (
-        <GrillaHorarios asignaciones={asignaciones} slots={slots} />
+        <GrillaHorarios asignaciones={asignaciones} slots={slots} restringidosConfig={restringidosConfig} />
       )}
 
       {/* ===== VISTA: MI HORARIO (solo docentes) ===== */}
@@ -608,6 +675,126 @@ export default function HorariosPage() {
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setRestaurandoId(null)}>Volver</button>
               <button className="btn-primary" onClick={restaurarProgramacion}>Sí, restaurar programación</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Configurar Horarios Restringidos */}
+      {showConfigRestringidos && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowConfigRestringidos(false)}>
+          <div className="modal" style={{maxWidth:'500px', width:'90%'}}>
+            <div className="modal-header">
+              <h2 style={{fontSize:'18px',fontWeight:'600',margin:0}}>Configurar Horarios Restringidos</h2>
+              <button onClick={() => setShowConfigRestringidos(false)} style={{background:'none',border:'none',cursor:'pointer',color:'#64748b'}}>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{fontSize:'13px', color:'var(--text-secondary)', marginBottom:'16px'}}>
+                Seleccione los bloques horarios en los que <strong style={{color:'var(--text-primary)'}}>no se podrán</strong> programar clases (ej. refrigerio o almuerzo).
+              </p>
+              
+              <div style={{display:'flex', flexDirection:'column', gap:'12px', maxHeight:'300px', overflowY:'auto', paddingRight:'6px'}}>
+                {slots.map(s => {
+                  const isChecked = tempRestringidos[s.id] !== undefined;
+                  const msgValue = tempRestringidos[s.id] ?? 'HORA LIBRE (REFRIGERIO)';
+                  return (
+                    <div key={s.id} style={{
+                      display:'flex', flexDirection:'column', gap:'8px',
+                      padding:'10px 12px', border:'1px solid var(--border-color)',
+                      borderRadius:'8px', background: isChecked ? 'rgba(239, 68, 68, 0.02)' : 'var(--bg-card)',
+                      transition:'all 0.2s', borderLeft: isChecked ? '4px solid #ef4444' : '1px solid var(--border-color)'
+                    }}>
+                      <div style={{display:'flex', alignItems:'center', justifyContent: 'space-between', width:'100%'}}>
+                        <div style={{display:'flex', alignItems:'center', gap:'10px', cursor:'pointer'}} onClick={() => {
+                          if (isChecked) {
+                            setTempRestringidos(prev => {
+                              const next = { ...prev };
+                              delete next[s.id];
+                              return next;
+                            });
+                          } else {
+                            setTempRestringidos(prev => ({ ...prev, [s.id]: 'HORA LIBRE (REFRIGERIO)' }));
+                          }
+                        }}>
+                          <span style={{fontSize:'16px'}}>{isChecked ? '🚫' : '🕒'}</span>
+                          <div>
+                            <p style={{margin:0, fontWeight:'600', fontSize:'14px', color:'var(--text-primary)'}}>{s.nombre}</p>
+                            <p style={{margin:0, fontSize:'12px', color:'var(--text-secondary)'}}>{s.hora_inicio.substring(0,5)} - {s.hora_fin.substring(0,5)}</p>
+                          </div>
+                        </div>
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked}
+                          style={{width:'18px', height:'18px', cursor:'pointer'}}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setTempRestringidos(prev => ({ ...prev, [s.id]: 'HORA LIBRE (REFRIGERIO)' }));
+                            } else {
+                              setTempRestringidos(prev => {
+                                const next = { ...prev };
+                                delete next[s.id];
+                                return next;
+                              });
+                            }
+                          }}
+                        />
+                      </div>
+                      {isChecked && (
+                        <div style={{marginTop:'4px'}}>
+                          <label style={{fontSize:'11px', color:'var(--text-secondary)', display:'block', marginBottom:'4px'}}>Mensaje personalizado:</label>
+                          <input 
+                            type="text"
+                            className="form-input"
+                            style={{width:'100%', padding:'6px 10px', fontSize:'13px', borderRadius:'6px'}}
+                            value={msgValue}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setTempRestringidos(prev => ({ ...prev, [s.id]: val }));
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="modal-footer" style={{display:'flex', justifyContent:'flex-end', gap:'10px'}}>
+              <button className="btn-secondary" onClick={() => setShowConfigRestringidos(false)}>
+                Cancelar
+              </button>
+              <button 
+                className="btn-primary" 
+                disabled={guardandoConfig}
+                onClick={async () => {
+                  setGuardandoConfig(true);
+                  try {
+                    const res = await fetch('/api/configuracion', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        clave: 'HORARIOS_RESTRINGIDOS',
+                        valor: JSON.stringify(tempRestringidos)
+                      })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error);
+                    
+                    setRestringidosConfig(tempRestringidos);
+                    setMsg({ type: 'success', text: 'Horarios restringidos actualizados correctamente' });
+                    setShowConfigRestringidos(false);
+                    window.location.reload();
+                  } catch (e: any) {
+                    alert(e.message || 'Error al guardar la configuración');
+                  } finally {
+                    setGuardandoConfig(false);
+                  }
+                }}
+              >
+                {guardandoConfig ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
             </div>
           </div>
         </div>

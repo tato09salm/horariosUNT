@@ -53,6 +53,8 @@ class Ambientes extends Sequelize.Model {
     tableName: 'ambientes',
     schema: 'public',
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: false,
     indexes: [
       {
         name: "ambientes_codigo_key",

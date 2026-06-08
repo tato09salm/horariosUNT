@@ -11,32 +11,35 @@ export default function CeldaHorario({
   mapaColores,
   bloquesMovidos,
   activeBlockIds,
+  duracion = 1,
 }: {
   asignaciones: Asignacion[];
   compact?: boolean;
   mapaColores?: Map<string, ColorCurso>;
   bloquesMovidos?: Set<string>;
   activeBlockIds?: Set<string>;
+  duracion?: number;
 }) {
   if (!asignaciones.length) return null;
 
   if (asignaciones.length === 1) {
     const movido = bloquesMovidos?.has(asignaciones[0].id) ?? false;
     return (
-      <div className="horario-celda-contenido">
+      <div className="horario-celda-contenido" style={{ height: '100%' }}>
         <DraggableBlock
           asignacion={asignaciones[0]}
           compact={compact}
           mapaColores={mapaColores}
           movidoManualmente={movido}
           esParteBloqueActivo={activeBlockIds?.has(asignaciones[0].id) ?? false}
+          duracion={duracion}
         />
       </div>
     );
   }
 
   return (
-    <div className="horario-celda-contenido horario-celda-contenido--paralelo">
+    <div className="horario-celda-contenido horario-celda-contenido--paralelo" style={{ height: '100%' }}>
       <span className="horario-badge-paralelo" title="Varios cursos en la misma franja">
         {asignaciones.length} en paralelo
       </span>
@@ -44,6 +47,7 @@ export default function CeldaHorario({
         className="horario-grid-paralelo"
         style={{
           gridTemplateColumns: `repeat(${Math.min(asignaciones.length, 2)}, 1fr)`,
+          height: '100%'
         }}
       >
         {asignaciones.map((a, idx) => {
@@ -56,6 +60,7 @@ export default function CeldaHorario({
               mapaColores={mapaColores}
               movidoManualmente={movido}
               esParteBloqueActivo={activeBlockIds?.has(a.id) ?? false}
+              duracion={duracion}
             />
           );
         })}

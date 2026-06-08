@@ -79,6 +79,8 @@ class Asignaciones extends Sequelize.Model {
     tableName: 'asignaciones',
     schema: 'public',
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
     indexes: [
       {
         name: "asignaciones_pkey",

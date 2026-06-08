@@ -30,6 +30,7 @@ export interface BloqueHorarioProps {
   mapaColores?: Map<string, ColorCurso>;
   movidoManualmente?: boolean;
   bloqueado?: boolean;
+  duracion?: number;
 }
 
 function IconoTipoSesion({ tipo }: { tipo: string }) {
@@ -65,7 +66,7 @@ function IconoTipoSesion({ tipo }: { tipo: string }) {
   );
 }
 
-export default function BloqueHorario({ asignacion: c, compact = false, mapaColores, movidoManualmente = false, bloqueado = false }: BloqueHorarioProps) {
+export default function BloqueHorario({ asignacion: c, compact = false, mapaColores, movidoManualmente = false, bloqueado = false, duracion = 1 }: BloqueHorarioProps) {
   const isAsesoria = c.tipo === 'asesoria';
   const cicloColor = colorCiclo(c.ciclo_plan);
   const tipo = c.tipo || 'teoria';
@@ -73,9 +74,11 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
   const tipoLabel = TIPO_SESION_LABEL[tipo] || tipo;
   const ambLabel = tipoAmbienteLabel(isAsesoria ? 'asesoria' : (c.ambiente_tipo || 'aula'), c.ambiente_codigo);
   const continuo =
-    c.bloque_total && c.bloque_total > 1
-      ? ` · ${c.bloque_parte}/${c.bloque_total}`
-      : '';
+    duracion > 1
+      ? ` · ${duracion}h`
+      : c.bloque_total && c.bloque_total > 1
+        ? ` · ${c.bloque_parte}/${c.bloque_total}`
+        : '';
   const color = mapaColores 
     ? obtenerColorCurso(mapaColores, c.ciclo_plan, c.curso_codigo, c.tipo)
     : { bg: isAsesoria ? '#f3f4f6' : cicloColor + '15', border: isAsesoria ? '#6b7280' : cicloColor, name: 'default' };
@@ -84,7 +87,12 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
     backgroundColor: color.bg,
     borderLeft: `5px solid ${color.border}`,
     position: 'relative',
-    overflow: 'hidden'
+    overflow: 'hidden',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: compact ? 'center' : 'space-between',
+    minHeight: '44px'
   };
 
   if (color.patron === 'rayado') {

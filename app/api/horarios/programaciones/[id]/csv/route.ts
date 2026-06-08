@@ -90,7 +90,7 @@ export async function POST(
           INSERT INTO programacion_cursos
             (programacion_id, curso_id, grupo_id, docente_id, horas_teoria, horas_practica, horas_laboratorio, horas_consejeria, seccion)
           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-          ON CONFLICT (programacion_id, grupo_id) DO UPDATE SET
+          ON CONFLICT ON CONSTRAINT programacion_cursos_programacion_id_grupo_id_docente_id_uk DO UPDATE SET
             docente_id = EXCLUDED.docente_id,
             horas_teoria = EXCLUDED.horas_teoria,
             horas_practica = EXCLUDED.horas_practica,
@@ -100,7 +100,11 @@ export async function POST(
         `, [id, curso.id, grupo.id, docente_id, horas_teoria, horas_practica, horas_laboratorio, horas_consejeria, seccion || null]);
         resultados.importados++;
       } catch (e: any) {
-        resultados.errores.push(`Línea ${i + 1}: ${e.message}`);
+        if (e.message.includes('unique') || e.message.includes('duplicate')) {
+          resultados.errores.push(`Línea ${i + 1}: No se puede asignar el mismo docente más de una vez al mismo grupo`);
+        } else {
+          resultados.errores.push(`Línea ${i + 1}: ${e.message}`);
+        }
       }
     }
 

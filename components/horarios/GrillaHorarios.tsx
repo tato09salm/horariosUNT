@@ -17,6 +17,7 @@ interface GrillaHorariosProps {
   ultimoMovimiento?: { origen: any; destino: any } | null;
   bloquesMovidos?: Set<string>;
   activeBlockIds?: Set<string>;
+  restringidosConfig?: Record<string, string>;
 }
 
 function normalizarAsignacion(a: any) {
@@ -43,6 +44,7 @@ export default function GrillaHorarios({
   ultimoMovimiento = null,
   bloquesMovidos = new Set(),
   activeBlockIds = new Set(),
+  restringidosConfig,
 }: GrillaHorariosProps) {
   const [vista, setVista] = useState<'aula' | 'general' | 'ciclo' | 'docente'>('general');
   const [aulaFiltro, setAulaFiltro] = useState<string>('');
@@ -50,6 +52,49 @@ export default function GrillaHorarios({
   const [diaMobile, setDiaMobile] = useState<string>('lunes');
   const [isMobile, setIsMobile] = useState(false);
   const [todosDocentes, setTodosDocentes] = useState<any[]>([]);
+  const [restringidos, setRestringidos] = useState<Record<string, string>>({});
+  const [loadedRestringidos, setLoadedRestringidos] = useState(false);
+
+  useEffect(() => {
+    if (restringidosConfig) {
+      setRestringidos(restringidosConfig);
+      setLoadedRestringidos(true);
+      return;
+    }
+    fetch('/api/configuracion?clave=HORARIOS_RESTRINGIDOS')
+      .then(r => r.json())
+      .then(res => {
+        let restDict: Record<string, string> = {};
+        if (res.data && res.data.valor) {
+          try {
+            const parsed = JSON.parse(res.data.valor);
+            if (Array.isArray(parsed)) {
+              parsed.forEach(id => {
+                restDict[id] = 'HORA LIBRE (REFRIGERIO)';
+              });
+            } else if (parsed && typeof parsed === 'object') {
+              restDict = parsed;
+            }
+          } catch(e) {}
+        } else {
+          const foodSlot = slots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
+          if (foodSlot) {
+            restDict[foodSlot.id] = 'HORA LIBRE (REFRIGERIO)';
+          }
+        }
+        setRestringidos(restDict);
+        setLoadedRestringidos(true);
+      })
+      .catch(() => {
+        let restDict: Record<string, string> = {};
+        const foodSlot = slots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
+        if (foodSlot) {
+          restDict[foodSlot.id] = 'HORA LIBRE (REFRIGERIO)';
+        }
+        setRestringidos(restDict);
+        setLoadedRestringidos(true);
+      });
+  }, [slots, restringidosConfig]);
 
   useEffect(() => {
     fetch('/api/docentes?reporte=true')
@@ -180,6 +225,79 @@ export default function GrillaHorarios({
   function renderGrilla(titulo: string, asigGrilla: any[], key: string, contextData: any = {}) {
     if (asigGrilla.length === 0 && Object.keys(contextData).length === 0) return null;
 
+    // ── Precalculo de bloques contiguos del mismo curso/grupo/tipo/aula/docente en el mismo día ──
+    const groupsMap = new Map<string, any[]>();
+    asigGrilla.forEach(a => {
+      const slotIdx = slots.findIndex(s => s.id === a.slot_id);
+      if (slotIdx === -1) return;
+      const grpKey = `${a.dia}_${a.curso_codigo}_${a.numero_grupo}_${a.tipo}_${a.ambiente_codigo || a.ambiente_id || ''}_${a.docente_id || ''}`;
+      if (!groupsMap.has(grpKey)) {
+        groupsMap.set(grpKey, []);
+      }
+      groupsMap.get(grpKey)!.push({ ...a, slotIdx });
+    });
+
+    const blocksList: any[][] = [];
+    groupsMap.forEach(items => {
+      items.sort((a, b) => a.slotIdx - b.slotIdx);
+      let currentBlock: any[] = [];
+      items.forEach((item, idx) => {
+        if (idx === 0) {
+          currentBlock = [item];
+        } else {
+          const prevItem = currentBlock[currentBlock.length - 1];
+          if (item.slotIdx === prevItem.slotIdx + 1) {
+            currentBlock.push(item);
+          } else {
+            blocksList.push(currentBlock);
+            currentBlock = [item];
+          }
+        }
+      });
+      if (currentBlock.length > 0) {
+        blocksList.push(currentBlock);
+      }
+    });
+
+    const blockStartMap = new Map<string, { block: any[], duration: number }>();
+    const hiddenCellsSet = new Set<string>();
+
+    blocksList.forEach(block => {
+      if (block.length <= 1) return;
+      const startItem = block[0];
+      const startIdx = startItem.slotIdx;
+      const dia = startItem.dia;
+
+      // Validar si podemos expandir (cero colisiones con otras asignaciones de inicio en los slots siguientes)
+      let canSpan = true;
+      for (let i = 1; i < block.length; i++) {
+        const nextSlot = slots[startIdx + i];
+        if (!nextSlot) {
+          canSpan = false;
+          break;
+        }
+
+        // Buscar otras asignaciones en el mismo día/slot que no sean de este bloque
+        const otherAsigs = asigGrilla.filter(a => 
+          a.dia === dia && 
+          a.slot_id === nextSlot.id && 
+          !block.some(b => b.id === a.id)
+        );
+
+        if (otherAsigs.length > 0) {
+          canSpan = false;
+          break;
+        }
+      }
+
+      if (canSpan) {
+        blockStartMap.set(`${dia}_${startItem.slot_id}`, { block, duration: block.length });
+        for (let i = 1; i < block.length; i++) {
+          hiddenCellsSet.add(`${block[i].dia}_${block[i].slot_id}`);
+        }
+      }
+    });
+
     return (
       <div key={key} style={{ marginBottom: '40px' }}>
         <h4 style={{ fontSize: '15px', color: 'var(--text-primary)', borderBottom: '2px solid var(--border-color)', paddingBottom: '8px', marginBottom: '16px', fontWeight: '600' }}>
@@ -195,27 +313,36 @@ export default function GrillaHorarios({
               {DIAS_LABEL[d]}
             </div>
           ))}
-          {slots.map(slot => {
-            const isLunch = slot.hora_inicio === '13:00' || slot.hora_inicio === '13:00:00';
+          {slots.map((slot, sIdx) => {
+            const isLunch = loadedRestringidos ? (slot.id in restringidos) : (slot.hora_inicio === '13:00' || slot.hora_inicio === '13:00:00');
+            const lunchMsg = loadedRestringidos ? (restringidos[slot.id] || 'HORA LIBRE (REFRIGERIO)') : 'HORA LIBRE (REFRIGERIO)';
             return (
               <div key={slot.id} style={{ display: 'contents' }}>
                 <div
                   className={`horario-time${isLunch || !isMobile ? ' horario-time--show' : ''}${isLunch ? ' horario-time--lunch' : ''}`}
+                  style={{ gridColumn: 1 }}
                 >
                   {slot.hora_inicio.substring(0, 5)}<br />{slot.hora_fin.substring(0, 5)}
                 </div>
                 {isLunch ? (
                   <div
                     className="horario-cell horario-cell--show horario-cell--lunch"
-                    style={{ gridColumn: isMobile ? 'span 1' : `span ${DIAS.length}` }}
+                    style={{ gridColumn: isMobile ? '2' : `2 / span ${DIAS.length}` }}
                   >
-                    HORA LIBRE (REFRIGERIO)
+                    {lunchMsg}
                   </div>
                 ) : (
                   DIAS.map(dia => {
+                    const cellKey = `${dia}_${slot.id}`;
+                    if (hiddenCellsSet.has(cellKey)) {
+                      return null; // Omitir renderizado
+                    }
+
+                    const hasStartBlock = blockStartMap.get(cellKey);
+                    const duration = hasStartBlock ? hasStartBlock.duration : 1;
                     const cells = getCell(dia, slot.id, asigGrilla);
                     const dropId = `${key}-${dia}-${slot.id}`;
-                    // Detectar si esta celda fue origen o destino del último movimiento
+
                     const esOrigen = ultimoMovimiento &&
                       ultimoMovimiento.origen.dia === dia &&
                       ultimoMovimiento.origen.slot_id === slot.id &&
@@ -224,6 +351,18 @@ export default function GrillaHorarios({
                       ultimoMovimiento.destino.dia === dia &&
                       ultimoMovimiento.destino.slot_id === slot.id &&
                       (!contextData.ambiente_id || ultimoMovimiento.destino.ambiente_id === contextData.ambiente_id);
+
+                    const cellStyle: React.CSSProperties = {};
+                    if (duration > 1) {
+                      cellStyle.gridRow = `span ${duration}`;
+                    }
+                    if (!isMobile) {
+                      const dayIndex = DIAS.indexOf(dia);
+                      cellStyle.gridColumn = dayIndex + 2;
+                    } else {
+                      cellStyle.gridColumn = 2;
+                    }
+
                     return (
                       <DroppableCell
                         key={dropId}
@@ -236,6 +375,7 @@ export default function GrillaHorarios({
                         esOrigen={!!esOrigen}
                         esDestino={!!esDestino}
                         className={`horario-cell${diasGrilla.includes(dia) ? ' horario-cell--show' : ''}`}
+                        style={cellStyle}
                       >
                         <CeldaHorario
                           asignaciones={cells}
@@ -243,6 +383,7 @@ export default function GrillaHorarios({
                           mapaColores={mapaColores}
                           bloquesMovidos={bloquesMovidos}
                           activeBlockIds={activeBlockIds}
+                          duracion={duration}
                         />
                       </DroppableCell>
                     );

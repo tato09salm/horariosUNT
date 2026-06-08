@@ -463,7 +463,28 @@ export default function ProgramarPage() {
         </div>
       </div>
 
-      {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
+      {msg && (
+        <div className={`alert alert-${msg.type}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>{msg.text}</span>
+          <button
+            onClick={() => setMsg(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'inherit',
+              fontSize: '20px',
+              cursor: 'pointer',
+              padding: '0 8px',
+              marginLeft: '16px',
+              opacity: 0.7,
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {cspStats && (
         <div className="card csp-stats-card" style={{ marginBottom: '20px', borderLeft: '4px solid #6366f1', background: 'var(--bg-card)' }}>
@@ -924,6 +945,7 @@ export default function ProgramarPage() {
           ultimoMovimiento={ultimoMovimiento}
           bloquesMovidos={bloquesMovidos}
           activeBlockIds={new Set(activeBlockAsignaciones.map(a => a.id))}
+          restringidosConfig={prog?.config?.horarios_restringidos}
         />
         
         <DragOverlay>

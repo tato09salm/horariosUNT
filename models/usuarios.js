@@ -44,6 +44,8 @@ class Usuarios extends Sequelize.Model {
     tableName: 'usuarios',
     schema: 'public',
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
     indexes: [
       {
         name: "usuarios_email_key",

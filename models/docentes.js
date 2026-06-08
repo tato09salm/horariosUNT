@@ -72,6 +72,8 @@ class Docentes extends Sequelize.Model {
     tableName: 'docentes',
     schema: 'public',
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
     indexes: [
       {
         name: "docentes_dni_key",

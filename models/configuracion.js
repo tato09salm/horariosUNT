@@ -26,6 +26,8 @@ class Configuracion extends Sequelize.Model {
     tableName: 'configuracion',
     schema: 'public',
     timestamps: true,
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
     indexes: [
       {
         name: "configuracion_pkey",

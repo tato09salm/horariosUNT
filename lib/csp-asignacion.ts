@@ -57,7 +57,13 @@ export function esSlotComida(slot: SlotRow): boolean {
   return slot.hora_inicio === '13:00' || slot.hora_inicio === '13:00:00';
 }
 
-export function slotsUtiles(slots: SlotRow[]): SlotRow[] {
+export function slotsUtiles(slots: SlotRow[], restrictedIds?: string[]): SlotRow[] {
+  if (restrictedIds && restrictedIds.length > 0) {
+    return slots.filter(s => !restrictedIds.includes(s.id));
+  }
+  if (restrictedIds !== undefined) {
+    return slots;
+  }
   return slots.filter(s => !esSlotComida(s));
 }
 
@@ -377,9 +383,9 @@ export function asignarBloqueEstudiante(
   occ: Occupancy,
   priorityPass: number,
   ambAvail: AmbAvailMap = new Map(),
-  opts?: { practicaEnAula?: boolean }
+  opts?: { practicaEnAula?: boolean; restrictedIds?: string[] }
 ): { ok: boolean; asignaciones: any[]; prioridadUsada: number | null } {
-  const util = slotsUtiles(slots);
+  const util = slotsUtiles(slots, opts?.restrictedIds);
   const meta0 = group.units[0].meta;
   const duracion = group.units.length;
   const tieneLab = group.units.some(u => u.tipo_sesion === 'laboratorio');
@@ -485,11 +491,11 @@ export function asignarGrupoContinuo(
   occ: Occupancy,
   priorityPass: number,
   ambAvail: AmbAvailMap = new Map(),
-  opts?: { practicaEnAula?: boolean }
+  opts?: { practicaEnAula?: boolean; restrictedIds?: string[] }
 ): { ok: boolean; asignaciones: any[]; prioridadUsada: number | null } {
   const block = group.units[0].meta;
   const duracion = group.units.length;
-  const util = slotsUtiles(slots);
+  const util = slotsUtiles(slots, opts?.restrictedIds);
   const validAmbientes = ambientesValidosPara(block, ambientes, opts);
 
   const dias = diasRotados(block);
@@ -543,11 +549,12 @@ export function asignarAsesoria(
   slots: SlotRow[],
   docAvail: Map<string, Map<string, number>>,
   occ: Occupancy,
-  priorityPass: number
+  priorityPass: number,
+  opts?: { restrictedIds?: string[] }
 ): { ok: boolean; asignacion?: any; prioridadUsada: number | null } {
   const block = unit.meta;
   const amb = { id: null, codigo: 'VIRT/CUB', nombre: 'Virtual / Cubículo', tipo: 'asesoria' };
-  const util = slotsUtiles(slots);
+  const util = slotsUtiles(slots, opts?.restrictedIds);
 
   const horaNum = (s: SlotRow) => parseInt(String(s.hora_inicio).slice(0, 2), 10);
 
@@ -620,16 +627,16 @@ export function asignarUnidad(
   priorityPass: number,
   bloqueContinuoId?: string,
   ambAvail: AmbAvailMap = new Map(),
-  opts?: { practicaEnAula?: boolean }
+  opts?: { practicaEnAula?: boolean; restrictedIds?: string[] }
 ): { ok: boolean; asignacion?: any; prioridadUsada: number | null } {
   const block = unit.meta;
   if (block.tipo_sesion === 'asesoria') {
-    return asignarAsesoria(unit, slots, docAvail, occ, priorityPass);
+    return asignarAsesoria(unit, slots, docAvail, occ, priorityPass, opts);
   }
 
   const validAmbientes = ambientesValidosPara(block, ambientes, opts);
 
-  const util = slotsUtiles(slots);
+  const util = slotsUtiles(slots, opts?.restrictedIds);
   const dias = diasRotados(block);
   const slotsOrden = slotsRotados(block, util);
 

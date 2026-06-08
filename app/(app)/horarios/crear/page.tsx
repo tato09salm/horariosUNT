@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams } from 'next/navigation';
 import { fetchProgramacionCursos, programacionCursosApiUrl } from '@/lib/fetch-programacion-cursos';
 import { useTheme } from '@/lib/theme';
+import { getCurriculaDisplayName } from '@/lib/curriculas';
 
 // Helper para Romanos
 const toRoman = (num: number) => {
@@ -49,18 +50,20 @@ export default function CrearHorarioPage() {
   const cargarConfiguracion = useCallback(async () => {
     try {
       const [currRes, configRes, docRes] = await Promise.all([
-        fetch('/api/curriculas').then(r => r.json()),
+        fetch('/api/curriculas?manage=true').then(r => r.json()),
         fetch('/api/configuracion?clave=ID_MALLA_CURRICULAR_ACTUAL').then(r => r.json()),
         fetch('/api/docentes?limit=1000').then(r => r.json()),
       ]);
-      setCurriculas(currRes.data || []);
+      const allCurriculas = currRes.data || [];
+      const filtered = allCurriculas.filter((c: any) => c.estado === 'ACTIVA' || c.estado === 'EN_EXTINCION');
+      setCurriculas(filtered);
       setDocentes(docRes.data || []);
 
       const mallaActual = configRes.data?.valor || '';
       if (mallaActual) {
         setCurriculaActual(mallaActual);
-      } else if (currRes.data && currRes.data.length > 0) {
-        setCurriculaActual(currRes.data[0].id);
+      } else if (filtered.length > 0) {
+        setCurriculaActual(filtered[0].id);
       }
     } catch (e) {
       console.error('Error config:', e);
@@ -80,13 +83,18 @@ export default function CrearHorarioPage() {
 
       if (progId) {
         const grpRes = await fetch(`/api/horarios/grupos?programacion_id=${progId}`).then(r => r.json());
+        console.log('[CARGAR PROGRAMACION] Grupos recibidos:', grpRes.data?.length, grpRes.data);
         setGrupos(grpRes.data || []);
 
         // Auto-seleccionar cursos que ya tienen grupos (datos importados)
         // Esto permite que la importación funcione y los cambios persistan al reiniciar
         if (grpRes.data && grpRes.data.length > 0) {
           const ids = Array.from(new Set(grpRes.data.map((g: any) => g.curso_id))) as string[];
+          console.log('[CARGAR PROGRAMACION] Cursos seleccionados desde grupos:', ids);
           setSelectedCursosIds(ids);
+        } else {
+          console.log('[CARGAR PROGRAMACION] No hay grupos, limpiando selección');
+          setSelectedCursosIds([]);
         }
       }
     } catch (e) {
@@ -670,7 +678,11 @@ export default function CrearHorarioPage() {
             <select className="form-input" style={{ padding: '6px 12px', fontSize: '13px' }} value={curriculaActual} onChange={e => setCurriculaActual(e.target.value)}>
               <option value="">SELECCIONAR CURRÍCULA...</option>
               {curriculas.map(c => (
-                <option key={c.id} value={c.id}>{c.nombre_carrera.toUpperCase()} ({c.año_curricula})</option>
+                <option key={c.id} value={c.id}>
+                  {c.estado === 'EN_EXTINCION'
+                    ? `${c.nombre_carrera} (${c.año_curricula}) - ${c.modalidad_estudios} - EN EXTINCIÓN`
+                    : `${c.nombre_carrera} (${c.año_curricula}) - ${c.modalidad_estudios}`}
+                </option>
               ))}
             </select>
           </div>
@@ -693,7 +705,28 @@ export default function CrearHorarioPage() {
         </div>
       </div>
 
-      {msg && <div className={`alert alert-${msg.type}`} style={{ marginBottom: '20px' }}>{msg.text}</div>}
+      {msg && (
+        <div className={`alert alert-${msg.type}`} style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>{msg.text}</span>
+          <button
+            onClick={() => setMsg(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'inherit',
+              fontSize: '20px',
+              cursor: 'pointer',
+              padding: '0 8px',
+              marginLeft: '16px',
+              opacity: 0.7,
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '24px' }}>
 

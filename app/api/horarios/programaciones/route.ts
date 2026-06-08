@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { query, queryOne } from '@/lib/db';
 import { registrarAuditoria } from '@/lib/auditoria';
+import db from '@/lib/sequelize';
+import { Op } from 'sequelize';
 
 // GET — Listar programaciones (filtro por ciclo_id)
 export async function GET(req: NextRequest) {
@@ -11,28 +12,62 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const ciclo_id = searchParams.get('ciclo_id');
 
-  let sql = `
-    SELECT 
-      p.*,
-      c.nombre as ciclo_nombre, c.año, c.semestre,
-      u.nombre || ' ' || u.apellidos as creador_nombre,
-      (SELECT COUNT(DISTINCT pc.curso_id) FROM programacion_cursos pc WHERE pc.programacion_id = p.id) as total_cursos,
-      (SELECT COUNT(DISTINCT pc.docente_id) FROM programacion_cursos pc WHERE pc.programacion_id = p.id AND pc.docente_id IS NOT NULL) as total_docentes
-    FROM programaciones p
-    JOIN ciclos c ON c.id = p.ciclo_id
-    LEFT JOIN usuarios u ON u.id = p.created_by
-  `;
-  const params: any[] = [];
+  try {
+    const where: any = {};
+    if (ciclo_id) {
+      where.ciclo_id = ciclo_id;
+    }
 
-  if (ciclo_id) {
-    sql += ` WHERE p.ciclo_id = $1`;
-    params.push(ciclo_id);
+    const programaciones = await db.Programaciones.findAll({
+      where,
+      include: [
+        {
+          model: db.Ciclos,
+          as: 'ciclo',
+          attributes: ['nombre', 'año', 'semestre']
+        },
+        {
+          model: db.Usuarios,
+          as: 'created_by_usuario',
+          attributes: ['nombre', 'apellidos']
+        }
+      ],
+      order: [['created_at', 'DESC']]
+    });
+
+    // Mapear para mantener compatibilidad con el front y agregar conteos
+    const data = await Promise.all(programaciones.map(async (p: any) => {
+      const totalCursos = await db.ProgramacionCursos.count({
+        where: { programacion_id: p.id },
+        distinct: true,
+        col: 'curso_id'
+      });
+      const totalDocentes = await db.ProgramacionCursos.count({
+        where: {
+          programacion_id: p.id,
+          docente_id: { [Op.not]: null }
+        },
+        distinct: true,
+        col: 'docente_id'
+      });
+
+      const json = p.toJSON();
+      return {
+        ...json,
+        ciclo_nombre: json.ciclo?.nombre,
+        año: json.ciclo?.año,
+        semestre: json.ciclo?.semestre,
+        creador_nombre: json.created_by_usuario ? `${json.created_by_usuario.nombre} ${json.created_by_usuario.apellidos}` : null,
+        total_cursos: totalCursos,
+        total_docentes: totalDocentes
+      };
+    }));
+
+    return NextResponse.json({ data });
+  } catch (error: any) {
+    console.error('Error GET programaciones:', error);
+    return NextResponse.json({ error: 'Error al cargar programaciones' }, { status: 500 });
   }
-
-  sql += ` ORDER BY p.created_at DESC`;
-
-  const data = await query(sql, params);
-  return NextResponse.json({ data });
 }
 
 // POST — Crear nueva programación (auto-genera nombre)
@@ -51,45 +86,67 @@ export async function POST(req: NextRequest) {
     }
 
     // Obtener datos del ciclo para auto-generar el nombre
-    const ciclo = await queryOne(`SELECT * FROM ciclos WHERE id = $1`, [ciclo_id]);
+    const ciclo = await db.Ciclos.findByPk(ciclo_id);
     if (!ciclo) {
       return NextResponse.json({ error: 'Ciclo no encontrado' }, { status: 404 });
     }
 
     // Verificar que no exista una programación activa para este ciclo
-    const existente = await queryOne(
-      `SELECT id, nombre FROM programaciones WHERE ciclo_id = $1 AND estado != 'cancelado'`,
-      [ciclo_id]
-    );
+    const existente = await db.Programaciones.findOne({
+      where: { 
+        ciclo_id, 
+        estado: { [Op.ne]: 'cancelado' }
+      }
+    });
+    
     if (existente) {
       return NextResponse.json(
-        { error: `Ya existe una programación activa para este ciclo: ${existente.nombre}` },
+        { error: `Ya existe una programación activa para este ciclo: ${(existente as any).nombre}` },
         { status: 409 }
       );
     }
 
-    // Auto-generar nombre: "HORARIO 2024-II"
-    const nombre = `HORARIO ${ciclo.año}-${ciclo.semestre}`;
+    // Snapshot de horarios restringidos actuales
+    const configRow = await db.Configuracion.findOne({
+      where: { clave: 'HORARIOS_RESTRINGIDOS' }
+    });
+    let horariosRestringidos = {};
+    if (configRow && (configRow as any).valor) {
+      try {
+        horariosRestringidos = JSON.parse((configRow as any).valor);
+      } catch (e) {
+        console.error('Error al parsear HORARIOS_RESTRINGIDOS para snapshot:', e);
+      }
+    }
 
-    const prog = await queryOne(
-      `INSERT INTO programaciones (ciclo_id, nombre, fase, estado, config, created_by)
-       VALUES ($1, $2, 1, 'borrador', $3, $4)
-       RETURNING *`,
-      [ciclo_id, nombre, JSON.stringify(config || {}), session.id]
-    );
+    // Auto-generar nombre: "HORARIO 2024-II"
+    const nombre = `HORARIO ${(ciclo as any).año}-${(ciclo as any).semestre}`;
+
+    const prog = await db.Programaciones.create({
+      ciclo_id,
+      nombre,
+      fase: 1,
+      estado: 'borrador',
+      config: {
+        ...(config || {}),
+        horarios_restringidos: horariosRestringidos
+      },
+      created_by: session.id
+    });
 
     await registrarAuditoria({
       usuario_id: session.id,
       usuario_nombre: `${session.nombre} ${session.apellidos}`,
       accion: 'CREATE',
       tabla_afectada: 'programaciones',
-      registro_id: prog.id,
-      datos_nuevos: prog,
+      registro_id: (prog as any).id,
+      datos_nuevos: prog.toJSON(),
       descripcion: `Programación creada: ${nombre}`,
     });
 
     return NextResponse.json({ data: prog }, { status: 201 });
   } catch (error: any) {
+    console.error('Error POST programaciones:', error);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
