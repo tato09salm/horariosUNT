@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { query, queryOne } from '@/lib/db';
 import { registrarAuditoria } from '@/lib/auditoria';
+import db from '@/lib/sequelize';
+import { Op } from 'sequelize';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -16,55 +17,70 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '10');
   const offset = (page - 1) * limit;
 
-  let sql = `SELECT c.*, e.nombre as escuela_nombre FROM cursos c LEFT JOIN escuelas e ON e.id = c.escuela_id WHERE 1=1`;
-  const params: any[] = [];
-  let idx = 1;
+  const curricula_id = searchParams.get('curricula_id');
 
+  const where: any = {};
   if (buscar) {
-    sql += ` AND (c.nombre ILIKE $${idx} OR c.codigo ILIKE $${idx})`;
-    params.push(`%${buscar}%`);
-    idx++;
+    where[Op.or] = [
+      { nombre: { [Op.iLike]: `%${buscar}%` } },
+      { codigo: { [Op.iLike]: `%${buscar}%` } }
+    ];
   }
   if (ciclo) {
-    sql += ` AND c.ciclo_plan = $${idx++}`;
-    params.push(parseInt(ciclo));
+    where.ciclo_plan = parseInt(ciclo);
   }
   if (activo !== null && activo !== undefined && activo !== '') {
-    sql += ` AND c.activo = $${idx++}`;
-    params.push(activo === 'true');
+    where.activo = activo === 'true';
   }
 
-  // Count total for pagination
-  const countSql = `SELECT COUNT(*) FROM (${sql}) as total`;
-  const totalRes = await queryOne(countSql, params);
-  const total = parseInt(totalRes?.count || '0');
+  try {
+    const include: any[] = [{
+      model: db.Escuelas,
+      as: 'escuela'
+    }];
 
-  // Stats for KPIs
-  const statsSql = `
-    SELECT 
-      COUNT(*) as total_cursos,
-      SUM(creditos) as total_creditos,
-      SUM(horas_teoria) as total_teoria,
-      SUM(horas_practica) as total_practica
-    FROM (${sql}) as filtered
-  `;
-  const statsRes = await queryOne(statsSql, params);
-  const stats = {
-    total_cursos: parseInt(statsRes?.total_cursos || '0'),
-    total_creditos: parseInt(statsRes?.total_creditos || '0'),
-    total_teoria: parseInt(statsRes?.total_teoria || '0'),
-    total_practica: parseInt(statsRes?.total_practica || '0')
-  };
+    if (curricula_id) {
+      include.push({
+        model: db.MallaCurricular,
+        as: 'mallas',
+        where: { curricula_id },
+        required: true
+      });
+    }
 
-  sql += ` ORDER BY c.ciclo_plan, c.nombre`;
-  
-  if (!reporte) {
-    sql += ` LIMIT $${idx++} OFFSET $${idx++}`;
-    params.push(limit, offset);
+    const { count, rows: cursos } = await db.Cursos.findAndCountAll({
+      where,
+      include,
+      order: [['ciclo_plan', 'ASC'], ['nombre', 'ASC']],
+      limit: reporte ? undefined : limit,
+      offset: reporte ? undefined : offset
+    });
+
+    // Mapear para mantener compatibilidad con el front (escuela_nombre)
+    const data = cursos.map((c: any) => ({
+      ...c.toJSON(),
+      escuela_nombre: c.escuela?.nombre
+    }));
+
+    // Stats simplificados usando los datos filtrados (si no es mucha data) o una query aparte
+    const stats = {
+      total_cursos: count,
+      total_creditos: data.reduce((acc: number, curr: any) => acc + (curr.creditos || 0), 0),
+      total_teoria: data.reduce((acc: number, curr: any) => acc + (curr.horas_teoria || 0), 0),
+      total_practica: data.reduce((acc: number, curr: any) => acc + (curr.horas_practica || 0), 0)
+    };
+
+    return NextResponse.json({ 
+      data, 
+      total: count, 
+      stats, 
+      page: reporte ? 1 : page, 
+      limit: reporte ? count : limit 
+    });
+  } catch (error: any) {
+    console.error('Error GET cursos:', error);
+    return NextResponse.json({ error: 'Error al cargar cursos' }, { status: 500 });
   }
-
-  const cursos = await query(sql, params);
-  return NextResponse.json({ data: cursos, total, stats, page: reporte ? 1 : page, limit: reporte ? total : limit });
 }
 
 export async function POST(req: NextRequest) {
@@ -75,22 +91,48 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
+    const { curricula_id } = body;
     const codigoUpper = body.codigo?.toUpperCase() || '';
     const nombreUpper = body.nombre?.toUpperCase() || '';
-    const curso = await queryOne(
-      `INSERT INTO cursos (escuela_id, codigo, nombre, creditos, horas_teoria, horas_practica, ciclo_plan)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [body.escuela_id, codigoUpper, nombreUpper, body.creditos, body.horas_teoria, body.horas_practica, body.ciclo_plan]
-    );
 
-    await registrarAuditoria({
-      usuario_id: session.id,
-      accion: 'CREATE', tabla_afectada: 'cursos', registro_id: curso?.id,
-      datos_nuevos: curso, descripcion: `Curso creado: ${nombreUpper}`,
-    });
+    const t = await db.sequelize.transaction();
 
-    return NextResponse.json({ data: curso }, { status: 201 });
+    try {
+      const curso = await db.Cursos.create({
+        escuela_id: body.escuela_id,
+        codigo: codigoUpper,
+        nombre: nombreUpper,
+        creditos: body.creditos,
+        horas_teoria: body.horas_teoria,
+        horas_practica: body.horas_practica,
+        horas_laboratorio: body.horas_laboratorio || 0,
+        ciclo_plan: body.ciclo_plan
+      }, { transaction: t });
+
+      if (curricula_id) {
+        await db.MallaCurricular.create({
+          curricula_id,
+          curso_id: (curso as any).id
+        }, { transaction: t });
+      }
+
+      await registrarAuditoria({
+        usuario_id: session.id,
+        accion: 'CREATE', 
+        tabla_afectada: 'cursos', 
+        registro_id: (curso as any).id,
+        datos_nuevos: (curso as any).toJSON(), 
+        descripcion: `Curso creado y vinculado a currícula: ${nombreUpper}`,
+      });
+
+      await t.commit();
+      return NextResponse.json({ data: curso }, { status: 201 });
+    } catch (err: any) {
+      await t.rollback();
+      throw err;
+    }
   } catch (error: any) {
+    console.error('Error POST cursos:', error);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

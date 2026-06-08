@@ -77,6 +77,8 @@ class ProgramacionCursos extends Sequelize.Model {
     tableName: 'programacion_cursos',
     schema: 'public',
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: false,
     indexes: [
       {
         name: "idx_pc_prog",

@@ -1,6 +1,10 @@
-require('dotenv').config({ path: '.env.local' });
+try {
+  if (typeof process !== 'undefined' && process.env && !process.env.NEXT_RUNTIME) {
+    require('dotenv').config({ path: '.env.local' });
+  }
+} catch (e) {}
 
-module.exports = {
+const config = {
   development: {
     username: process.env.DB_USER || "postgres",
     password: process.env.DB_PASSWORD || "",
@@ -32,3 +36,5 @@ module.exports = {
     }
   }
 };
+
+module.exports = config;

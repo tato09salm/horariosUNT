@@ -22,6 +22,8 @@ class Rol extends Sequelize.Model {
     tableName: 'roles',
     schema: 'public',
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
     indexes: [
       {
         name: "roles_nombre_key",

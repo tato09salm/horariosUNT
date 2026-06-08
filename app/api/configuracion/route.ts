@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { queryOne } from '@/lib/db';
+import db from '@/lib/sequelize';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -16,7 +16,10 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Clave requerida' }, { status: 400 });
     }
 
-    const config = await queryOne(`SELECT * FROM configuracion WHERE clave = $1`, [clave]);
+    const config = await db.Configuracion.findOne({
+      where: { clave }
+    });
+    
     return NextResponse.json({ data: config });
   } catch (error: any) {
     console.error('Error GET configuracion:', error);

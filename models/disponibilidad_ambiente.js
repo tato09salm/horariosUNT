@@ -49,6 +49,8 @@ class DisponibilidadAmbiente extends Sequelize.Model {
     tableName: 'disponibilidad_ambiente',
     schema: 'public',
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: false,
     indexes: [
       {
         name: "disponibilidad_ambiente_ambiente_id_slot_id_dia_uk",

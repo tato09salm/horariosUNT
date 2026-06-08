@@ -93,7 +93,7 @@ function initModels(sequelize) {
   Usuarios.hasMany(Programaciones, { as: "programaciones", foreignKey: "created_by"});
   Programaciones.belongsTo(Usuarios, { as: "publicado_por_usuario", foreignKey: "publicado_por"});
   Usuarios.hasMany(Programaciones, { as: "publicado_por_programaciones", foreignKey: "publicado_por"});
-  Usuarios.belongsTo(Rol, { as: "rol", foreignKey: "rol", targetKey: "codigo"});
+  Usuarios.belongsTo(Rol, { as: "perfil_rol", foreignKey: "rol", targetKey: "codigo"});
   Rol.hasMany(Usuarios, { as: "usuarios", foreignKey: "rol"});
 
   Curriculas.belongsToMany(Cursos, { as: 'cursos', through: MallaCurricular, foreignKey: "curricula_id", otherKey: "curso_id" });

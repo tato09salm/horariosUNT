@@ -43,6 +43,8 @@ class Ciclos extends Sequelize.Model {
     tableName: 'ciclos',
     schema: 'public',
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: false,
     indexes: [
       {
         name: "ciclos_nombre_key",

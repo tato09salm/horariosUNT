@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const Sequelize = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   return Curriculas.init(sequelize, DataTypes);
@@ -27,12 +28,19 @@ class Curriculas extends Sequelize.Model {
     creditos_totales: {
       type: DataTypes.INTEGER,
       allowNull: false
+    },
+    estado: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'ACTIVA'
     }
   }, {
     sequelize,
     tableName: 'curriculas',
     schema: 'public',
     timestamps: true,
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
     indexes: [
       {
         name: "curriculas_pkey",

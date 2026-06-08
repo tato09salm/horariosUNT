@@ -48,6 +48,9 @@ export default function HorariosPage() {
   const [showDeleteModal, setShowDeleteModal] = useState<string|null>(null);
   const [restaurandoId, setRestaurandoId] = useState<string|null>(null);
 
+  const [curriculas, setCurriculas] = useState<any[]>([]);
+  const [loadedCurriculas, setLoadedCurriculas] = useState(false);
+
   const user = useUser();
   const isAdminOrSec = user?.rol.codigo === 'admin' || user?.rol.codigo === 'secretaria';
   const isDirector = user?.rol.codigo === 'director_escuela';
@@ -74,13 +77,22 @@ export default function HorariosPage() {
       fetch('/api/docentes').then(r => r.json()),
       fetch('/api/aulas').then(r => r.json()),
       fetch('/api/dashboard').then(r => r.json()),
-    ]).then(([ciclosRes, docRes, ambRes, dashRes]) => {
+      fetch('/api/curriculas?manage=true').then(r => r.json()),
+    ]).then(([ciclosRes, docRes, ambRes, dashRes, currRes]) => {
       setCiclos(ciclosRes.data || []);
       setDocentes(docRes.data || []);
       setAmbientes(ambRes.data || []);
       setSlots(dashRes.slots || []);
       const activo = ciclosRes.data?.find((c: any) => c.activo);
       if (activo) setCicloId(activo.id);
+
+      const allCurriculas = currRes.data || [];
+      const filtered = allCurriculas.filter((c: any) => c.estado === 'ACTIVA' || c.estado === 'EN_EXTINCION');
+      setCurriculas(filtered);
+      setLoadedCurriculas(true);
+    }).catch(err => {
+      console.error('Error al cargar datos iniciales/currículas:', err);
+      setLoadedCurriculas(true);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -219,6 +231,15 @@ export default function HorariosPage() {
       <p style={{color:'#64748b'}}>Cargando...</p>
     </div>
   );
+  if (loadedCurriculas && curriculas.length === 0) {
+    return (
+      <div className="page-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center' }}>
+        <div style={{ fontSize: '64px', marginBottom: '20px' }}>⚠️</div>
+        <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#ef4444', margin: '0 0 8px' }}>Inaccesible</h1>
+        <p style={{ fontSize: '18px', color: 'var(--text-secondary)', margin: 0 }}>No hay una currícula configurada</p>
+      </div>
+    );
+  }
 
   return (
     <div className="horarios-index-page" style={{padding:'32px', color: darkMode ? 'var(--text-primary)' : 'var(--text-primary)'}}>
