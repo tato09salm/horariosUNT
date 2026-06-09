@@ -47,6 +47,7 @@ export async function generarHojaDocente(
     subtitulo: `Categoría: ${docente.categoria?.replace('_',' ')?.toUpperCase() || 'DOCENTE'} · Condición: ${docente.condicion?.toUpperCase() || 'NOMBRADO'}`,
     bloques: bloquesDocente,
     mapaColores: datos.mapaColores,
-    tabColor: 'FFDC2626'
+    tabColor: 'FFDC2626',
+    slots: datos.slots || []
   });
 }
