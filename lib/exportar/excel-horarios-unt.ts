@@ -265,7 +265,7 @@ export async function exportarHorariosFormatoUNT(config: ConfigExportUNT) {
     docentesGeneral.forEach((d, idx) => {
       mapaDocenteColor.set(d.docente_id, idx);
     });
-    aplicarAsignaciones(wsGeneral, asignacionesGeneral, mapaDocenteColor);
+    aplicarAsignaciones(wsGeneral, asignacionesGeneral, mapaDocenteColor, true);
 
     const aulasMap = new Map<string, { label: string; asignaciones: Asignacion[] }>();
     for (const a of asignacionesGeneral) {
