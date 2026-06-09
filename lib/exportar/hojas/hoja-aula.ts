@@ -17,6 +17,7 @@ export async function generarHojaAula(
     subtitulo: `Capacidad: ${aula.capacidad || 'N/A'} Alumnos · Tipo: ${aula.tipo?.toUpperCase() || 'AULA'}`,
     bloques: bloquesAula,
     mapaColores: datos.mapaColores,
-    tabColor: 'FF059669'
+    tabColor: 'FF059669',
+    slots: datos.slots || []
   });
 }

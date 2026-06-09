@@ -57,15 +57,94 @@ export function agruparAsignacionesContiguas(asignaciones: Asignacion[]): Asigna
   return agrupadas;
 }
 
+function renderizarBloque(
+  ws: ExcelJS.Worksheet,
+  bloques: Asignacion[],
+  colInicio: string,
+  colFin: string,
+  filaInicio: number,
+  filaFin: number,
+  mapaDocenteColor: Map<string, number>
+) {
+  // Desmerge previo
+  const masters = new Set<string>();
+  for (let f = filaInicio; f <= filaFin; f++) {
+    const colStart = colInicio.charCodeAt(0);
+    const colEnd = colFin.charCodeAt(0);
+    for (let c = colStart; c <= colEnd; c++) {
+      const charCol = String.fromCharCode(c);
+      const cell = ws.getCell(`${charCol}${f}`);
+      if (cell.isMerged && cell.master) {
+        masters.add(cell.master.address);
+      }
+    }
+  }
+  masters.forEach(addr => {
+    try { ws.unMergeCells(addr); } catch (e) {}
+  });
+
+  // Hacer merge del rango
+  const rangoBloque = `${colInicio}${filaInicio}:${colFin}${filaFin}`;
+  if (colInicio !== colFin || filaInicio !== filaFin) {
+    try {
+      ws.mergeCells(rangoBloque);
+    } catch (e) {
+      try {
+        ws.unMergeCells(rangoBloque);
+        ws.mergeCells(rangoBloque);
+      } catch (e2) {}
+    }
+  }
+
+  // Construir contenido
+  const lineasTotales: string[] = [];
+  bloques.forEach(bloque => {
+    const lineas: string[] = [];
+    lineas.push(String(bloque.docente_n));
+    lineas.push(bloque.aula);
+    const tipo = etiquetaTipoSesion(bloque.tipo_sesion);
+    if (tipo) lineas.push(tipo);
+    lineasTotales.push(...lineas, '───');
+  });
+  if (lineasTotales.length > 0) lineasTotales.pop();
+
+  const color = bloques.length === 1 
+    ? PALETA_COLORES_UNT[(mapaDocenteColor.get(bloques[0].docente_id) ?? 0) % PALETA_COLORES_UNT.length]
+    : 'FFF0F0F0';
+
+  const cell = ws.getCell(`${colInicio}${filaInicio}`);
+  cell.value = lineasTotales.join('\n');
+  cell.font = { name: 'Arial', size: 10, bold: true };
+  cell.alignment = {
+    horizontal: 'center',
+    vertical: 'middle',
+    wrapText: true
+  };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
+  cell.border = BORDE_FINO;
+
+  for (let f = filaInicio; f <= filaFin; f++) {
+    const colStart = colInicio.charCodeAt(0);
+    const colEnd = colFin.charCodeAt(0);
+    for (let c = colStart; c <= colEnd; c++) {
+      const charCol = String.fromCharCode(c);
+      const cellTemp = ws.getCell(`${charCol}${f}`);
+      cellTemp.border = BORDE_FINO;
+    }
+  }
+
+  const filaObj = ws.getRow(filaInicio);
+  const alturaNecesaria = Math.max(20, lineasTotales.length * 15);
+  filaObj.height = Math.max(filaObj.height || 0, alturaNecesaria);
+}
+
 export function aplicarAsignaciones(
   ws: ExcelJS.Worksheet,
   asignaciones: Asignacion[],
-  mapaDocenteColor: Map<string, number>  // docente_id → índice en paleta
+  mapaDocenteColor: Map<string, number>
 ) {
-  // Agrupar bloques contiguos
   const bloques = agruparAsignacionesContiguas(asignaciones);
   
-  // Agrupar bloques por día y hora_inicio para manejar múltiples cursos en el mismo slot
   const bloquesPorSlot = new Map<string, Asignacion[]>();
   for (const bloque of bloques) {
     const key = `${bloque.dia.toLowerCase()}-${bloque.hora_inicio}`;
@@ -83,89 +162,43 @@ export function aplicarAsignaciones(
     const colDia = COLUMNAS_DIA[primerBloque.dia.toLowerCase()];
     if (!colDia) continue;
 
-    // Calcular filaFin como la última fila del slot (máxima duración en el slot)
-    const filaFin = Math.max(...bloquesEnSlot.map(b => 
-      filaInicio + b.duracion_horas - 1
-    ));
+    const colStartCharCode = colDia.inicio.charCodeAt(0);
+    const colEndCharCode = colDia.fin.charCodeAt(0);
+    const numCols = colEndCharCode - colStartCharCode + 1;
 
-    // Desmerge previo para evitar conflictos con merges existentes
-    const masters = new Set<string>();
-    for (let f = filaInicio; f <= filaFin; f++) {
-      const colStart = colDia.inicio.charCodeAt(0);
-      const colEnd = colDia.fin.charCodeAt(0);
-      for (let c = colStart; c <= colEnd; c++) {
-        const charCol = String.fromCharCode(c);
-        const cell = ws.getCell(`${charCol}${f}`);
-        if (cell.isMerged && cell.master) {
-          masters.add(cell.master.address);
-        }
-      }
+    if (bloquesEnSlot.length === 1) {
+      renderizarBloque(
+        ws, 
+        bloquesEnSlot, 
+        colDia.inicio, 
+        colDia.fin, 
+        filaInicio, 
+        filaInicio + bloquesEnSlot[0].duracion_horas - 1,
+        mapaDocenteColor
+      );
+    } else {
+      const buckets: Asignacion[][] = Array.from({ length: numCols }, () => []);
+      bloquesEnSlot.forEach((bloque, idx) => {
+        const bucketIdx = Math.min(idx, numCols - 1);
+        buckets[bucketIdx].push(bloque);
+      });
+
+      buckets.forEach((bloquesInBucket, bucketIdx) => {
+        if (bloquesInBucket.length === 0) return;
+        
+        const colStr = String.fromCharCode(colStartCharCode + bucketIdx);
+        const filaFinBucket = Math.max(...bloquesInBucket.map(b => filaInicio + b.duracion_horas - 1));
+        
+        renderizarBloque(
+          ws,
+          bloquesInBucket,
+          colStr,
+          colStr,
+          filaInicio,
+          filaFinBucket,
+          mapaDocenteColor
+        );
+      });
     }
-    masters.forEach(addr => {
-      try {
-        ws.unMergeCells(addr);
-      } catch (e) {
-        // Ignorar si ya no existe el merge
-      }
-    });
-
-    // Hacer merge del rango completo
-    const rangoBloque = `${colDia.inicio}${filaInicio}:${colDia.fin}${filaFin}`;
-    try {
-      ws.mergeCells(rangoBloque);
-    } catch (e) {
-      try {
-        ws.unMergeCells(rangoBloque);
-        ws.mergeCells(rangoBloque);
-      } catch (e2) {}
-    }
-
-    // Construir contenido con todos los bloques del slot
-    const lineasTotales: string[] = [];
-    bloquesEnSlot.forEach(bloque => {
-      const lineas: string[] = [];
-      lineas.push(String(bloque.docente_n));
-      lineas.push(bloque.aula);
-      const tipo = etiquetaTipoSesion(bloque.tipo_sesion);
-      if (tipo) lineas.push(tipo);
-      lineasTotales.push(...lineas, '───'); // Separador entre cursos
-    });
-    if (lineasTotales.length > 0) {
-      lineasTotales.pop(); // quitar último separador
-    }
-
-    // Color: usar color del primer bloque (o gris si múltiples)
-    const color = bloquesEnSlot.length === 1 
-      ? PALETA_COLORES_UNT[(mapaDocenteColor.get(bloquesEnSlot[0].docente_id) ?? 0) % PALETA_COLORES_UNT.length]
-      : 'FFF0F0F0';
-
-    // Aplicar contenido y formato
-    const cell = ws.getCell(`${colDia.inicio}${filaInicio}`);
-    cell.value = lineasTotales.join('\n');
-    cell.font = { name: 'Arial', size: 10, bold: true };
-    cell.alignment = {
-      horizontal: 'center',
-      vertical: 'middle',
-      wrapText: true
-    };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
-    cell.border = BORDE_FINO;
-
-    // Aplicar bordes y fondo a todo el rango del merge
-    for (let f = filaInicio; f <= filaFin; f++) {
-      const colStart = colDia.inicio.charCodeAt(0);
-      const colEnd = colDia.fin.charCodeAt(0);
-      for (let c = colStart; c <= colEnd; c++) {
-        const charCol = String.fromCharCode(c);
-        const cellTemp = ws.getCell(`${charCol}${f}`);
-        cellTemp.border = BORDE_FINO;
-        cellTemp.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
-      }
-    }
-
-    // Ajustar altura de la fila para que quepa todo el texto
-    const filaObj = ws.getRow(filaInicio);
-    const alturaNecesaria = Math.max(20, lineasTotales.length * 15);
-    filaObj.height = alturaNecesaria;
   }
 }

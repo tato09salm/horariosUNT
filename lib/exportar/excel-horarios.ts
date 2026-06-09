@@ -16,6 +16,7 @@ interface ConfigExportacion {
   aulas: any[];
   ciclos: number[];
   metricas?: any;
+  slots?: Array<{ hora_inicio: string; hora_fin: string; id?: string }>;
 }
 
 export function agruparBloquesContiguos(asignaciones: any[]): BloqueAgrupado[] {
@@ -156,7 +157,8 @@ export async function exportarHorariosExcel(config: ConfigExportacion) {
     ...config,
     bloquesAgrupados,
     mapaColores,
-    ciclos: ciclosConBloques
+    ciclos: ciclosConBloques,
+    slots: config.slots || []
   };
   
   // 1. Hoja de Resumen
