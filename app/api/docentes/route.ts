@@ -103,8 +103,7 @@ export async function GET(req: NextRequest) {
   if (categoria) { sql += ` AND d.categoria = $${idx++}`; params.push(categoria); }
   if (condicion) { sql += ` AND d.condicion = $${idx++}`; params.push(condicion); }
   if (activo !== null && activo !== undefined && activo !== '') {
-    sql += ` AND d.activo = $${idx++}`; params.push(activo === 'true');
-  }
+    sql += ` AND d.activo = $${idx++}`; params.push(activo === 'true'); }
 
   // Count total for pagination
   const countSql = `SELECT COUNT(*) FROM (${sql}) as total`;
@@ -114,11 +113,19 @@ export async function GET(req: NextRequest) {
   sql += ` ORDER BY condicion_orden, categoria_orden, d.fecha_ingreso ASC`;
   
   if (!reporte) {
-    sql += ` LIMIT $${idx++ } OFFSET $${idx++}`;
+    sql += ` LIMIT $${idx++} OFFSET $${idx++}`;
     params.push(limit, offset);
   }
 
   const docentes = await query(sql, params);
+  console.log('🗄️ Docentes from database:', docentes.map(d => ({
+    id: d.id,
+    nombre: d.nombre,
+    apellidos: d.apellidos,
+    facultad: d.facultad,
+    dpto_academico: d.dpto_academico,
+    allKeys: Object.keys(d)
+  })));
   return NextResponse.json({ data: docentes, total, page: reporte ? 1 : page, limit: reporte ? total : limit });
 }
 
@@ -130,16 +137,16 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana } = body;
+    const { nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana, facultad, dpto_academico } = body;
     const nombreUpper = nombre?.toUpperCase() || '';
     const apellidosUpper = apellidos?.toUpperCase() || '';
 
     const result = await transaction(async (client) => {
       // 1. Crear el docente
       const docenteRes = await client.query(
-        `INSERT INTO docentes (nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-        [nombreUpper, apellidosUpper, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana || 20]
+        `INSERT INTO docentes (nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana, facultad, dpto_academico)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        [nombreUpper, apellidosUpper, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana || 20, facultad?.toUpperCase(), dpto_academico?.toUpperCase()]
       );
       const docente = docenteRes.rows[0];
 

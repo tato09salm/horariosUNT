@@ -66,9 +66,9 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const ciclo = await queryOne(
-      `INSERT INTO ciclos (nombre, año, semestre, fecha_inicio, fecha_fin, activo)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [body.nombre, body.año, body.semestre, body.fecha_inicio, body.fecha_fin, body.activo || false]
+      `INSERT INTO ciclos (nombre, año, semestre, fecha_inicio, fecha_fin, activo, estado)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [body.nombre, body.año, body.semestre, body.fecha_inicio, body.fecha_fin, body.activo || false, 'pendiente']
     );
 
     await registrarAuditoria({

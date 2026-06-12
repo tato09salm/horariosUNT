@@ -66,6 +66,14 @@ class Docentes extends Sequelize.Model {
       type: DataTypes.BOOLEAN,
       allowNull: true,
       defaultValue: true
+    },
+    facultad: {
+      type: DataTypes.STRING(200),
+      allowNull: true
+    },
+    dpto_academico: {
+      type: DataTypes.STRING(200),
+      allowNull: true
     }
   }, {
     sequelize,
