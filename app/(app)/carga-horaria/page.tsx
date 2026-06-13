@@ -64,6 +64,21 @@ export default function CargaHorariaPage() {
 
   const [ciclosAcademicos, setCiclosAcademicos] = useState<CicloAcademico[]>([]);
   const [cicloAcademicoSeleccionado, setCicloAcademicoSeleccionado] = useState<string>('');
+  
+  // Cargar el ciclo academico guardado en sessionStorage
+  useEffect(() => {
+    const savedCiclo = sessionStorage.getItem('cargaHoraria_cicloAcademicoSeleccionado');
+    if (savedCiclo) {
+      setCicloAcademicoSeleccionado(savedCiclo);
+    }
+  }, []);
+  
+  // Guardar el ciclo academico seleccionado en sessionStorage
+  useEffect(() => {
+    if (cicloAcademicoSeleccionado) {
+      sessionStorage.setItem('cargaHoraria_cicloAcademicoSeleccionado', cicloAcademicoSeleccionado);
+    }
+  }, [cicloAcademicoSeleccionado]);
   const [cargaHoraria, setCargaHoraria] = useState<CargaHoraria[]>([]);
   const [docentes, setDocentes] = useState<Docente[]>([]);
   const [totalCursosPorCiclo, setTotalCursosPorCiclo] = useState<Record<number, number>>({});
@@ -568,7 +583,7 @@ export default function CargaHorariaPage() {
                                             alignItems: 'center',
                                             gap: '6px'
                                           }}
-                                          onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}`)}
+                                          onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
                                         >
                                           <Edit2 size={14} />
                                           Editar
@@ -621,7 +636,7 @@ export default function CargaHorariaPage() {
                                               alignItems: 'center',
                                               gap: '6px'
                                             }}
-                                            onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}`)}
+                                            onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
                                           >
                                             <Edit2 size={14} />
                                             Editar
