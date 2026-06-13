@@ -14,6 +14,7 @@ interface Ciclo {
   fecha_inicio: string;
   fecha_fin: string;
   activo: boolean;
+  estado: string;
   created_at: string;
 }
 
@@ -251,7 +252,7 @@ export default function CiclosPage() {
         c.semestre,
         c.fecha_inicio ? new Date(c.fecha_inicio).toLocaleDateString('es-PE') : '-',
         c.fecha_fin    ? new Date(c.fecha_fin).toLocaleDateString('es-PE')    : '-',
-        c.activo ? 'ACTIVO' : 'INACTIVO',
+        c.estado ? c.estado.toUpperCase() : 'PENDIENTE',
       ]);
 
       autoTable(doc, {
@@ -470,13 +471,19 @@ export default function CiclosPage() {
                   <td className="hide-sm" style={{ fontSize: '12px', color: '#64748b' }}>{c.fecha_inicio?.split('T')[0] || '-'}</td>
                   <td className="hide-sm" style={{ fontSize: '12px', color: '#64748b' }}>{c.fecha_fin?.split('T')[0] || '-'}</td>
                   <td>
-                    <span className={`docentes-status-badge ${c.activo ? 'docentes-status-badge--activo' : 'docentes-status-badge--inactivo'}`}>
-                      {c.activo ? '● Activo' : '○ Inactivo'}
+                    <span className={`docentes-status-badge ${
+                      c.estado === 'activo' ? 'docentes-status-badge--activo' :
+                      c.estado === 'pendiente' ? 'docentes-status-badge--pendiente' :
+                      'docentes-status-badge--inactivo'
+                    }`}>
+                      {c.estado === 'activo' ? '● Activo' :
+                       c.estado === 'pendiente' ? '○ Pendiente' :
+                       '○ Inactivo'}
                     </span>
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                        {!c.activo && (
+                        {c.estado !== 'activo' && (
                           <button
                             className="btn-primary"
                             style={{ padding: '5px 10px', fontSize: '12px' }}
@@ -653,6 +660,11 @@ export default function CiclosPage() {
               <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                 El ciclo <strong>{cicloActual?.nombre}</strong> pasará a ser el ciclo académico actual y el resto quedará inactivo.
               </p>
+              <div style={{ marginTop: '12px', padding: '12px', background: darkMode ? 'rgba(234, 179, 8, 0.1)' : '#fef9c3', borderRadius: '8px', border: `1px solid ${darkMode ? 'rgba(234, 179, 8, 0.3)' : '#fde047'}` }}>
+                <p style={{ margin: 0, color: darkMode ? '#fde047' : '#854d0e', fontSize: '13px', fontWeight: '500', lineHeight: '1.4' }}>
+                  ⚠️ Antes de establecer este ciclo como actual, asegúrate de haber asignado la carga horaria de los docentes en el módulo "Carga horaria".
+                </p>
+              </div>
             </div>
             <div className="modal-footer" style={{ borderTop: 'none', paddingTop: 0, marginTop: '8px' }}>
               <button className="btn-secondary" onClick={() => { setShowActualConfirm(false); setCicloActual(null); }}>Cancelar</button>

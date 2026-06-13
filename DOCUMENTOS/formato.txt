@@ -1,0 +1,86 @@
+CARGA HORARIA - DECLARACIÓN DE CARGA HORARIA ASIGNADA
+
+I. DATOS SOBRE LA SITUACIÓN DEL PROFESOR:
+
+FACULTAD: Ingeniería
+DPTO. ACADÉMICO: Dpto. de Ingeniería de Sistemas
+
+NOMBRE COMPLETO	                CONDICION	CATEGORÍA	MODALIDAD
+SANTOS FERNANDEZ, JUAN PEDRO	NOMBRADO	ASOCIADO	TIEMPO COMPLETO 40 H
+
+1. TRABAJO LECTIVO.- Datos completos y con claridad
+CÓDIGO	NOMBRE DEL CURSO	SECCION	CURSO	Escuela Prof.	Año o Ciclo	Nro Tel. Alumnos	Hrs.Teo/Grupos	Hrs.Pra/Grupos	Hrs.Lab/Grupos	Total Hrs.
+1682	ELABORACION DE PROYECTOS DE TESIS	A	OB	Ingeniería de Sistemas	9	Aprox. 50	h.c. 3 x q 1	h.c. 0 x q 1	h.c. 2 x q 3	9
+1686	INGENIERÍA DE SOFTWARE DE GESTION	A	OB	Ingeniería de Sistemas	7	Aprox. 50	h.c. 1 x q 1	h.c. 3 x q 1	h.c. 2 x q 0	4
+2. PREPARACIÓN Y EVALUACIÓN (Max 50% de Trabajo Lectivo)
+(No se especifican datos en la tabla, solo el encabezado)
+
+3. CONSEJERÍA Y TUTORÍA
+(Como mínimo 01 hora semanal)
+
+60 alumnos, ciclo I, Intr. a la Ing. de Sist.
+
+50 alumnos, ciclo VII, Ing. de Soft. de Gestión
+
+50 alumnos, ciclo IX, Elab. de Proy. de Tesis
+Horas: 7
+
+4. INVESTIGACIÓN
+(Como mínimo 04 y 05 horas semanales, según modalidad)
+
+PICI-2013 - "Implement. del sist. univers. virtual y su impacto en la acreditación, calidad del serv. y la gestión académico-administ. de la UHT"
+Horas: 5
+
+5. CAPACITACIÓN
+(como máximo 05 semanales)
+
+0
+Horas: 0
+
+6. ACTIVIDADES DE GOBIERNO
+
+0
+Horas: 0
+
+7. ACTIVIDADES DE ADMINISTRACIÓN
+
+0
+Horas: 0
+
+8. ASESORÍA DE TESIS, EXÁMENES PROFESIONALES Y EXPERIENCIA PROFESIONAL
+
+Asesoría de tesis, exámenes profesionales y experiencia profesional
+Horas: 2
+
+9. RESPONSABILIDAD SOCIAL UNIVERSITARIA
+(Como máximo 02 horas semanales)
+
+Plan preventivo del covid-19 y su impacto multiplicador en las familias y comunidades de los alumnos de Ingeniería de Sistemas de la UA UHT
+Horas: 2
+
+10. COMITÉS TÉCNICOS Y COMISIONES
+
+0
+Horas: 0
+
+Total Horas: 37
+---------------------------------------------------------------------
+
+esto se hace para cada docente por ciclo académico (2026-I..) , un docente se le puede asiganar uno o varios cursos
+
+
+
+
+
+
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+bien, ahora  vamosa perfeccionar
+Asignar docentes - Ciclo I
+---------------
+
+[buscar docente] [boton_seleccionar]
+tabla 
+Docentes                   Acciones
+Stiven Lopes              Editar  Eliminar
+...

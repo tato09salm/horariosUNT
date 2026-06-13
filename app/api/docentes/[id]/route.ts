@@ -32,10 +32,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const docente = await queryOne(
       `UPDATE docentes SET nombre=$1, apellidos=$2, email=$3, telefono=$4, categoria=$5,
-       condicion=$6, fecha_ingreso=$7, grado_academico=$8, horas_max_semana=$9, activo=$10, updated_at=NOW()
-       WHERE id=$11 RETURNING *`,
+       condicion=$6, fecha_ingreso=$7, grado_academico=$8, horas_max_semana=$9, activo=$10,
+       facultad=$11, dpto_academico=$12, updated_at=NOW()
+       WHERE id=$13 RETURNING *`,
       [nombreUpper, apellidosUpper, body.email, body.telefono, body.categoria,
-       body.condicion, body.fecha_ingreso, body.grado_academico, body.horas_max_semana, body.activo, id]
+       body.condicion, body.fecha_ingreso, body.grado_academico, body.horas_max_semana, body.activo,
+       body.facultad?.toUpperCase(), body.dpto_academico?.toUpperCase(), id]
     );
 
     await registrarAuditoria({

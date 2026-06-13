@@ -14,12 +14,15 @@ interface Docente {
   dni: string; email: string; telefono: string; categoria: string;
   condicion: string; fecha_ingreso: string; grado_academico: string;
   horas_max_semana: number; activo: boolean;
+  facultad: string;
+  dpto_academico: string;
 }
 
 const emptyDocente: Partial<Docente> = {
   nombre: '', apellidos: '', dni: '', email: '', telefono: '',
   categoria: 'auxiliar', condicion: 'contratado', fecha_ingreso: '',
   grado_academico: 'licenciado', horas_max_semana: 20, activo: true,
+  facultad: '', dpto_academico: '',
 };
 
 interface FormErrors {
@@ -602,6 +605,26 @@ export default function DocentesPage() {
                     onChange={e => { const val = e.target.value; campo('horas_max_semana', (val === '' ? '' : parseInt(val)) as any); }}
                   />
                   {errorDe('horas_max_semana') && <span style={{fontSize:'11px',color:'#dc2626',marginTop:3,display:'block'}}>{errorDe('horas_max_semana')}</span>}
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Facultad</label>
+                  <input
+                    style={{...inputStyle(), textTransform:'uppercase'}}
+                    value={editando.facultad||''}
+                    onChange={e => campo('facultad', e.target.value.toUpperCase() as any)}
+                    placeholder="Nombre de la facultad"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Departamento Académico</label>
+                  <input
+                    style={{...inputStyle(), textTransform:'uppercase'}}
+                    value={editando.dpto_academico||''}
+                    onChange={e => campo('dpto_academico', e.target.value.toUpperCase() as any)}
+                    placeholder="Nombre del departamento académico"
+                  />
                 </div>
 
               </div>
