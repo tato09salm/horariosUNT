@@ -314,6 +314,7 @@ export default function CargaHorariaPage() {
           const gruposPra = (curso as any).practica_grupos ?? 1;
           const hrsLab = curso.hrs_lab || 0;
           const gruposLab = curso.laboratorio_grupos ?? 1;
+
           const totalHrs = (hrsTeo * gruposTeo) + (hrsPra * gruposPra) + (hrsLab * gruposLab);
           
           const cursoData = {
