@@ -386,7 +386,6 @@ export default function PublicarPage() {
                 <option value="teoria">Teoría</option>
                 <option value="practica">Práctica</option>
                 <option value="laboratorio">Laboratorio</option>
-                <option value="asesoria">Asesoría</option>
               </select>
             </div>
             <div className="form-group" style={{ margin: 0 }}>

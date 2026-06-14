@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:reset": "powershell -ExecutionPolicy Bypass -File reset-db.ps1",
-    "db:seed": "powershell -ExecutionPolicy Bypass -File seed-db.ps1"
+    "db:reset": "powershell -ExecutionPolicy Bypass -File reset-db-base.ps1",
+    "db:reset:carga": "powershell -ExecutionPolicy Bypass -File reset-db-full.ps1"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

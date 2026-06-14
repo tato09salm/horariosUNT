@@ -81,9 +81,9 @@ export async function GET(req: NextRequest) {
           horas_teoria: c.horas_teoria || c.hrs_teo,
           horas_practica: c.horas_practica || c.hrs_pra,
           horas_laboratorio: c.horas_laboratorio || c.hrs_lab,
-          teoria_grupos: c.teoria_grupos || 1,
-          practica_grupos: c.practica_grupos || 1,
-          laboratorio_grupos: c.laboratorio_grupos || 1
+          teoria_grupos: c.teoria_grupos ?? 1,
+          practica_grupos: c.practica_grupos ?? 1,
+          laboratorio_grupos: c.laboratorio_grupos ?? 1
         }));
       } catch (err) {
         console.error('Error loading courses:', err);

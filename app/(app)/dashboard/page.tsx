@@ -865,7 +865,7 @@ export default function DashboardPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {programaciones.filter((p) => p.estado !== 'cancelado').map((p, idx) => {
               const faseBadge: Record<number, { label: string; color: string; bg: string; url: string }> = {
-                1: { label: 'Fase 1 · Carga', color: darkMode ? '#60a5fa' : '#1d4ed8', bg: darkMode ? 'rgba(59,130,246,0.1)' : '#dbeafe', url: `/horarios/crear` },
+                1: { label: 'Fase 1 · Carga', color: darkMode ? '#60a5fa' : '#1d4ed8', bg: darkMode ? 'rgba(59,130,246,0.1)' : '#dbeafe', url: `/horarios/crear?id=${p.id}` },
                 2: { label: 'Fase 2 · Disponibilidad', color: darkMode ? '#a78bfa' : '#7c3aed', bg: darkMode ? 'rgba(139,92,246,0.1)' : '#ede9fe', url: `/horarios/${p.id}/disponibilidad` },
                 3: { label: 'Fase 3 · Programación CSP', color: darkMode ? '#fbbf24' : '#b45309', bg: darkMode ? 'rgba(251,191,36,0.1)' : '#fef3c7', url: `/horarios/${p.id}/programar` },
                 4: { label: 'Fase 4 · Publicación', color: darkMode ? '#34d399' : '#065f46', bg: darkMode ? 'rgba(16,185,129,0.1)' : '#d1fae5', url: `/horarios/${p.id}/publicar` },
