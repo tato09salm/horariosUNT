@@ -33,6 +33,8 @@ class MallaCurricular extends Sequelize.Model {
     tableName: 'malla_curricular',
     schema: 'public',
     timestamps: true,
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
     indexes: [
       {
         name: "malla_curricular_pkey",

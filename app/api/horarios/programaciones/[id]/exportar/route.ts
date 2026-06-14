@@ -143,7 +143,12 @@ export async function GET(
       docentes: docentesActivos,
       aulas: aulasUsadas,
       ciclos: ciclosActivos,
-      metricas: statsCSP
+      metricas: statsCSP,
+      slots: slots.map((s: any) => ({
+        id: s.id,
+        hora_inicio: s.hora_inicio,
+        hora_fin: s.hora_fin
+      }))
     });
 
   } catch (error: any) {

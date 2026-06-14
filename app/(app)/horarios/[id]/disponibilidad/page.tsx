@@ -24,6 +24,8 @@ export default function DisponibilidadPage() {
   const [prog, setProg] = useState<any>(null);
   const [docentes, setDocentes] = useState<any[]>([]);
   const [slots, setSlots] = useState<any[]>([]);
+  const [restringidos, setRestringidos] = useState<Record<string, string>>({});
+  const [loadedRestringidos, setLoadedRestringidos] = useState(false);
   const [docenteId, setDocenteId] = useState<string>('');
   const [disponibilidad, setDisponibilidad] = useState<Record<string, PrioridadSlot>>({});
   const [loading, setLoading] = useState(true);
@@ -119,16 +121,41 @@ export default function DisponibilidadPage() {
   const cargarDatos = useCallback(async () => {
     setLoading(true);
     try {
-      const [progRes, docRes, dashRes] = await Promise.all([
+      const [progRes, docRes, dashRes, configRes] = await Promise.all([
         fetch(`/api/horarios/programaciones/${progId}`).then(r => r.json()),
         fetchProgramacionCursos(progId),
         fetch('/api/dashboard').then(r => r.json()).catch(() => ({ slots: [] })),
+        fetch('/api/configuracion?clave=HORARIOS_RESTRINGIDOS').then(r => r.json()).catch(() => ({ data: null })),
       ]);
 
       const progData = progRes.data;
       setProg(progData);
       setDocentes(docRes.cargaDocentes || []);
-      setSlots(dashRes?.slots || []);
+      const activeSlots = dashRes?.slots || [];
+      setSlots(activeSlots);
+
+      let restDict: Record<string, string> = {};
+      if (progData?.config?.horarios_restringidos) {
+        restDict = progData.config.horarios_restringidos;
+      } else if (configRes.data && configRes.data.valor) {
+        try {
+          const parsed = JSON.parse(configRes.data.valor);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(id => {
+              restDict[id] = 'HORA LIBRE (REFRIGERIO)';
+            });
+          } else if (parsed && typeof parsed === 'object') {
+            restDict = parsed;
+          }
+        } catch(e) {}
+      } else {
+        const foodSlot = activeSlots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
+        if (foodSlot) {
+          restDict[foodSlot.id] = 'HORA LIBRE (REFRIGERIO)';
+        }
+      }
+      setRestringidos(restDict);
+      setLoadedRestringidos(true);
 
       // ── Validaciones de acceso para docentes ──────────────────────────────
       if (isDocente) {
@@ -607,7 +634,8 @@ export default function DisponibilidadPage() {
           <div className="horario-header">Hora</div>
           {DIAS.map(d => <div key={d} className="horario-header">{DIAS_LABEL[d]}</div>)}
           {slots.map((slot) => {
-            if (slot.hora_inicio === '13:00' || slot.hora_inicio === '13:00:00') return null;
+            const isRestringido = loadedRestringidos ? (slot.id in restringidos) : (slot.hora_inicio === '13:00' || slot.hora_inicio === '13:00:00');
+            if (isRestringido) return null;
             return (
               <div key={slot.id} style={{ display: 'contents' }}>
                 <div className="horario-time">{slot.hora_inicio}<br />{slot.hora_fin}</div>

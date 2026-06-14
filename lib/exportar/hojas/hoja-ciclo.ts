@@ -14,6 +14,7 @@ export async function generarHojaCiclo(
     subtitulo: `${cursosCiclo} Cursos Programados · Semestre ${romanizar(ciclo)}`,
     bloques: bloquesCiclo,
     mapaColores: datos.mapaColores,
-    tabColor: colorPorCiclo(ciclo)
+    tabColor: colorPorCiclo(ciclo),
+    slots: datos.slots || []
   });
 }

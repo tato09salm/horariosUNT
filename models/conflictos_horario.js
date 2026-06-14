@@ -51,6 +51,8 @@ class ConflictosHorario extends Sequelize.Model {
     tableName: 'conflictos_horario',
     schema: 'public',
     timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: false,
     indexes: [
       {
         name: "conflictos_horario_pkey",

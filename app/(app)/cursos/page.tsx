@@ -59,18 +59,50 @@ export default function CursosPage() {
   const [saving,        setSaving]        = useState(false);
   const [toast,         setToast]         = useState<{type:string; text:string}|null>(null);
 
+  const [curriculas, setCurriculas] = useState<any[]>([]);
+  const [selectedCurricula, setSelectedCurricula] = useState<string>('');
+  const [loadedCurriculas, setLoadedCurriculas] = useState(false);
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(t);
   }, [toast]);
 
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/configuracion?clave=ID_MALLA_CURRICULAR_ACTUAL').then(r => r.json()),
+      fetch('/api/curriculas?manage=true').then(r => r.json())
+    ]).then(([configRes, currRes]) => {
+      const allCurriculas = currRes.data || [];
+      const filtered = allCurriculas.filter((c: any) => c.estado === 'ACTIVA' || c.estado === 'EN_EXTINCION');
+      setCurriculas(filtered);
+
+      const mallaActualId = configRes.data?.valor || '';
+      if (mallaActualId) {
+        setSelectedCurricula(mallaActualId);
+      } else if (filtered.length > 0) {
+        setSelectedCurricula(filtered[0].id);
+      }
+      setLoadedCurriculas(true);
+      if (filtered.length === 0) {
+        setLoading(false);
+      }
+    }).catch(err => {
+      console.error('Error al cargar currículas/configuración:', err);
+      setLoadedCurriculas(true);
+      setLoading(false);
+    });
+  }, []);
+
   const cargar = useCallback(() => {
+    if (!selectedCurricula) return;
     setLoading(true);
     const q = new URLSearchParams();
     if (buscar)       q.set('buscar', buscar);
     if (filtroCiclo)  q.set('ciclo',  filtroCiclo);
     if (filtroEstado) q.set('activo', filtroEstado);
+    q.set('curricula_id', selectedCurricula);
     q.set('page',  pagina.toString());
     q.set('limit', limit.toString());
     fetch(`/api/cursos?${q}`)
@@ -78,10 +110,18 @@ export default function CursosPage() {
       .then(d => { setCursos(d.data||[]); setTotal(d.total||0); if (d.stats) setStats(d.stats); })
       .catch(() => setToast({ type:'error', text:'Error al cargar cursos. Verifica tu conexión.' }))
       .finally(() => setLoading(false));
-  }, [buscar, filtroCiclo, filtroEstado, pagina]);
+  }, [buscar, filtroCiclo, filtroEstado, pagina, selectedCurricula]);
 
   useEffect(() => { const t = setTimeout(cargar, 400); return () => clearTimeout(t); }, [cargar]);
   useEffect(() => { setPagina(1); }, [buscar, filtroCiclo, filtroEstado]);
+
+  function formatCurriculaSelectLabel(c: any) {
+    const base = `${c.nombre_carrera} (${c.año_curricula}) - ${c.modalidad_estudios}`;
+    if (c.estado === 'EN_EXTINCION') {
+      return `${base} - EN EXTINCIÓN`;
+    }
+    return base;
+  }
 
   useEffect(() => {
     fetch('/api/cursos?reporte=true').then(r=>r.json()).then(d => {
@@ -106,7 +146,11 @@ export default function CursosPage() {
     try {
       const method = form.id ? 'PUT' : 'POST';
       const url    = form.id ? `/api/cursos/${form.id}` : '/api/cursos';
-      const res    = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(form) });
+      const body = {
+        ...form,
+        curricula_id: selectedCurricula
+      };
+      const res    = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
       const data   = await res.json();
       if (!res.ok) throw new Error(data.error);
       setShowModal(false);
@@ -164,6 +208,7 @@ export default function CursosPage() {
       if (buscar)       q.set('buscar', buscar);
       if (filtroCiclo)  q.set('ciclo',  filtroCiclo);
       if (filtroEstado) q.set('activo', filtroEstado);
+      if (selectedCurricula) q.set('curricula_id', selectedCurricula);
       q.set('reporte', 'true');
       const res  = await fetch(`/api/cursos?${q}`);
       const data = await res.json();
@@ -217,6 +262,16 @@ export default function CursosPage() {
   }
 
   const totalPaginas = Math.ceil(total / limit);
+
+  if (loadedCurriculas && curriculas.length === 0) {
+    return (
+      <div className="page-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center' }}>
+        <div style={{ fontSize: '64px', marginBottom: '20px' }}>⚠️</div>
+        <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#ef4444', margin: '0 0 8px' }}>Inaccesible</h1>
+        <p style={{ fontSize: '18px', color: 'var(--text-secondary)', margin: 0 }}>No hay una currícula configurada</p>
+      </div>
+    );
+  }
 
   return (
     <div className="page-container">
@@ -285,7 +340,20 @@ export default function CursosPage() {
 
       {/* Filtros */}
       <div className="card" style={{marginBottom:'16px',padding:'16px'}}>
-        <div style={{display:'flex',gap:'12px',alignItems:'center',width:'100%'}}>
+        <div style={{display:'flex',gap:'12px',alignItems:'center',width:'100%',flexWrap:'wrap'}}>
+
+          <select 
+            className="form-input" 
+            style={{flex:'0 0 280px'}} 
+            value={selectedCurricula} 
+            onChange={e => setSelectedCurricula(e.target.value)}
+          >
+            {curriculas.map(c => (
+              <option key={c.id} value={c.id}>
+                {formatCurriculaSelectLabel(c)}
+              </option>
+            ))}
+          </select>
 
           {/* Buscador */}
           <div style={{position:'relative',flex:'1 1 0',minWidth:0}}>

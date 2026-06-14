@@ -17,6 +17,8 @@ export default function ReportesPage() {
   const [ambienteId, setAmbienteId] = useState('');
   const [asignaciones, setAsignaciones] = useState<any[]>([]);
   const [dashData, setDashData] = useState<any>(null);
+  const [restringidos, setRestringidos] = useState<Record<string, string>>({});
+  const [loadedRestringidos, setLoadedRestringidos] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [exportableProgId, setExportableProgId] = useState<string | null>(null);
@@ -35,7 +37,35 @@ export default function ReportesPage() {
     });
     fetch('/api/docentes').then(r=>r.json()).then(d=>setDocentes(d.data||[]));
     fetch('/api/aulas').then(r=>r.json()).then(d=>setAmbientes(d.data||[]));
-    fetch('/api/dashboard').then(r=>r.json()).then(d=>{ setSlots(d.slots||[]); setDashData(d); });
+    Promise.all([
+      fetch('/api/dashboard').then(r=>r.json()),
+      fetch('/api/configuracion?clave=HORARIOS_RESTRINGIDOS').then(r=>r.json()).catch(() => ({ data: null }))
+    ]).then(([dashRes, configRes]) => {
+      const activeSlots = dashRes?.slots || [];
+      setSlots(activeSlots);
+      setDashData(dashRes);
+      
+      let restDict: Record<string, string> = {};
+      if (configRes.data && configRes.data.valor) {
+        try {
+          const parsed = JSON.parse(configRes.data.valor);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(id => {
+              restDict[id] = 'HORA LIBRE (REFRIGERIO)';
+            });
+          } else if (parsed && typeof parsed === 'object') {
+            restDict = parsed;
+          }
+        } catch(e) {}
+      } else {
+        const foodSlot = activeSlots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
+        if (foodSlot) {
+          restDict[foodSlot.id] = 'HORA LIBRE (REFRIGERIO)';
+        }
+      }
+      setRestringidos(restDict);
+      setLoadedRestringidos(true);
+    });
   }, []);
 
   useEffect(() => {
@@ -69,6 +99,14 @@ export default function ReportesPage() {
       console.log('cicloId:', cicloId);
       console.log('docenteId:', docenteId);
       console.log('ambienteId:', ambienteId);
+
+      // Cargar restringidos desde la programación publicada o la primera
+      const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`).then(r => r.json());
+      const progs = progsRes.data || [];
+      const selectedProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
+      if (selectedProg && selectedProg.config && selectedProg.config.horarios_restringidos) {
+        setRestringidos(selectedProg.config.horarios_restringidos);
+      }
       
       // First try /api/horarios for live data
       let asignacionesData: any[] = [];
@@ -84,11 +122,6 @@ export default function ReportesPage() {
       // If /api/horarios is empty, try programaciones export
       if (asignacionesData.length === 0 && cicloId) {
         console.log('Trying programaciones export...');
-        const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`).then(r => r.json());
-        console.log('progsRes:', progsRes);
-        const progs = progsRes.data || [];
-        console.log('progs:', progs);
-        const selectedProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
         console.log('selectedProg:', selectedProg);
         if (selectedProg) {
           console.log('Fetching export for selectedProg.id:', selectedProg.id);
@@ -413,7 +446,8 @@ export default function ReportesPage() {
         const horaFin = slot.hora_fin.substring(0, 5);
         const fila: any[] = [`${horaIni}\n${horaFin}`];
 
-        const esRefrigerio = slot.hora_inicio.startsWith('13:00');
+        const esRefrigerio = loadedRestringidos ? (slot.id in restringidos) : slot.hora_inicio.startsWith('13:00');
+        const msgRefrigerio = loadedRestringidos ? (restringidos[slot.id] || 'HORA LIBRE (REFRIGERIO)') : 'HORA LIBRE (REFRIGERIO)';
 
         diasSem.forEach((dia, diaIdx) => {
           const spanRestante = spansPendientes.get(diaIdx) || 0;
@@ -429,7 +463,7 @@ export default function ReportesPage() {
           
           // Si es refrigerio PERO no hay clases programadas, ponemos hora libre
           if (esRefrigerio && bloquesEnInicio.length === 0) {
-            fila.push('HORA LIBRE (REFRIGERIO)');
+            fila.push(msgRefrigerio);
             return;
           }
 
@@ -778,7 +812,8 @@ export default function ReportesPage() {
                 : rawCell && typeof rawCell === 'object' && 'content' in rawCell
                   ? String(rawCell.content ?? '')
                   : '';
-              if (textContent === 'HORA LIBRE (REFRIGERIO)') {
+              const isRestringidoMsg = Object.values(restringidos).includes(textContent);
+              if (isRestringidoMsg || textContent === 'HORA LIBRE (REFRIGERIO)') {
                 data.cell.styles.fillColor = [241, 245, 249];
                 data.cell.styles.textColor = [100, 116, 139];
                 data.cell.styles.fontStyle = 'italic';

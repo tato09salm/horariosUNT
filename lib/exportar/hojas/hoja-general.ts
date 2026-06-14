@@ -10,6 +10,7 @@ export async function generarHojaGeneral(
     subtitulo: `${datos.programacion.nombre || datos.programacion.codigo} — Periodo Académico`,
     bloques: datos.bloquesAgrupados,
     mapaColores: datos.mapaColores,
-    tabColor: 'FF6366F1'
+    tabColor: 'FF6366F1',
+    slots: datos.slots || []
   });
 }
