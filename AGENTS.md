@@ -358,7 +358,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=horariosUNT
 DB_USER=postgres
-DB_PASSWORD=sa
+DB_PASSWORD=12345
 JWT_SECRET=jwt-horarios-unt-2024
 ```
 

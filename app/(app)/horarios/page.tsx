@@ -55,6 +55,11 @@ export default function HorariosPage() {
   const [tempRestringidos, setTempRestringidos] = useState<Record<string, string>>({});
   const [guardandoConfig, setGuardandoConfig] = useState(false);
 
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<any>(null);
+  const [importProgId, setImportProgId] = useState('');
+
   useEffect(() => {
     if (showConfigRestringidos) {
       setTempRestringidos(restringidosConfig);
@@ -216,8 +221,6 @@ export default function HorariosPage() {
       setMsg({ type: 'success', text: `Programación "${data.data.nombre}" creada correctamente` });
       setShowCrear(false);
       cargarProgramaciones();
-      // Redirigir al wizard
-      window.location.href = `/horarios/crear?id=${data.data.id}`;
     } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
     finally { setCreando(false); }
   }
@@ -246,6 +249,29 @@ export default function HorariosPage() {
       setRestaurandoId(null);
       cargarProgramaciones();
     } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
+  }
+
+  async function importarCargaHoraria(programacionId: string) {
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const res = await fetch('/api/horarios/importar-carga-horaria', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ programacion_id: programacionId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setImportResult({ type: 'success', text: data.message });
+      setMsg({ type: 'success', text: data.message });
+      setShowImportModal(false);
+      cargarProgramaciones();
+    } catch (e: any) {
+      setImportResult({ type: 'error', text: e.message });
+      setMsg({ type: 'error', text: e.message });
+    } finally {
+      setImporting(false);
+    }
   }
 
   function getCell(dia: string, slotId: string) {
@@ -312,10 +338,17 @@ export default function HorariosPage() {
             >📅 Horario General</button>
           </div>
           {vista === 'programaciones' && canEdit && (
-            <button className="btn-primary" onClick={() => setShowCrear(true)}>
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-              Nueva programación
-            </button>
+            <>
+              <button className="btn-primary" onClick={() => setShowImportModal(true)}
+                style={{background:'#059669',borderColor:'#047857'}}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+                Importar de Carga Horaria
+              </button>
+              <button className="btn-primary" onClick={() => setShowCrear(true)}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                Nueva programación
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -795,6 +828,75 @@ export default function HorariosPage() {
               >
                 {guardandoConfig ? 'Guardando...' : 'Guardar Cambios'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+
+      {/* Modal: Importar de Carga Horaria */}
+      {showImportModal && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && (setShowImportModal(false), setImportResult(null))}>
+          <div className="modal" style={{maxWidth:'520px'}}>
+            <div className="modal-header">
+              <h2 style={{fontSize:'18px',fontWeight:'600',margin:0}}>Importar de Carga Horaria</h2>
+              <button onClick={() => { setShowImportModal(false); setImportResult(null); }} style={{background:'none',border:'none',cursor:'pointer',color:'#64748b',padding:'4px'}}>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              {importResult?.type === 'success' ? (
+                <div className="alert alert-success" style={{marginBottom:'0'}}>
+                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{flexShrink:0}}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <span>{importResult.text}</span>
+                </div>
+              ) : (
+                <>
+                  <div className="alert alert-info" style={{marginBottom:'16px'}}>
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{flexShrink:0}}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span>Se importarán los datos de Carga Horaria a la programación seleccionada. Se crearán grupos y asignaciones de cursos automáticamente.</span>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Programación destino</label>
+                    <select className="form-input" value={importProgId} onChange={e => setImportProgId(e.target.value)}>
+                      <option value="" disabled>Seleccione una programación...</option>
+                      {programaciones.filter(p => p.estado !== 'cancelado' && p.estado !== 'publicado').map(p => (
+                        <option key={p.id} value={p.id}>{p.nombre} — Fase {p.fase} ({p.ciclo_nombre})</option>
+                      ))}
+                    </select>
+                  </div>
+                  {programaciones.filter(p => p.estado !== 'cancelado' && p.estado !== 'publicado').length === 0 && (
+                    <div className="alert alert-warning">
+                      No hay programaciones activas disponibles para importar. Cree una nueva programación primero.
+                    </div>
+                  )}
+                  {importResult?.type === 'error' && (
+                    <div className="alert alert-error" style={{marginTop:'12px'}}>{importResult.text}</div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="modal-footer">
+              {importResult?.type === 'success' ? (
+                <button className="btn-primary" onClick={() => { setShowImportModal(false); setImportResult(null); }}>Cerrar</button>
+              ) : (
+                <>
+                  <button className="btn-secondary" onClick={() => { setShowImportModal(false); setImportResult(null); }}>Cancelar</button>
+                  <button className="btn-primary" style={{background:'#059669',borderColor:'#047857'}}
+                    disabled={importing || !importProgId}
+                    onClick={() => {
+                      if (importProgId) importarCargaHoraria(importProgId);
+                      else setImportResult({ type: 'error', text: 'Seleccione una programación destino' });
+                    }}>
+                    {importing ? (
+                      <><span style={{display:'inline-block',width:'14px',height:'14px',border:'2px solid rgba(255,255,255,0.3)',borderTop:'2px solid white',borderRadius:'50%',animation:'spin 0.6s linear infinite'}}></span> Importando...</>
+                    ) : (
+                      <><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg> Importar</>
+                    )}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

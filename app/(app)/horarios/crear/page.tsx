@@ -236,7 +236,6 @@ export default function CrearHorarioPage() {
       horas_teoria: 0,
       horas_practica: 0,
       horas_laboratorio: 0,
-      horas_consejeria: 0,
       isTemp: true
     };
 
@@ -276,8 +275,7 @@ export default function CrearHorarioPage() {
           pc_id,
           horas_teoria: updatedAsig.horas_teoria,
           horas_practica: updatedAsig.horas_practica,
-          horas_laboratorio: updatedAsig.horas_laboratorio,
-          horas_consejeria: updatedAsig.horas_consejeria
+          horas_laboratorio: updatedAsig.horas_laboratorio
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
@@ -466,8 +464,7 @@ export default function CrearHorarioPage() {
           row.docente_dni || '',
           horasT,
           horasP,
-          horasL,
-          row.horas_consejeria || 0
+          horasL
         ];
         csvRows.push(csvRow.join(','));
       });
@@ -548,7 +545,7 @@ export default function CrearHorarioPage() {
     });
     asignaciones.forEach(a => {
       if (a.docente_id && map[a.docente_id]) {
-        map[a.docente_id].ocupada += (a.horas_teoria || 0) + (a.horas_practica || 0) + (a.horas_laboratorio || 0) + (a.horas_consejeria || 0);
+        map[a.docente_id].ocupada += (a.horas_teoria || 0) + (a.horas_practica || 0) + (a.horas_laboratorio || 0);
       }
     });
     return map;
@@ -854,7 +851,6 @@ export default function CrearHorarioPage() {
                             <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)' }}>{curso.horas_teoria}</td>
                             <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)' }}>{curso.horas_practica}</td>
                             <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)' }}>{curso.horas_laboratorio || 0}</td>
-                            <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)' }}>-</td>
                           </tr>
 
                           {/* Activities & Group Rows */}
@@ -888,8 +884,6 @@ export default function CrearHorarioPage() {
                                     const sumT = asigs.reduce((s, a) => s + (a.horas_teoria || 0), 0);
                                     const sumP = asigs.reduce((s, a) => s + (a.horas_practica || 0), 0);
                                     const sumL = asigs.reduce((s, a) => s + (a.horas_laboratorio || 0), 0);
-                                    const sumC = asigs.reduce((s, a) => s + (a.horas_consejeria || 0), 0);
-
                                     return (
                                       <React.Fragment key={grupo.id}>
                                         <tr style={{ background: 'var(--bg-card)' }}>
@@ -918,9 +912,6 @@ export default function CrearHorarioPage() {
                                           <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: 'var(--text-secondary)', borderTop: '1px solid var(--border-color)' }}>
                                             {sumL}/{curso.horas_laboratorio || 0}
                                           </td>
-                                          <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: 'var(--text-secondary)', borderTop: '1px solid var(--border-color)' }}>
-                                            {sumC}/-
-                                          </td>
                                         </tr>
 
                                         {/* Teachers */}
@@ -944,7 +935,6 @@ export default function CrearHorarioPage() {
                                               <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid var(--border-color)', background: grupo.tipo_actividad !== 'teoria' ? 'var(--bg-card-hover)' : 'var(--bg-card)', color: 'var(--text-primary)' }} disabled={grupo.tipo_actividad !== 'teoria'} value={asig.horas_teoria} onChange={e => updateHoras(asig.id, 'horas_teoria', parseInt(e.target.value) || 0)} /></td>
                                               <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid var(--border-color)', background: grupo.tipo_actividad !== 'practica' ? 'var(--bg-card-hover)' : 'var(--bg-card)', color: 'var(--text-primary)' }} disabled={grupo.tipo_actividad !== 'practica'} value={asig.horas_practica} onChange={e => updateHoras(asig.id, 'horas_practica', parseInt(e.target.value) || 0)} /></td>
                                               <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid var(--border-color)', background: grupo.tipo_actividad !== 'laboratorio' ? 'var(--bg-card-hover)' : 'var(--bg-card)', color: 'var(--text-primary)' }} disabled={grupo.tipo_actividad !== 'laboratorio'} value={asig.horas_laboratorio} onChange={e => updateHoras(asig.id, 'horas_laboratorio', parseInt(e.target.value) || 0)} /></td>
-                                              <td style={{ padding: '4px 8px' }}><input type="number" min="0" className="form-input" style={{ padding: '4px', textAlign: 'center', width: '100%', fontSize: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)' }} value={asig.horas_consejeria || 0} onChange={e => updateHoras(asig.id, 'horas_consejeria', parseInt(e.target.value) || 0)} /></td>
                                             </tr>
                                           );
                                         })}

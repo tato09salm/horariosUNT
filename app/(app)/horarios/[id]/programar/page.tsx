@@ -29,7 +29,7 @@ function formatearDescripcion(desc: string): string {
     .replace(/\bteoria\b/gi, 'Teoría')
     .replace(/\bpractica\b/gi, 'Práctica')
     .replace(/\blaboratorio\b/gi, 'Laboratorio')
-    .replace(/\basesoria\b/gi, 'Asesoría/Consejería')
+
     .replace(/Docente ocupado/gi, 'El docente está ocupado en')
     .replace(/no hay bloque de (\d+)h de/gi, 'no se encontró un horario libre continuo de $1 horas para la sesión de')
     .replace(/no hay bloque de (\d+)h/gi, 'no se encontró un horario libre continuo de $1 horas')
@@ -385,6 +385,10 @@ export default function ProgramarPage() {
   };
 
   const avanzarFase = async () => {
+    if (!cspStats) {
+      setMsg({ type: 'error', text: 'Debes ejecutar el motor de programación (CSP) antes de avanzar a la Fase 4.' });
+      return;
+    }
     if (conflictos.length > 0 && !window.confirm('Hay conflictos sin resolver. ¿Estás seguro que quieres avanzar?')) {
       return;
     }
@@ -425,7 +429,7 @@ export default function ProgramarPage() {
   const asignacionesVisibles = useMemo(() => {
     if (docentesConCarga.size === 0) return asignaciones;
     return asignaciones.filter(
-      a => a.tipo === 'asesoria' || !a.docente_id || docentesConCarga.has(a.docente_id)
+      a => !a.docente_id || docentesConCarga.has(a.docente_id)
     );
   }, [asignaciones, docentesConCarga]);
 
@@ -493,7 +497,7 @@ export default function ProgramarPage() {
             <span>Asignados: <b>{cspStats.asignados}/{cspStats.total_bloques}</b></span>
             <span>P1 (preferida): <b style={{ color: '#059669' }}>{cspStats.prioridad_alta}</b></span>
             <span>P2 (aceptable): <b style={{ color: '#ca8a04' }}>{cspStats.prioridad_baja}</b></span>
-            <span>Asesorías: <b>{cspStats.asesorias_asignadas}</b></span>
+
             {cspStats.bloques_continuos != null && (
               <span>Bloques continuos: <b>{cspStats.bloques_continuos}</b></span>
             )}
@@ -696,12 +700,7 @@ export default function ProgramarPage() {
                                       <span style={{ flex: 1, fontWeight: '700', color: 'var(--text-primary)', fontSize: '12px' }}>Total de horas de clase</span>
                                       <span style={{ fontSize: '13px', fontWeight: '800', color: '#93c5fd' }}>{doc.horas_cursos}h</span>
                                     </div>
-                                    {/*
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(99,102,241,0.12)', borderRadius: '8px', padding: '10px 14px', border: '1px solid rgba(99,102,241,0.25)' }}>
-                                      <span style={{ flex: 1, color: '#c7d2fe', fontSize: '12px' }}>+ 1 hora de asesoría/consejería obligatoria</span>
-                                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#c7d2fe' }}>{doc.horas_requeridas}h total requerido</span>
-                                    </div>
-                                    */}
+
                                     {doc.horas_faltantes > 0 && (
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(239,68,68,0.12)', borderRadius: '8px', padding: '12px 14px', border: '1px solid rgba(248,113,113,0.35)', marginTop: '4px' }}>
                                         <span style={{ fontSize: '16px' }}>⚠️</span>
@@ -858,7 +857,7 @@ export default function ProgramarPage() {
                             {/* Mini stats row */}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '10px' }}>
                               {[
-                                { label: 'Horas de cursos', value: `${docDiag.horas_cursos}h`, sub: '+1h asesoría', color: '#1a3a5c', bg: '#eff6ff' },
+                                { label: 'Horas de cursos', value: `${docDiag.horas_cursos}h`, sub: '', color: '#1a3a5c', bg: '#eff6ff' },
                                 { label: 'Requerido total', value: `${hReq}h`, sub: 'motor CSP global', color: '#0f172a', bg: '#f1f5f9', bold: true },
                                 { label: 'Bloque para este curso', value: `${bloqueSesion}h`, sub: 'continuas / consecutivas', color: '#7c3aed', bg: '#ede9fe', bold: true },
                                 { label: 'Disponibles ahora', value: `${hDisp}h`, sub: `${docDiag.dias_marcados} días marcados`, color: hFaltantes > 0 ? '#dc2626' : '#059669', bg: hFaltantes > 0 ? '#fef2f2' : '#f0fdf4' },

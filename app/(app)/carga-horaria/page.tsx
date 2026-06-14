@@ -309,11 +309,11 @@ export default function CargaHorariaPage() {
       if (ch.cursos && ch.cursos.length > 0) {
         ch.cursos.forEach(curso => {
           const hrsTeo = curso.hrs_teo || 0;
-          const gruposTeo = (curso as any).teoria_grupos || 1;
+          const gruposTeo = (curso as any).teoria_grupos ?? 1;
           const hrsPra = curso.hrs_pra || 0;
-          const gruposPra = (curso as any).practica_grupos || 1;
+          const gruposPra = (curso as any).practica_grupos ?? 1;
           const hrsLab = curso.hrs_lab || 0;
-          const gruposLab = curso.laboratorio_grupos || 1;
+          const gruposLab = curso.laboratorio_grupos ?? 1;
           const totalHrs = (hrsTeo * gruposTeo) + (hrsPra * gruposPra) + (hrsLab * gruposLab);
           
           const cursoData = {
@@ -629,14 +629,20 @@ export default function CargaHorariaPage() {
     cargasDocente.forEach(ch => {
       if (ch.cursos && ch.cursos.length > 0) {
         ch.cursos.forEach((curso: any) => {
+          const ht = curso.hrs_teo || 0;
+          const hp = curso.hrs_pra || 0;
+          const hl = curso.hrs_lab || 0;
+          const tG = (curso as any).teoria_grupos ?? 1;
+          const pG = (curso as any).practica_grupos ?? 1;
+          const lG = (curso as any).laboratorio_grupos ?? 1;
           cursosDocente.push({
             codigo: curso.curso_codigo || '',
             nombre: curso.curso_nombre || curso.nombre,
             seccion: curso.seccion,
-            hrsTeo: curso.hrs_teo || 0,
-            hrsPra: curso.hrs_pra || 0,
-            hrsLab: curso.hrs_lab || 0,
-            total: (curso.hrs_teo || 0) + (curso.hrs_pra || 0) + (curso.hrs_lab || 0)
+            hrsTeo: ht,
+            hrsPra: hp,
+            hrsLab: hl,
+            total: (ht * tG) + (hp * pG) + (hl * lG)
           });
         });
       }
@@ -737,7 +743,10 @@ export default function CargaHorariaPage() {
           const ht = cAny.hrs_teo || 0;
           const hp = cAny.hrs_pra || 0;
           const hl = cAny.hrs_lab || 0;
-          const sum = cAny.total_horas || cAny.total_hrs || (ht + hp + hl);
+          const tG = cAny.teoria_grupos ?? 1;
+          const pG = cAny.practica_grupos ?? 1;
+          const lG = cAny.laboratorio_grupos ?? 1;
+          const sum = (ht * tG) + (hp * pG) + (hl * lG);
           totalLectiva += sum;
           chlRows.push([
             { content: 'NO DEFINIDO', styles: { ...cellStyle, halign: 'center' as const } },
