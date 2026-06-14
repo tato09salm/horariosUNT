@@ -44,6 +44,7 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
   const [cursosSeleccionados, setCursosSeleccionados] = useState<CargaHorariaCurso[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -90,8 +91,8 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
         {
           curso_id: curso.id,
           seccion: 'A',
-          escuela: 'Ingeniería de Sistemas',
-          num_alumnos: 30,
+          escuela: 'Ing. Sistemas',
+          num_alumnos: 40,
           hrs_teo: curso.horas_teoria || 0,
           hrs_pra: curso.horas_practica || 0,
           hrs_lab: 0,
@@ -109,7 +110,14 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
   // Update curso
   const updateCurso = (index: number, field: keyof CargaHorariaCurso, value: any) => {
     const updated = [...cursosSeleccionados];
-    updated[index] = { ...updated[index], [field]: value };
+    let processedValue = value;
+    if (['num_alumnos', 'hrs_teo', 'hrs_pra', 'hrs_lab'].includes(field)) {
+      const numValue = typeof value === 'string' ? parseInt(value) : value;
+      if (isNaN(numValue) || numValue < 0) {
+        processedValue = 0;
+      }
+    }
+    updated[index] = { ...updated[index], [field]: processedValue };
     // Recalculate total hours
     if (['hrs_teo', 'hrs_pra', 'hrs_lab'].includes(field)) {
       updated[index].total_hrs = 
@@ -122,21 +130,44 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
 
   // Save
   const handleSave = async () => {
+    if (!formData.modalidad) {
+      setAlertMessage('Por favor seleccione una modalidad');
+      return;
+    }
+
+    if (cursosSeleccionados.length === 0) {
+      setAlertMessage('Por favor agregue al menos un curso');
+      return;
+    }
+
+    // First calculate total horas
+    const totalHoras = 
+      cursosSeleccionados.reduce((sum, c) => sum + (c.total_hrs || 0), 0) +
+      formData.preparacion.horas +
+      formData.consejeria.horas +
+      formData.investigacion.horas +
+      formData.capacitacion.horas +
+      formData.gobierno.horas +
+      formData.administracion.horas +
+      formData.asesoria.horas +
+      formData.rsu.horas +
+      formData.comites.horas;
+
+    if (totalHoras <= 0) {
+      setAlertMessage('El total de horas debe ser mayor a 0');
+      return;
+    }
+
+    // Check that all cursos have num_alumnos > 0
+    const cursosSinAlumnos = cursosSeleccionados.filter(c => c.num_alumnos <= 0);
+    if (cursosSinAlumnos.length > 0) {
+      setAlertMessage('Todos los cursos deben tener al menos 1 alumno');
+      return;
+    }
+
     setSaving(true);
     try {
       // First create the carga horaria
-      const totalHoras = 
-        cursosSeleccionados.reduce((sum, c) => sum + (c.total_hrs || 0), 0) +
-        formData.preparacion.horas +
-        formData.consejeria.horas +
-        formData.investigacion.horas +
-        formData.capacitacion.horas +
-        formData.gobierno.horas +
-        formData.administracion.horas +
-        formData.asesoria.horas +
-        formData.rsu.horas +
-        formData.comites.horas;
-
       const cargaRes = await fetch('/api/carga-horaria', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -389,8 +420,10 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
                         <td>
                           <input
                             type="number"
+                            min="0"
                             value={cursoSel.num_alumnos}
                             onChange={e => updateCurso(index, 'num_alumnos', parseInt(e.target.value))}
+                            onWheel={(e) => e.preventDefault()}
                             style={{
                               width: '70px',
                               padding: '6px',
@@ -403,8 +436,10 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
                         <td>
                           <input
                             type="number"
+                            min="0"
                             value={cursoSel.hrs_teo}
                             onChange={e => updateCurso(index, 'hrs_teo', parseInt(e.target.value))}
+                            onWheel={(e) => e.preventDefault()}
                             style={{
                               width: '60px',
                               padding: '6px',
@@ -417,8 +452,10 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
                         <td>
                           <input
                             type="number"
+                            min="0"
                             value={cursoSel.hrs_pra}
                             onChange={e => updateCurso(index, 'hrs_pra', parseInt(e.target.value))}
+                            onWheel={(e) => e.preventDefault()}
                             style={{
                               width: '60px',
                               padding: '6px',
@@ -431,8 +468,10 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
                         <td>
                           <input
                             type="number"
+                            min="0"
                             value={cursoSel.hrs_lab}
                             onChange={e => updateCurso(index, 'hrs_lab', parseInt(e.target.value))}
+                            onWheel={(e) => e.preventDefault()}
                             style={{
                               width: '60px',
                               padding: '6px',
@@ -479,11 +518,17 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
               </label>
               <input
                 type="number"
+                min="0"
                 value={formData.preparacion.horas}
-                onChange={e => setFormData({
-                  ...formData,
-                  preparacion: { ...formData.preparacion, horas: parseInt(e.target.value) || 0 }
-                })}
+                onChange={e => {
+                  let val = parseInt(e.target.value);
+                  if (isNaN(val) || val < 0) val = 0;
+                  setFormData({
+                    ...formData,
+                    preparacion: { ...formData.preparacion, horas: val }
+                  });
+                }}
+                onWheel={(e) => e.preventDefault()}
                 className="form-input"
               />
             </div>
@@ -516,11 +561,17 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
               </label>
               <input
                 type="number"
+                min="0"
                 value={formData.consejeria.horas}
-                onChange={e => setFormData({
-                  ...formData,
-                  consejeria: { ...formData.consejeria, horas: parseInt(e.target.value) || 0 }
-                })}
+                onChange={e => {
+                  let val = parseInt(e.target.value);
+                  if (isNaN(val) || val < 0) val = 0;
+                  setFormData({
+                    ...formData,
+                    consejeria: { ...formData.consejeria, horas: val }
+                  });
+                }}
+                onWheel={(e) => e.preventDefault()}
                 className="form-input"
               />
             </div>
@@ -553,11 +604,17 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
               </label>
               <input
                 type="number"
+                min="0"
                 value={formData.investigacion.horas}
-                onChange={e => setFormData({
-                  ...formData,
-                  investigacion: { ...formData.investigacion, horas: parseInt(e.target.value) || 0 }
-                })}
+                onChange={e => {
+                  let val = parseInt(e.target.value);
+                  if (isNaN(val) || val < 0) val = 0;
+                  setFormData({
+                    ...formData,
+                    investigacion: { ...formData.investigacion, horas: val }
+                  });
+                }}
+                onWheel={(e) => e.preventDefault()}
                 className="form-input"
               />
             </div>
@@ -590,11 +647,17 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
               </label>
               <input
                 type="number"
+                min="0"
                 value={formData.capacitacion.horas}
-                onChange={e => setFormData({
-                  ...formData,
-                  capacitacion: { ...formData.capacitacion, horas: parseInt(e.target.value) || 0 }
-                })}
+                onChange={e => {
+                  let val = parseInt(e.target.value);
+                  if (isNaN(val) || val < 0) val = 0;
+                  setFormData({
+                    ...formData,
+                    capacitacion: { ...formData.capacitacion, horas: val }
+                  });
+                }}
+                onWheel={(e) => e.preventDefault()}
                 className="form-input"
               />
             </div>
@@ -627,11 +690,17 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
               </label>
               <input
                 type="number"
+                min="0"
                 value={formData.gobierno.horas}
-                onChange={e => setFormData({
-                  ...formData,
-                  gobierno: { ...formData.gobierno, horas: parseInt(e.target.value) || 0 }
-                })}
+                onChange={e => {
+                  let val = parseInt(e.target.value);
+                  if (isNaN(val) || val < 0) val = 0;
+                  setFormData({
+                    ...formData,
+                    gobierno: { ...formData.gobierno, horas: val }
+                  });
+                }}
+                onWheel={(e) => e.preventDefault()}
                 className="form-input"
               />
             </div>
@@ -664,11 +733,17 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
               </label>
               <input
                 type="number"
+                min="0"
                 value={formData.administracion.horas}
-                onChange={e => setFormData({
-                  ...formData,
-                  administracion: { ...formData.administracion, horas: parseInt(e.target.value) || 0 }
-                })}
+                onChange={e => {
+                  let val = parseInt(e.target.value);
+                  if (isNaN(val) || val < 0) val = 0;
+                  setFormData({
+                    ...formData,
+                    administracion: { ...formData.administracion, horas: val }
+                  });
+                }}
+                onWheel={(e) => e.preventDefault()}
                 className="form-input"
               />
             </div>
@@ -701,11 +776,17 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
               </label>
               <input
                 type="number"
+                min="0"
                 value={formData.asesoria.horas}
-                onChange={e => setFormData({
-                  ...formData,
-                  asesoria: { ...formData.asesoria, horas: parseInt(e.target.value) || 0 }
-                })}
+                onChange={e => {
+                  let val = parseInt(e.target.value);
+                  if (isNaN(val) || val < 0) val = 0;
+                  setFormData({
+                    ...formData,
+                    asesoria: { ...formData.asesoria, horas: val }
+                  });
+                }}
+                onWheel={(e) => e.preventDefault()}
                 className="form-input"
               />
             </div>
@@ -738,11 +819,17 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
               </label>
               <input
                 type="number"
+                min="0"
                 value={formData.rsu.horas}
-                onChange={e => setFormData({
-                  ...formData,
-                  rsu: { ...formData.rsu, horas: parseInt(e.target.value) || 0 }
-                })}
+                onChange={e => {
+                  let val = parseInt(e.target.value);
+                  if (isNaN(val) || val < 0) val = 0;
+                  setFormData({
+                    ...formData,
+                    rsu: { ...formData.rsu, horas: val }
+                  });
+                }}
+                onWheel={(e) => e.preventDefault()}
                 className="form-input"
               />
             </div>
@@ -775,11 +862,17 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
               </label>
               <input
                 type="number"
+                min="0"
                 value={formData.comites.horas}
-                onChange={e => setFormData({
-                  ...formData,
-                  comites: { ...formData.comites, horas: parseInt(e.target.value) || 0 }
-                })}
+                onChange={e => {
+                  let val = parseInt(e.target.value);
+                  if (isNaN(val) || val < 0) val = 0;
+                  setFormData({
+                    ...formData,
+                    comites: { ...formData.comites, horas: val }
+                  });
+                }}
+                onWheel={(e) => e.preventDefault()}
                 className="form-input"
               />
             </div>
@@ -839,6 +932,87 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
             {saving ? 'Guardando...' : 'Guardar Carga Horaria'}
           </button>
         </div>
+
+      {/* Custom Alert Modal */}
+      {alertMessage && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '24px',
+            borderRadius: '12px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+            maxWidth: '400px',
+            width: '90%'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              marginBottom: '16px'
+            }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                backgroundColor: '#fee2e2',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#dc2626',
+                fontSize: '20px',
+                fontWeight: 'bold'
+              }}>
+                !
+              </div>
+              <h3 style={{
+                margin: 0,
+                fontSize: '18px',
+                fontWeight: '600',
+                color: '#111827'
+              }}>
+                Atención
+              </h3>
+            </div>
+            <p style={{
+              margin: 0,
+              marginBottom: '20px',
+              fontSize: '14px',
+              color: '#4b5563',
+              lineHeight: '1.5'
+            }}>
+              {alertMessage}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                style={{
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                onClick={() => setAlertMessage(null)}
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );

@@ -79,6 +79,7 @@ export default function NuevaCargaHorariaPage() {
   const initialCicloAcademico = searchParams.get('cicloAcademico');
   const initialDocenteId = searchParams.get('docenteId');
   const [cicloAcademicoSeleccionado, setCicloAcademicoSeleccionado] = useState<string>(initialCicloAcademico || '');
+  const [ciclosAcademicos, setCiclosAcademicos] = useState<any[]>([]);
   
   // Initial state for secciones (each with 1 default item)
   const initialSecciones: Secciones = {
@@ -116,36 +117,41 @@ export default function NuevaCargaHorariaPage() {
     curso_id: '',
     codigo: '',
     nombre: '',
-    seccion: '',
+    seccion: 'A',
     condicionCurso: 'OB',
     curso: '',
-    escuela: '',
+    escuela: 'Ing. Sistemas',
     anioCiclo: '',
-    numeroAlumnos: '',
-    teoriaHoras: '',
+    numeroAlumnos: '40',
+    teoriaHoras: '0',
     teoriaGrupos: '1',
-    practicaHoras: '',
+    practicaHoras: '0',
     practicaGrupos: '1',
-    laboratorioHoras: '',
+    laboratorioHoras: '0',
     laboratorioGrupos: '1',
-    totalHoras: '',
+    totalHoras: '0',
   });
   
   // Docentes seleccionados (for multiple docentes)
   const [docentesSeleccionados, setDocentesSeleccionados] = useState<DocenteSeleccionado[]>([]);
   
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  
   // Load docentes and cursos
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [docentesRes, cursosRes] = await Promise.all([
+        const [docentesRes, cursosRes, ciclosRes] = await Promise.all([
           fetch('/api/docentes?limit=1000'),
-          fetch('/api/cursos?reporte=true')
+          fetch('/api/cursos?reporte=true'),
+          fetch('/api/ciclos?reporte=true')
         ]);
         const docentesData = await docentesRes.json();
         const cursosData = await cursosRes.json();
+        const ciclosData = await ciclosRes.json();
         setDocentes(docentesData.data || []);
         setCursos(cursosData.data || []);
+        setCiclosAcademicos(ciclosData.data || []);
       } catch (e) {
         console.error('Error loading data:', e);
       } finally {
@@ -191,20 +197,23 @@ export default function NuevaCargaHorariaPage() {
         const res = await fetch(`/api/carga-horaria?${params}`);
         const data = await res.json();
         console.log('📄 Carga horaria from server:', data);
-        if (data.data && data.data.length > 0) {
-          // Combine all carga horaria entries into one
-          const allCursos: any[] = [];
-          let combinedCh: any = null;
-          
-          for (const ch of data.data) {
-            if (!combinedCh) {
-              combinedCh = ch;
+        console.log('📄 Carga horaria from server:', data);
+          if (data.data && data.data.length > 0) {
+            // Combine all carga horaria entries into one
+            const allCursos: any[] = [];
+            let combinedCh: any = null;
+            
+            for (const ch of data.data) {
+              if (!combinedCh) {
+                combinedCh = ch;
+              }
+              if (ch.cursos) {
+                allCursos.push(...ch.cursos);
+              }
             }
-            if (ch.cursos) {
-              allCursos.push(...ch.cursos);
-            }
-          }
-          
+            
+            console.log('📄 combinedCh:', combinedCh);
+          console.log('📄 combinedCh.asesoria:', combinedCh.asesoria);
           // Convert server data to our state structure
           console.log('📄 ch.facultad:', combinedCh.facultad, 'docente.facultad:', docente.facultad);
           console.log('📄 ch.dpto_academico:', combinedCh.dpto_academico, 'docente.dpto_academico:', docente.dpto_academico);
@@ -213,64 +222,75 @@ export default function NuevaCargaHorariaPage() {
           newModalidad = combinedCh.modalidad || '';
           
           // Convert cursos
-          const convertedCursos: CursoAsignado[] = allCursos.map((curso: any) => ({
-            id: curso.curso_id, // or Date.now().toString(), but use curso_id
-            curso_id: curso.curso_id, // NEW!
-            curso: String(curso.ciclo_plan),
-            codigo: curso.curso_codigo,
-            nombre: curso.curso_nombre,
-            seccion: curso.seccion,
-            escuela: curso.escuela,
-            condicionCurso: 'OB',
-            anioCiclo: '',
-            numeroAlumnos: String(curso.num_alumnos),
-            teoriaHoras: String(curso.horas_teoria),
-            teoriaGrupos: '1',
-            practicaHoras: String(curso.horas_practica),
-            practicaGrupos: '1',
-            laboratorioHoras: String(curso.horas_laboratorio),
-            laboratorioGrupos: '1',
-            totalHoras: String(curso.total_horas)
-          }));
+          const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
+          const convertedCursos: CursoAsignado[] = allCursos.map((curso: any) => {
+            const teoria = curso.horas_teoria ?? 0;
+            const teoriaGrupos = curso.teoria_grupos ?? 1;
+            const practica = curso.horas_practica ?? 0;
+            const practicaGrupos = curso.practica_grupos ?? 1;
+            const laboratorio = curso.horas_laboratorio ?? 0;
+            const laboratorioGrupos = curso.laboratorio_grupos ?? 1;
+            const total = (teoria * teoriaGrupos) + (practica * practicaGrupos) + (laboratorio * laboratorioGrupos);
+            
+            return {
+              id: curso.curso_id, // or Date.now().toString(), but use curso_id
+              curso_id: curso.curso_id, // NEW!
+              curso: String(curso.ciclo_plan),
+              codigo: curso.curso_codigo,
+              nombre: curso.curso_nombre,
+              seccion: curso.seccion,
+              escuela: curso.escuela,
+              condicionCurso: 'OB',
+              anioCiclo: cicloAcademico?.nombre || '',
+              numeroAlumnos: String(curso.num_alumnos ?? 0),
+              teoriaHoras: String(teoria),
+              teoriaGrupos: String(teoriaGrupos),
+              practicaHoras: String(practica),
+              practicaGrupos: String(practicaGrupos),
+              laboratorioHoras: String(laboratorio),
+              laboratorioGrupos: String(laboratorioGrupos),
+              totalHoras: String(total)
+            };
+          });
           newCursosAsignados = convertedCursos;
           
           // Convert secciones
           newSecciones = {
             preparacionEvaluacion: { 
               items: [{ id: 'prep-1', descripcion: combinedCh.preparacion?.descripcion || '' }], 
-              horas: String(combinedCh.preparacion?.horas || 0) 
+              horas: String(combinedCh.preparacion?.horas ?? 0) 
             },
             consejeriaTutoria: { 
               items: [{ id: 'consej-1', descripcion: combinedCh.consejeria?.detalles || '' }], 
-              horas: String(combinedCh.consejeria?.horas || 0) 
+              horas: String(combinedCh.consejeria?.horas ?? 0) 
             },
             investigacion: { 
               items: [{ id: 'invest-1', descripcion: combinedCh.investigacion?.proyecto || '' }], 
-              horas: String(combinedCh.investigacion?.horas || 0) 
+              horas: String(combinedCh.investigacion?.horas ?? 0) 
             },
             capacitacion: { 
               items: [{ id: 'cap-1', descripcion: combinedCh.capacitacion?.detalles || '' }], 
-              horas: String(combinedCh.capacitacion?.horas || 0) 
+              horas: String(combinedCh.capacitacion?.horas ?? 0) 
             },
             gobierno: { 
               items: [{ id: 'gob-1', descripcion: combinedCh.gobierno?.detalles || '' }], 
-              horas: String(combinedCh.gobierno?.horas || 0) 
+              horas: String(combinedCh.gobierno?.horas ?? 0) 
             },
             administracion: { 
               items: [{ id: 'admin-1', descripcion: combinedCh.administracion?.detalles || '' }], 
-              horas: String(combinedCh.administracion?.horas || 0) 
+              horas: String(combinedCh.administracion?.horas ?? 0) 
             },
             asesoriaTesis: { 
               items: [{ id: 'tesis-1', descripcion: combinedCh.asesoria?.detalles || '' }], 
-              horas: String(combinedCh.asesoria?.horas || 0) 
+              horas: String(combinedCh.asesoria?.horas ?? 0) 
             },
             responsabilidadSocial: { 
               items: [{ id: 'rs-1', descripcion: combinedCh.rsu?.plan || '' }], 
-              horas: String(combinedCh.rsu?.horas || 0) 
+              horas: String(combinedCh.rsu?.horas ?? 0) 
             },
             comitesTecnicos: { 
               items: [{ id: 'comites-1', descripcion: combinedCh.comites?.detalles || '' }], 
-              horas: String(combinedCh.comites?.horas || 0) 
+              horas: String(combinedCh.comites?.horas ?? 0) 
             }
           };
         }
@@ -291,10 +311,36 @@ export default function NuevaCargaHorariaPage() {
   };
   
   const handleGuardar = async () => {
-    if (!docenteSeleccionado || !cicloAcademicoSeleccionado) return;
+    if (!docenteSeleccionado || !cicloAcademicoSeleccionado) {
+      setAlertMessage('Por favor seleccione un docente y ciclo académico');
+      return;
+    }
+
+    if (!modalidad) {
+      setAlertMessage('Por favor seleccione una modalidad');
+      return;
+    }
     
     // Filter out any courses that don't have curso_id!
     const validCursos = cursosAsignados.filter(curso => curso.curso_id && curso.curso_id.length > 0);
+    
+    if (validCursos.length === 0) {
+      setAlertMessage('Por favor agregue al menos un curso');
+      return;
+    }
+
+    if (parseFloat(totalHoras) <= 0) {
+      setAlertMessage('El total de horas debe ser mayor a 0');
+      return;
+    }
+    
+    // Check that all cursos have numeroAlumnos > 0
+    const cursosSinAlumnos = validCursos.filter(c => parseFloat(c.numeroAlumnos) <= 0);
+    if (cursosSinAlumnos.length > 0) {
+      setAlertMessage('Todos los cursos deben tener al menos 1 alumno');
+      return;
+    }
+    
     console.log('Valid cursos with curso_id:', validCursos);
     
     const bodyToSend = {
@@ -332,7 +378,7 @@ export default function NuevaCargaHorariaPage() {
       if (!res.ok) {
         const data = await res.json();
         console.error('Error from API:', data);
-        alert('Error guardando: ' + (data.error || 'Ocurrió un error'));
+        setAlertMessage('Error guardando: ' + (data.error || 'Ocurrió un error'));
         return;
       }
 
@@ -342,7 +388,7 @@ export default function NuevaCargaHorariaPage() {
       }, 2000);
     } catch (e) {
       console.error('Error guardando:', e);
-      alert('Error guardando la carga horaria');
+      setAlertMessage('Error guardando la carga horaria');
     } finally {
       setGuardando(false);
     }
@@ -405,17 +451,18 @@ export default function NuevaCargaHorariaPage() {
   };
 
   const handleSeleccionarCurso = (curso: any) => {
+    const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
     setSelectedCurso(curso);
     setNuevoCurso({
       curso_id: curso.id,
       codigo: curso.codigo,
       nombre: curso.nombre,
-      seccion: '',
+      seccion: 'A',
       condicionCurso: 'OB',
       curso: String(curso.ciclo_plan),
-      escuela: curso.escuela || '',
-      anioCiclo: '',
-      numeroAlumnos: '',
+      escuela: 'Ing. Sistemas',
+      anioCiclo: cicloAcademico?.nombre || '',
+      numeroAlumnos: '40',
       teoriaHoras: String(curso.horas_teoria || 0),
       teoriaGrupos: '1',
       practicaHoras: String(curso.horas_practica || 0),
@@ -427,25 +474,26 @@ export default function NuevaCargaHorariaPage() {
   };
 
   const handleAgregarCurso = () => {
+    const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
     const id = Date.now().toString();
     setCursosAsignados([...cursosAsignados, { ...nuevoCurso, id }]);
     setNuevoCurso({
       curso_id: '',
       codigo: '',
       nombre: '',
-      seccion: '',
+      seccion: 'A',
       condicionCurso: 'OB',
       curso: '',
-      escuela: '',
-      anioCiclo: '',
-      numeroAlumnos: '',
-      teoriaHoras: '',
+      escuela: 'Ing. Sistemas',
+      anioCiclo: cicloAcademico?.nombre || '',
+      numeroAlumnos: '40',
+      teoriaHoras: '0',
       teoriaGrupos: '1',
-      practicaHoras: '',
+      practicaHoras: '0',
       practicaGrupos: '1',
-      laboratorioHoras: '',
+      laboratorioHoras: '0',
       laboratorioGrupos: '1',
-      totalHoras: '',
+      totalHoras: '0',
     });
     setShowAgregarCursoModal(false);
   };
@@ -458,8 +506,17 @@ export default function NuevaCargaHorariaPage() {
     setCursosAsignados(cursosAsignados.map(c => {
       if (c.id !== id) return c;
       
+      // If it's a numeric field, ensure it's >= 0
+      let processedValue = value;
+      if (['numeroAlumnos', 'teoriaHoras', 'teoriaGrupos', 'practicaHoras', 'practicaGrupos', 'laboratorioHoras', 'laboratorioGrupos'].includes(field)) {
+        const numValue = parseFloat(value);
+        if (isNaN(numValue) || numValue < 0) {
+          processedValue = '0';
+        }
+      }
+      
       // Update the field
-      const updated = { ...c, [field]: value };
+      const updated = { ...c, [field]: processedValue };
       
       // Recalculate totalHoras
       const tHoras = parseFloat(updated.teoriaHoras || '0') * parseFloat(updated.teoriaGrupos || '0');
@@ -504,11 +561,18 @@ export default function NuevaCargaHorariaPage() {
   };
 
   const handleUpdateHoras = (seccionKey: keyof Secciones, value: string) => {
+    // Ensure value is >= 0
+    let processedValue = value;
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || numValue < 0) {
+      processedValue = '0';
+    }
+    
     setSecciones(prev => ({
       ...prev,
       [seccionKey]: {
         ...prev[seccionKey],
-        horas: value
+        horas: processedValue
       }
     }));
   };
@@ -805,8 +869,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={curso.numeroAlumnos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'numeroAlumnos', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '70px' }}
                             />
                           </td>
@@ -815,8 +881,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={curso.teoriaHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'teoriaHoras', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -824,8 +892,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={curso.teoriaGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'teoriaGrupos', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -834,8 +904,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={curso.practicaHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'practicaHoras', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -843,8 +915,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={curso.practicaGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'practicaGrupos', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -853,8 +927,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={curso.laboratorioHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'laboratorioHoras', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -862,8 +938,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={curso.laboratorioGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'laboratorioGrupos', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -919,8 +997,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.preparacionEvaluacion.horas}
                               onChange={(e) => handleUpdateHoras('preparacionEvaluacion', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -961,8 +1041,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.consejeriaTutoria.horas}
                               onChange={(e) => handleUpdateHoras('consejeriaTutoria', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1003,8 +1085,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.investigacion.horas}
                               onChange={(e) => handleUpdateHoras('investigacion', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1045,8 +1129,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.capacitacion.horas}
                               onChange={(e) => handleUpdateHoras('capacitacion', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1087,8 +1173,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.gobierno.horas}
                               onChange={(e) => handleUpdateHoras('gobierno', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1129,8 +1217,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.administracion.horas}
                               onChange={(e) => handleUpdateHoras('administracion', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1171,8 +1261,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.asesoriaTesis.horas}
                               onChange={(e) => handleUpdateHoras('asesoriaTesis', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1213,8 +1305,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.responsabilidadSocial.horas}
                               onChange={(e) => handleUpdateHoras('responsabilidadSocial', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1255,8 +1349,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.comitesTecnicos.horas}
                               onChange={(e) => handleUpdateHoras('comitesTecnicos', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1370,8 +1466,14 @@ export default function NuevaCargaHorariaPage() {
                       <input
                         className="form-input"
                         type="number"
+                        min="0"
                         value={nuevoCurso.numeroAlumnos}
-                        onChange={(e) => setNuevoCurso(prev => ({ ...prev, numeroAlumnos: e.target.value }))}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (parseFloat(val) < 0) val = '0';
+                          setNuevoCurso(prev => ({ ...prev, numeroAlumnos: val }));
+                        }}
+                        onWheel={(e) => e.preventDefault()}
                       />
                     </div>
                   </div>
@@ -1382,15 +1484,37 @@ export default function NuevaCargaHorariaPage() {
                       <input
                         className="form-input"
                         type="number"
+                        min="0"
                         value={nuevoCurso.teoriaHoras}
                         onChange={(e) => {
-                          const val = e.target.value;
+                          let val = e.target.value;
+                          if (parseFloat(val) < 0) val = '0';
                           const tHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
                           const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
                           const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
                           const total = (tHoras + pHoras + lHoras).toString();
                           setNuevoCurso(prev => ({ ...prev, teoriaHoras: val, totalHoras: total }));
                         }}
+                        onWheel={(e) => e.preventDefault()}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Teoría</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min="0"
+                        value={nuevoCurso.teoriaGrupos}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (parseFloat(val) < 0) val = '0';
+                          const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(val || '0');
+                          const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
+                          const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
+                          const total = (tHoras + pHoras + lHoras).toString();
+                          setNuevoCurso(prev => ({ ...prev, teoriaGrupos: val, totalHoras: total }));
+                        }}
+                        onWheel={(e) => e.preventDefault()}
                       />
                     </div>
                     <div>
@@ -1398,15 +1522,37 @@ export default function NuevaCargaHorariaPage() {
                       <input
                         className="form-input"
                         type="number"
+                        min="0"
                         value={nuevoCurso.practicaHoras}
                         onChange={(e) => {
-                          const val = e.target.value;
+                          let val = e.target.value;
+                          if (parseFloat(val) < 0) val = '0';
                           const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
                           const pHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
                           const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
                           const total = (tHoras + pHoras + lHoras).toString();
                           setNuevoCurso(prev => ({ ...prev, practicaHoras: val, totalHoras: total }));
                         }}
+                        onWheel={(e) => e.preventDefault()}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Práctica</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min="0"
+                        value={nuevoCurso.practicaGrupos}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (parseFloat(val) < 0) val = '0';
+                          const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
+                          const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(val || '0');
+                          const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
+                          const total = (tHoras + pHoras + lHoras).toString();
+                          setNuevoCurso(prev => ({ ...prev, practicaGrupos: val, totalHoras: total }));
+                        }}
+                        onWheel={(e) => e.preventDefault()}
                       />
                     </div>
                     <div>
@@ -1414,15 +1560,37 @@ export default function NuevaCargaHorariaPage() {
                       <input
                         className="form-input"
                         type="number"
+                        min="0"
                         value={nuevoCurso.laboratorioHoras}
                         onChange={(e) => {
-                          const val = e.target.value;
+                          let val = e.target.value;
+                          if (parseFloat(val) < 0) val = '0';
                           const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
                           const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
                           const lHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
                           const total = (tHoras + pHoras + lHoras).toString();
                           setNuevoCurso(prev => ({ ...prev, laboratorioHoras: val, totalHoras: total }));
                         }}
+                        onWheel={(e) => e.preventDefault()}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Laboratorio</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min="0"
+                        value={nuevoCurso.laboratorioGrupos}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (parseFloat(val) < 0) val = '0';
+                          const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
+                          const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
+                          const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(val || '0');
+                          const total = (tHoras + pHoras + lHoras).toString();
+                          setNuevoCurso(prev => ({ ...prev, laboratorioGrupos: val, totalHoras: total }));
+                        }}
+                        onWheel={(e) => e.preventDefault()}
                       />
                     </div>
                     <div>
@@ -1448,6 +1616,106 @@ export default function NuevaCargaHorariaPage() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Custom Alert Modal */}
+      {alertMessage && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '24px',
+            borderRadius: '12px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+            maxWidth: '400px',
+            width: '90%'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              marginBottom: '16px'
+            }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                backgroundColor: '#fee2e2',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#dc2626',
+                fontSize: '20px',
+                fontWeight: 'bold'
+              }}>
+                !
+              </div>
+              <h3 style={{
+                margin: 0,
+                fontSize: '18px',
+                fontWeight: '600',
+                color: '#111827'
+              }}>
+                Atención
+              </h3>
+            </div>
+            <p style={{
+              margin: 0,
+              marginBottom: '20px',
+              fontSize: '14px',
+              color: '#4b5563',
+              lineHeight: '1.5'
+            }}>
+              {alertMessage}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                style={{
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                onClick={() => setAlertMessage(null)}
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Botones de Guardar y Cancelar */}
+      {docenteSeleccionado && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
+          <button
+            className="btn-secondary"
+            onClick={() => router.push('/carga-horaria')}
+          >
+            Cancelar
+          </button>
+          <button
+            className="btn-primary"
+            onClick={handleGuardar}
+            disabled={guardando}
+          >
+            {guardando ? 'Guardando...' : 'Guardar Carga Horaria'}
+          </button>
         </div>
       )}
     </div>

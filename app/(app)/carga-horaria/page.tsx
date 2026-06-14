@@ -295,12 +295,27 @@ export default function CargaHorariaPage() {
   }
 
   function generarPDF(docenteId: string) {
-    // Obtener todos los cursos del docente en el ciclo seleccionado
+    // Obtener todos los datos de carga horaria del docente en el ciclo seleccionado
+    const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
+    if (cargasDocente.length === 0) {
+      setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
+      return;
+    }
+    
+    // Combinar todos los cursos de todas las cargas horarias del docente
     const cursosDocente = [];
     let totalHorasLectivas = 0;
-    cargaHoraria.forEach(ch => {
-      if (ch.docente_id === docenteId && ch.cursos && ch.cursos.length > 0) {
+    cargasDocente.forEach(ch => {
+      if (ch.cursos && ch.cursos.length > 0) {
         ch.cursos.forEach(curso => {
+          const hrsTeo = curso.horas_teoria || curso.hrs_teo || 0;
+          const gruposTeo = curso.teoria_grupos || 1;
+          const hrsPra = curso.horas_practica || curso.hrs_pra || 0;
+          const gruposPra = curso.practica_grupos || 1;
+          const hrsLab = curso.horas_laboratorio || curso.hrs_lab || 0;
+          const gruposLab = curso.laboratorio_grupos || 1;
+          const totalHrs = (hrsTeo * gruposTeo) + (hrsPra * gruposPra) + (hrsLab * gruposLab);
+          
           const cursoData = {
             codigo: curso.curso_codigo || '',
             nombre: curso.curso_nombre || curso.nombre,
@@ -308,10 +323,13 @@ export default function CargaHorariaPage() {
             cicloPlan: getRomanNumeral(curso.ciclo_plan || ch.ciclo_plan || 1),
             escuela: curso.escuela || 'Ingeniería de Sistemas',
             numAlumnos: curso.num_alumnos || 0,
-            hrsTeo: curso.hrs_teo || 0,
-            hrsPra: curso.hrs_pra || 0,
-            hrsLab: curso.hrs_lab || 0,
-            totalHrs: curso.total_horas || curso.total_hrs || 0
+            hrsTeo,
+            hrsPra,
+            hrsLab,
+            gruposTeo,
+            gruposPra,
+            gruposLab,
+            totalHrs
           };
           cursosDocente.push(cursoData);
           totalHorasLectivas += cursoData.totalHrs;
@@ -320,40 +338,82 @@ export default function CargaHorariaPage() {
     });
 
     // Obtener datos completos del docente
-    const docenteCarga = cargaHoraria.find(ch => ch.docente_id === docenteId);
     const docenteCompleto = allDocentes.find(d => d.id === docenteId);
+    const primeraCarga = cargasDocente[0];
     
-    const nombreDocente = docenteCarga 
-      ? `${docenteCarga.docente_apellidos}, ${docenteCarga.docente_nombre}`.toUpperCase()
+    const nombreDocente = primeraCarga 
+      ? `${primeraCarga.docente_apellidos}, ${primeraCarga.docente_nombre}`.toUpperCase()
       : 'DOCENTE';
     
     const condicion = docenteCompleto?.condicion ? docenteCompleto.condicion.toUpperCase() : 'NOMBRADO';
     const categoria = docenteCompleto?.categoria ? docenteCompleto.categoria.toUpperCase() : 'ASOCIADO';
-    const modalidad = 'TIEMPO COMPLETO 40 H';
+    const modalidad = primeraCarga?.modalidad || docenteCompleto?.modalidad || 'TIEMPO COMPLETO 40 H';
+    const facultad = primeraCarga?.docente_facultad || primeraCarga?.facultad || 'Ingeniería';
+    const dptoAcademico = primeraCarga?.docente_dpto_academico || primeraCarga?.dpto_academico || 'Dpto. de Ingeniería de Sistemas';
     
     // Obtener nombre del ciclo académico
     const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
     const nombreCiclo = cicloAcademico ? cicloAcademico.nombre : 'Ciclo Académico';
+    const añoAcademico = cicloAcademico?.año || new Date().getFullYear();
+    
+    // Obtener datos de las secciones (combinar todas las cargas)
+    const secciones = {
+      preparacion: null,
+      consejeria: null,
+      investigacion: null,
+      capacitacion: null,
+      gobierno: null,
+      administracion: null,
+      asesoria: null,
+      rsu: null,
+      comites: null
+    };
+    
+    cargasDocente.forEach(ch => {
+      for (const key of Object.keys(secciones)) {
+        if (ch[key] && !secciones[key]) {
+          secciones[key] = ch[key];
+        }
+      }
+    });
 
-    // Crear PDF
-    const doc = new jsPDF();
+    // Crear PDF en modo landscape para mejor ajuste
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'letter'
+    });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // Márgenes
+    const marginLeft = 10;
+    const marginRight = 10;
+    let currentY = 10;
     
     // Título principal
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('FORMATO N° 1', 105, 20);
+    doc.text('FORMATO N° 1', pageWidth / 2, currentY, { align: 'center' });
+    currentY += 7;
     doc.setFontSize(12);
-    doc.text('DECLARACIÓN DE CARGA HORARIA ASIGNADA', 70, 28);
+    doc.text('DECLARACIÓN DE CARGA HORARIA ASIGNADA', pageWidth / 2, currentY, { align: 'center' });
+    currentY += 10;
     
     // I. DATOS SOBRE LA SITUACIÓN DEL PROFESOR
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('I. DATOS SOBRE LA SITUACIÓN DEL PROFESOR:', 14, 38);
+    doc.text('I. DATOS SOBRE LA SITUACIÓN DEL PROFESOR:', marginLeft, currentY);
+    currentY += 7;
     doc.setFont('helvetica', 'normal');
-    doc.text('FACULTAD:', 14, 46);
-    doc.text('Ingeniería', 60, 46);
-    doc.text('DPTO. ACADÉMICO:', 14, 54);
-    doc.text('Dpto. de Ingeniería de Sistemas', 60, 54);
+    
+    // Facultad y Dpto. Académico en una línea
+    doc.setFontSize(10);
+    doc.text(`FACULTAD:`, marginLeft, currentY);
+    doc.text(facultad, 45, currentY);
+    doc.text('DPTO. ACADÉMICO:', 120, currentY);
+    doc.text(dptoAcademico, 170, currentY);
+    currentY += 8;
     
     // Tabla de datos del profesor
     const headerDatos = [['NOMBRE COMPLETO', 'CONDICIÓN', 'CATEGORÍA', 'MODALIDAD']];
@@ -361,150 +421,179 @@ export default function CargaHorariaPage() {
     autoTable(doc, {
       head: headerDatos,
       body: bodyDatos,
-      startY: 60,
+      startY: currentY,
       theme: 'grid',
-      styles: { fontSize: 9, cellPadding: 3 },
-      headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold' }
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold' },
+      margin: { left: marginLeft, right: marginRight }
     });
     
-    // Año académico
-    const finalY1 = (doc as any).lastAutoTable.finalY + 8;
-    doc.setFontSize(11);
-    doc.text(`AÑO ACADÉMICO: ${nombreCiclo}`, 14, finalY1);
+    currentY = (doc as any).lastAutoTable.finalY + 6;
+    
+    // Año académico, ciclo y fechas
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`AÑO ACADÉMICO: ${añoAcademico}`, marginLeft, currentY);
+    const cicloSemestre = cicloAcademico?.semestre ? `CICLO(SEM): ${cicloAcademico.semestre}` : 'CICLO(SEM): I';
+    doc.text(cicloSemestre, 90, currentY);
+    
+    // Formatear fechas
+    const formatDate = (dateStr: string) => {
+      if (!dateStr) return '';
+      const date = new Date(dateStr);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    };
+    
+    const fechaInicio = formatDate(cicloAcademico?.fecha_inicio);
+    const fechaFin = formatDate(cicloAcademico?.fecha_fin);
+    
+    if (fechaInicio && fechaFin) {
+      doc.text(`INICIO: ${fechaInicio}   -   FINAL: ${fechaFin}`, 170, currentY);
+    }
+    currentY += 8;
     
     // 1. TRABAJO LECTIVO
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text('1. TRABAJO LECTIVO.- Datos completos y con claridad', 14, finalY1 + 10);
+    doc.text('1. TRABAJO LECTIVO.- Datos completos y con claridad', marginLeft, currentY);
+    currentY += 6;
     doc.setFont('helvetica', 'normal');
     
-    // Tabla de trabajo lectivo
+    // Tabla de trabajo lectivo compacta
     const headerLectivo = [
-      ['CÓDIGO', 'NOMBRE DEL CURSO', 'SECCIÓN', 'CURSO', 'Escuela Prof.', 'Año o Ciclo', 'Nro Tel. Alumnos', 'Hrs.Teo/Grupos', 'Hrs.Pra/Grupos', 'Hrs.Lab/Grupos', 'Total Hrs.']
+      ['CÓDIGO', 'NOMBRE DEL CURSO', 'CUR', 'Escuela Prof.', 'CIC', 'SEC', 'N° AL.', 'H.T.', 'H.P.', 'H.L.', 'Total']
     ];
     const bodyLectivo = cursosDocente.map(c => [
       c.codigo,
-      c.nombre,
-      c.seccion,
-      '',
-      c.escuela,
+      c.nombre.substring(0, 35), // Limitar longitud del nombre
+      'OB',
+      c.escuela.substring(0, 15),
       c.cicloPlan,
+      c.seccion,
       c.numAlumnos,
-      c.hrsTeo,
-      c.hrsPra,
-      c.hrsLab,
+      `${c.hrsTeo} x ${c.gruposTeo}`,
+      `${c.hrsPra} x ${c.gruposPra}`,
+      `${c.hrsLab} x ${c.gruposLab}`,
       c.totalHrs
     ]);
     
     autoTable(doc, {
       head: headerLectivo,
       body: bodyLectivo,
-      startY: finalY1 + 16,
+      startY: currentY,
       theme: 'grid',
-      styles: { fontSize: 7, cellPadding: 2 },
-      headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold' }
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold' },
+      margin: { left: marginLeft, right: marginRight },
+      columnStyles: {
+        1: { cellWidth: 60 }, // Nombre del curso
+        3: { cellWidth: 30 }  // Escuela
+      }
     });
     
-    let currentY = (doc as any).lastAutoTable.finalY + 8;
+    currentY = (doc as any).lastAutoTable.finalY + 5;
     
-    // 2. PREPARACIÓN Y EVALUACIÓN
-    const maxPreparacion = Math.floor(totalHorasLectivas * 0.5);
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('2. PREPARACIÓN Y EVALUACIÓN (Max 50% de Trabajo Lectivo)', 14, currentY);
-    doc.setFont('helvetica', 'normal');
-    currentY += 8;
-    doc.text('0', 14, currentY);
-    doc.text('Horas: 0', 14, currentY + 6);
-    currentY += 14;
+    // Crear tabla para las secciones restantes (compacta, dos columnas)
+    const seccionesData = [
+      {
+        titulo: '2. PREPARACIÓN Y EVALUACIÓN (Max 50% de Trabajo Lectivo)',
+        horas: secciones.preparacion?.horas || 0,
+        detalles: secciones.preparacion?.descripcion || ''
+      },
+      {
+        titulo: '3. CONSEJERÍA: Señalar número de alumnos y el ciclo académico en el que se desarrolla. (Como mínimo 01 hora semanal)',
+        horas: secciones.consejeria !== null && secciones.consejeria !== undefined ? secciones.consejeria.horas : (cursosDocente.length > 0 ? Math.min(7, Math.max(1, cursosDocente.length)) : 0),
+        detalles: secciones.consejeria !== null && secciones.consejeria !== undefined && secciones.consejeria.detalles ? secciones.consejeria.detalles : ''
+      },
+      {
+        titulo: '4. INVESTIGACIÓN: Consignar el N° de inscripción, código, nombre y duración del proyecto. (Como mínimo 04 y 05 horas semanales, según modalidad de trabajo).',
+        horas: secciones.investigacion?.horas || 0,
+        detalles: secciones.investigacion?.proyecto || ''
+      },
+      {
+        titulo: '5. CAPACITACIÓN: Señale lo referente a este rubro en el marco de los planes de cada Facultad (como máximo 05 semanales)',
+        horas: secciones.capacitacion?.horas || 0,
+        detalles: secciones.capacitacion?.detalles || ''
+      },
+      {
+        titulo: '6. ACTIVIDADES DE GOBIERNO: Si desempeña cargo indique.',
+        horas: secciones.gobierno?.horas || 0,
+        detalles: secciones.gobierno?.detalles || ''
+      },
+      {
+        titulo: '7. ACTIVIDADES DE ADMINISTRACIÓN: Si desempeña cargo indique.',
+        horas: secciones.administracion?.horas || 0,
+        detalles: secciones.administracion?.detalles || ''
+      },
+      {
+        titulo: '8. ASESORÍA DE TESIS, EXÁMENES PROFESIONALES Y EXPERIENCIA PROFESIONAL: Indicar el número de Resolución Decanal, precisando el nombre y duración de la actividad programada.',
+        horas: secciones.asesoria !== null && secciones.asesoria !== undefined ? secciones.asesoria.horas : 0,
+        detalles: secciones.asesoria !== null && secciones.asesoria !== undefined && secciones.asesoria.detalles ? secciones.asesoria.detalles : ''
+      },
+      {
+        titulo: '9. RESPONSABILIDAD SOCIAL UNIVERSITARIA: Señalar actividad, proyecto programa a ejecutarse n beneficio de la comunidad local o regional. (Como máximo 02 horas semanales)',
+        horas: secciones.rsu?.horas || 0,
+        detalles: secciones.rsu?.plan || ''
+      },
+      {
+        titulo: '10. COMITÉS TÉCNICOS Y COMISIONES: Consignar el número de Resolución autoritativa indicando el lapso de vigencia.',
+        horas: secciones.comites?.horas || 0,
+        detalles: secciones.comites?.detalles || ''
+      }
+    ];
     
-    // 3. CONSEJERÍA Y TUTORÍA
-    doc.setFont('helvetica', 'bold');
-    doc.text('3. CONSEJERÍA Y TUTORÍA', 14, currentY);
-    doc.setFont('helvetica', 'normal');
-    doc.text('(Como mínimo 01 hora semanal)', 14, currentY + 6);
-    currentY += 12;
-    if (cursosDocente.length > 0) {
-      cursosDocente.forEach(c => {
-        doc.text(`${c.numAlumnos} alumnos, ciclo ${c.cicloPlan}, ${c.nombre}`, 14, currentY);
-        currentY += 6;
-      });
-    }
-    const horasConsejeria = Math.min(7, Math.max(1, cursosDocente.length));
-    doc.text(`Horas: ${horasConsejeria}`, 14, currentY);
-    currentY += 14;
+    // Crear tabla para secciones
+    const bodySecciones = seccionesData.map(s => [
+      { content: s.titulo, styles: { fontStyle: 'bold' } },
+      s.detalles.substring(0, 80),
+      s.horas
+    ]);
     
-    // 4. INVESTIGACIÓN
-    doc.setFont('helvetica', 'bold');
-    doc.text('4. INVESTIGACIÓN', 14, currentY);
-    doc.setFont('helvetica', 'normal');
-    doc.text('(Como mínimo 04 y 05 horas semanales, según modalidad)', 14, currentY + 6);
-    currentY += 12;
-    doc.text('0', 14, currentY);
-    doc.text('Horas: 0', 14, currentY + 6);
-    currentY += 14;
+    autoTable(doc, {
+      body: bodySecciones,
+      startY: currentY,
+      theme: 'grid',
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      margin: { left: marginLeft, right: marginRight },
+      columnStyles: {
+        0: { cellWidth: 90 },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 15, halign: 'center' }
+      }
+    });
     
-    // 5. CAPACITACIÓN
-    doc.setFont('helvetica', 'bold');
-    doc.text('5. CAPACITACIÓN', 14, currentY);
-    doc.setFont('helvetica', 'normal');
-    doc.text('(como máximo 05 semanales)', 14, currentY + 6);
-    currentY += 12;
-    doc.text('0', 14, currentY);
-    doc.text('Horas: 0', 14, currentY + 6);
-    currentY += 14;
-    
-    // 6. ACTIVIDADES DE GOBIERNO
-    doc.setFont('helvetica', 'bold');
-    doc.text('6. ACTIVIDADES DE GOBIERNO', 14, currentY);
-    doc.setFont('helvetica', 'normal');
-    currentY += 8;
-    doc.text('0', 14, currentY);
-    doc.text('Horas: 0', 14, currentY + 6);
-    currentY += 14;
-    
-    // 7. ACTIVIDADES DE ADMINISTRACIÓN
-    doc.setFont('helvetica', 'bold');
-    doc.text('7. ACTIVIDADES DE ADMINISTRACIÓN', 14, currentY);
-    doc.setFont('helvetica', 'normal');
-    currentY += 8;
-    doc.text('0', 14, currentY);
-    doc.text('Horas: 0', 14, currentY + 6);
-    currentY += 14;
-    
-    // 8. ASESORÍA DE TESIS, EXÁMENES PROFESIONALES Y EXPERIENCIA PROFESIONAL
-    doc.setFont('helvetica', 'bold');
-    doc.text('8. ASESORÍA DE TESIS, EXÁMENES PROFESIONALES Y EXPERIENCIA PROFESIONAL', 14, currentY);
-    doc.setFont('helvetica', 'normal');
-    currentY += 8;
-    doc.text('Asesoría de tesis, exámenes profesionales y experiencia profesional', 14, currentY);
-    doc.text('Horas: 2', 14, currentY + 6);
-    currentY += 14;
-    
-    // 9. RESPONSABILIDAD SOCIAL UNIVERSITARIA
-    doc.setFont('helvetica', 'bold');
-    doc.text('9. RESPONSABILIDAD SOCIAL UNIVERSITARIA', 14, currentY);
-    doc.setFont('helvetica', 'normal');
-    doc.text('(Como máximo 02 horas semanales)', 14, currentY + 6);
-    currentY += 12;
-    doc.text('0', 14, currentY);
-    doc.text('Horas: 0', 14, currentY + 6);
-    currentY += 14;
-    
-    // 10. COMITÉS TÉCNICOS Y COMISIONES
-    doc.setFont('helvetica', 'bold');
-    doc.text('10. COMITÉS TÉCNICOS Y COMISIONES', 14, currentY);
-    doc.setFont('helvetica', 'normal');
-    currentY += 8;
-    doc.text('0', 14, currentY);
-    doc.text('Horas: 0', 14, currentY + 6);
-    currentY += 14;
+    currentY = (doc as any).lastAutoTable.finalY + 5;
     
     // Total horas
-    const totalHoras = totalHorasLectivas + horasConsejeria + 2;
-    doc.setFontSize(12);
+    const totalHoras = totalHorasLectivas + seccionesData.reduce((sum, s) => sum + s.horas, 0);
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Total Horas: ${totalHoras}`, 14, currentY);
+    doc.text(`TOTAL`, pageWidth - 70, currentY);
+    doc.text(totalHoras.toString(), pageWidth - 20, currentY, { align: 'right' });
+    currentY += 10;
+    
+    // Fecha y firmas
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const fecha = new Date();
+    const mes = fecha.toLocaleString('es-ES', { month: 'long' });
+    const fechaStr = `Trujillo, ${fecha.getDate()} de ${mes} del ${fecha.getFullYear()}`;
+    doc.text(fechaStr, pageWidth / 2, currentY, { align: 'center' });
+    currentY += 15;
+    
+    // Líneas de firma
+    const firmaY = currentY;
+    doc.line(marginLeft + 20, firmaY, marginLeft + 90, firmaY);
+    doc.line(pageWidth / 2 - 35, firmaY, pageWidth / 2 + 35, firmaY);
+    doc.line(pageWidth - 90, firmaY, pageWidth - 20, firmaY);
+    
+    doc.setFontSize(9);
+    doc.text('Firma del Profesor', marginLeft + 55, firmaY + 5, { align: 'center' });
+    doc.text('Firma del Director de Dpto.', pageWidth / 2, firmaY + 5, { align: 'center' });
+    doc.text('V° B° Decano Fac.', pageWidth - 55, firmaY + 5, { align: 'center' });
     
     // Descargar PDF
     doc.save(`carga-horaria-${nombreDocente.replace(/\s+/g, '-')}.pdf`);
