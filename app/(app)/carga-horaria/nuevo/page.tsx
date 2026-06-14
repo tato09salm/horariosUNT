@@ -452,6 +452,10 @@ export default function NuevaCargaHorariaPage() {
 
   const handleSeleccionarCurso = (curso: any) => {
     const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
+    const tHoras = parseFloat(curso.horas_teoria || 0) * 1;
+    const pHoras = parseFloat(curso.horas_practica || 0) * 1;
+    const lHoras = parseFloat(curso.horas_laboratorio || 0) * 1;
+    const total = (tHoras + pHoras + lHoras).toString();
     setSelectedCurso(curso);
     setNuevoCurso({
       curso_id: curso.id,
@@ -469,7 +473,7 @@ export default function NuevaCargaHorariaPage() {
       practicaGrupos: '1',
       laboratorioHoras: String(curso.horas_laboratorio || 0),
       laboratorioGrupos: '1',
-      totalHoras: String((curso.horas_teoria || 0) + (curso.horas_practica || 0) + (curso.horas_laboratorio || 0)),
+      totalHoras: total,
     });
   };
 
@@ -1443,7 +1447,7 @@ export default function NuevaCargaHorariaPage() {
                         {curso.codigo} - {curso.nombre}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        Ciclo: {curso.ciclo_plan} | Escuela: {curso.escuela || 'N/A'}
+                        Ciclo: {curso.ciclo_plan} | Escuela: {curso.escuela_nombre || curso.escuela?.nombre || 'N/A'}
                       </div>
                     </div>
                   ))}
