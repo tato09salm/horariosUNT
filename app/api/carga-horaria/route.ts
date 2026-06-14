@@ -77,10 +77,13 @@ export async function GET(req: NextRequest) {
           curso_nombre: c.curso_nombre,
           curso_codigo: c.curso_codigo,
           ciclo_plan: c.ciclo_plan,
-          total_hrs: c.total_horas,
-          hrs_teo: c.horas_teoria,
-          hrs_pra: c.horas_practica,
-          hrs_lab: c.horas_laboratorio
+          total_horas: c.total_horas,
+          horas_teoria: c.horas_teoria || c.hrs_teo,
+          horas_practica: c.horas_practica || c.hrs_pra,
+          horas_laboratorio: c.horas_laboratorio || c.hrs_lab,
+          teoria_grupos: c.teoria_grupos || 1,
+          practica_grupos: c.practica_grupos || 1,
+          laboratorio_grupos: c.laboratorio_grupos || 1
         }));
       } catch (err) {
         console.error('Error loading courses:', err);
@@ -155,6 +158,36 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // First check if the grupos columns exist, add them if they don't
+    await query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'carga_horaria_cursos' 
+          AND column_name = 'teoria_grupos'
+        ) THEN
+          ALTER TABLE carga_horaria_cursos ADD COLUMN teoria_grupos INTEGER DEFAULT 1;
+        END IF;
+        
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'carga_horaria_cursos' 
+          AND column_name = 'practica_grupos'
+        ) THEN
+          ALTER TABLE carga_horaria_cursos ADD COLUMN practica_grupos INTEGER DEFAULT 1;
+        END IF;
+        
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'carga_horaria_cursos' 
+          AND column_name = 'laboratorio_grupos'
+        ) THEN
+          ALTER TABLE carga_horaria_cursos ADD COLUMN laboratorio_grupos INTEGER DEFAULT 1;
+        END IF;
+      END $$;
+    `, []);
+
     const body = await req.json();
     const {
       docente_id,
@@ -180,6 +213,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'docente_id y ciclo_academico_id son requeridos' }, { status: 400 });
     }
 
+    // Helper function to ensure non-negative number
+    const ensureNonNegative = (val: any) => {
+      const num = Number(val);
+      return isNaN(num) ? 0 : Math.max(num, 0);
+    };
+
     const cargaHorariaResults = await transaction(async (client) => {
       // 0. First, delete all existing carga_horaria entries for this docente and ciclo_academico
       await client.query(
@@ -195,12 +234,35 @@ export async function POST(req: NextRequest) {
           if (!cursosByCiclo[cp]) {
             cursosByCiclo[cp] = [];
           }
-          cursosByCiclo[cp].push(curso);
+          // Validate and sanitize curso numeric fields
+          const sanitizedCurso = {
+            ...curso,
+            numeroAlumnos: ensureNonNegative(curso.numeroAlumnos),
+            teoriaHoras: ensureNonNegative(curso.teoriaHoras),
+            teoriaGrupos: ensureNonNegative(curso.teoriaGrupos),
+            practicaHoras: ensureNonNegative(curso.practicaHoras),
+            practicaGrupos: ensureNonNegative(curso.practicaGrupos),
+            laboratorioHoras: ensureNonNegative(curso.laboratorioHoras),
+            laboratorioGrupos: ensureNonNegative(curso.laboratorioGrupos),
+            totalHoras: ensureNonNegative(curso.totalHoras),
+          };
+          cursosByCiclo[cp].push(sanitizedCurso);
         }
       } else {
         // If no cursos, create one entry for ciclo_plan 1
         cursosByCiclo[1] = [];
       }
+
+      // Sanitize all section horas fields
+      const sanitizedPreparacion = { ...preparacion, horas: ensureNonNegative(preparacion?.horas) };
+      const sanitizedConsejeria = { ...consejeria, horas: ensureNonNegative(consejeria?.horas) };
+      const sanitizedInvestigacion = { ...investigacion, horas: ensureNonNegative(investigacion?.horas) };
+      const sanitizedCapacitacion = { ...capacitacion, horas: ensureNonNegative(capacitacion?.horas) };
+      const sanitizedGobierno = { ...gobierno, horas: ensureNonNegative(gobierno?.horas) };
+      const sanitizedAdministracion = { ...administracion, horas: ensureNonNegative(administracion?.horas) };
+      const sanitizedAsesoria = { ...asesoria, horas: ensureNonNegative(asesoria?.horas) };
+      const sanitizedRsu = { ...rsu, horas: ensureNonNegative(rsu?.horas) };
+      const sanitizedComites = { ...comites, horas: ensureNonNegative(comites?.horas) };
 
       // 2. For each ciclo_plan group, create a carga_horaria entry and insert the cursos
       const allCh = [];
@@ -231,6 +293,9 @@ export async function POST(req: NextRequest) {
         allCh.push(ch);
 
         // Insert the cursos for this carga_horaria
+        // First delete existing cursos for this carga_horaria_id
+        await client.query('DELETE FROM carga_horaria_cursos WHERE carga_horaria_id = $1', [cargaHorariaId]);
+        
         if (cursosForCiclo && cursosForCiclo.length > 0) {
           for (const curso of cursosForCiclo) {
             console.log('Inserting curso with curso_id:', curso.curso_id);
@@ -238,18 +303,22 @@ export async function POST(req: NextRequest) {
             await client.query(
               `INSERT INTO carga_horaria_cursos (
                 carga_horaria_id, curso_id, seccion, escuela, num_alumnos, 
-                horas_teoria, horas_practica, horas_laboratorio, total_horas
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                horas_teoria, horas_practica, horas_laboratorio, total_horas,
+                teoria_grupos, practica_grupos, laboratorio_grupos
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
               [
                 cargaHorariaId,
                 curso.curso_id, // ONLY use curso.curso_id (valid UUID from cursos table)
                 curso.seccion,
                 curso.escuela,
-                parseInt(curso.numeroAlumnos || '0'),
-                parseInt(curso.teoriaHoras || '0'),
-                parseInt(curso.practicaHoras || '0'),
-                parseInt(curso.laboratorioHoras || '0'),
-                parseInt(curso.totalHoras || '0')
+                ensureNonNegative(curso.numeroAlumnos),
+                ensureNonNegative(curso.teoriaHoras),
+                ensureNonNegative(curso.practicaHoras),
+                ensureNonNegative(curso.laboratorioHoras),
+                ensureNonNegative(curso.totalHoras),
+                ensureNonNegative(curso.teoriaGrupos),
+                ensureNonNegative(curso.practicaGrupos),
+                ensureNonNegative(curso.laboratorioGrupos)
               ]
             );
           }
@@ -259,7 +328,7 @@ export async function POST(req: NextRequest) {
         const upsertSection = async (tableName: string, data: any) => {
           if (!data) return;
           
-          const horas = parseInt(data.horas || 0);
+          const horas = ensureNonNegative(data.horas);
           const descripcion = data.items?.[0]?.descripcion || data.descripcion || data.detalles || data.proyecto || data.plan || '';
           const descField = 
             tableName === 'carga_horaria_preparacion' ? 'descripcion' :
@@ -280,15 +349,15 @@ export async function POST(req: NextRequest) {
         };
 
         // 3. Upsert all sections for this carga_horaria
-        await upsertSection('carga_horaria_preparacion', preparacion);
-        await upsertSection('carga_horaria_consejeria', consejeria);
-        await upsertSection('carga_horaria_investigacion', investigacion);
-        await upsertSection('carga_horaria_capacitacion', capacitacion);
-        await upsertSection('carga_horaria_gobierno', gobierno);
-        await upsertSection('carga_horaria_administracion', administracion);
-        await upsertSection('carga_horaria_asesoria', asesoria);
-        await upsertSection('carga_horaria_rsu', rsu);
-        await upsertSection('carga_horaria_comites', comites);
+        await upsertSection('carga_horaria_preparacion', sanitizedPreparacion);
+        await upsertSection('carga_horaria_consejeria', sanitizedConsejeria);
+        await upsertSection('carga_horaria_investigacion', sanitizedInvestigacion);
+        await upsertSection('carga_horaria_capacitacion', sanitizedCapacitacion);
+        await upsertSection('carga_horaria_gobierno', sanitizedGobierno);
+        await upsertSection('carga_horaria_administracion', sanitizedAdministracion);
+        await upsertSection('carga_horaria_asesoria', sanitizedAsesoria);
+        await upsertSection('carga_horaria_rsu', sanitizedRsu);
+        await upsertSection('carga_horaria_comites', sanitizedComites);
       }
 
       return allCh;

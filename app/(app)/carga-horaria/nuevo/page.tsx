@@ -77,18 +77,9 @@ export default function NuevaCargaHorariaPage() {
   const canWrite = isAdmin || isDirector;
 
   const initialCicloAcademico = searchParams.get('cicloAcademico');
-  const shouldReset = searchParams.get('reset') === 'true';
+  const initialDocenteId = searchParams.get('docenteId');
   const [cicloAcademicoSeleccionado, setCicloAcademicoSeleccionado] = useState<string>(initialCicloAcademico || '');
-  
-  // Saved state interface
-  interface SavedDocenteData {
-    docenteSeleccionado: Docente | null;
-    facultad: string;
-    dptoAcademico: string;
-    modalidad: string;
-    cursosAsignados: CursoAsignado[];
-    secciones: Secciones;
-  }
+  const [ciclosAcademicos, setCiclosAcademicos] = useState<any[]>([]);
   
   // Initial state for secciones (each with 1 default item)
   const initialSecciones: Secciones = {
@@ -122,101 +113,69 @@ export default function NuevaCargaHorariaPage() {
   const [showAgregarCursoModal, setShowAgregarCursoModal] = useState(false);
   const [cursoSearchQuery, setCursoSearchQuery] = useState('');
   const [selectedCurso, setSelectedCurso] = useState<any>(null);
+  const [nuevoCurso, setNuevoCurso] = useState<Omit<CursoAsignado, 'id'>>({
+    curso_id: '',
+    codigo: '',
+    nombre: '',
+    seccion: 'A',
+    condicionCurso: 'OB',
+    curso: '',
+    escuela: 'Ing. Sistemas',
+    anioCiclo: '',
+    numeroAlumnos: '40',
+    teoriaHoras: '0',
+    teoriaGrupos: '1',
+    practicaHoras: '0',
+    practicaGrupos: '1',
+    laboratorioHoras: '0',
+    laboratorioGrupos: '1',
+    totalHoras: '0',
+  });
   
-  // LocalStorage keys
-  const STORAGE_PREFIX = 'cargaHoraria';
-  const getStorageKey = (cicloId: string, docenteId?: string) => {
-    if (!docenteId) return `${STORAGE_PREFIX}-ciclo-${cicloId}`;
-    return `${STORAGE_PREFIX}-ciclo-${cicloId}-docente-${docenteId}`;
-  };
+  // Docentes seleccionados (for multiple docentes)
+  const [docentesSeleccionados, setDocentesSeleccionados] = useState<DocenteSeleccionado[]>([]);
   
-  // Load saved data on mount
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  
+  // Load docentes and cursos
   useEffect(() => {
-    if (!initialCicloAcademico) return;
-    
-    // If shouldReset, clear all saved data and reset state
-    if (shouldReset) {
-      // Clear any saved data for this ciclo
-      localStorage.removeItem(getStorageKey(initialCicloAcademico));
-      
-      // Reset state
-      setDocenteSeleccionado(null);
-      setFacultad('');
-      setDptoAcademico('');
-      setModalidad('');
-      setCursosAsignados([]);
-      setSecciones(initialSecciones);
-      setSearchQuery('');
-      
-      return;
-    }
-    
-    // Check if we have a saved docente for this ciclo
-    const savedCicloData = localStorage.getItem(getStorageKey(initialCicloAcademico));
-    if (savedCicloData) {
+    const loadData = async () => {
       try {
-        const parsed = JSON.parse(savedCicloData);
-        if (parsed.lastDocenteId) {
-          const savedDocenteData = localStorage.getItem(getStorageKey(initialCicloAcademico, parsed.lastDocenteId));
-          if (savedDocenteData) {
-            const docData: SavedDocenteData = JSON.parse(savedDocenteData);
-            setDocenteSeleccionado(docData.docenteSeleccionado);
-            setFacultad(docData.facultad);
-            setDptoAcademico(docData.dptoAcademico);
-            setModalidad(docData.modalidad || '');
-            setCursosAsignados(docData.cursosAsignados);
-            setSecciones(docData.secciones || initialSecciones);
-            if (docData.docenteSeleccionado) {
-              setSearchQuery(`${docData.docenteSeleccionado.apellidos || ''}, ${docData.docenteSeleccionado.nombre || ''}`);
-            }
-          }
-        }
+        const [docentesRes, cursosRes, ciclosRes] = await Promise.all([
+          fetch('/api/docentes?limit=1000'),
+          fetch('/api/cursos?reporte=true'),
+          fetch('/api/ciclos?reporte=true')
+        ]);
+        const docentesData = await docentesRes.json();
+        const cursosData = await cursosRes.json();
+        const ciclosData = await ciclosRes.json();
+        setDocentes(docentesData.data || []);
+        setCursos(cursosData.data || []);
+        setCiclosAcademicos(ciclosData.data || []);
       } catch (e) {
-        console.error('Failed to load saved data', e);
+        console.error('Error loading data:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+  
+  // Load initial docente if docenteId is provided
+  useEffect(() => {
+    if (initialDocenteId && docentes.length > 0 && cicloAcademicoSeleccionado) {
+      const docente = docentes.find(d => d.id === initialDocenteId);
+      if (docente) {
+        handleSeleccionarDocenteFromList(docente);
       }
     }
-  }, [initialCicloAcademico, shouldReset]);
-  
-  // Auto-save current docente data whenever it changes
-  useEffect(() => {
-    if (!cicloAcademicoSeleccionado) return;
-    
-    // Save which docente was last active for this ciclo
-    if (docenteSeleccionado) {
-      localStorage.setItem(getStorageKey(cicloAcademicoSeleccionado), JSON.stringify({
-        lastDocenteId: docenteSeleccionado.id
-      }));
-      
-      // Save docente-specific data
-      const docenteData: SavedDocenteData = {
-        docenteSeleccionado,
-        facultad,
-        dptoAcademico,
-        modalidad,
-        cursosAsignados,
-        secciones
-      };
-      localStorage.setItem(getStorageKey(cicloAcademicoSeleccionado, docenteSeleccionado.id), JSON.stringify(docenteData));
-    }
-  }, [cicloAcademicoSeleccionado, docenteSeleccionado, facultad, dptoAcademico, modalidad, cursosAsignados, secciones]);
+  }, [initialDocenteId, docentes, cicloAcademicoSeleccionado]);
   
   // Handle docente selection and load saved data if available
   const handleSeleccionarDocenteFromList = async (docente: Docente) => {
     console.log('🎯 Selected docente:', docente);
     console.log('🎯 docente.facultad:', docente.facultad);
     console.log('🎯 docente.dpto_academico:', docente.dpto_academico);
-    // Save current docente first before switching
-    if (docenteSeleccionado && cicloAcademicoSeleccionado) {
-      const currentDocData: SavedDocenteData = {
-        docenteSeleccionado,
-        facultad,
-        dptoAcademico,
-        modalidad,
-        cursosAsignados,
-        secciones
-      };
-      localStorage.setItem(getStorageKey(cicloAcademicoSeleccionado, docenteSeleccionado.id), JSON.stringify(currentDocData));
-    }
     
     // Now set new docente
     setDocenteSeleccionado(docente);
@@ -229,7 +188,6 @@ export default function NuevaCargaHorariaPage() {
     let newSecciones = initialSecciones;
     
     // Check server first for existing carga horaria
-    let loadedFromServer = false;
     if (cicloAcademicoSeleccionado) {
       try {
         const params = new URLSearchParams();
@@ -239,101 +197,105 @@ export default function NuevaCargaHorariaPage() {
         const res = await fetch(`/api/carga-horaria?${params}`);
         const data = await res.json();
         console.log('📄 Carga horaria from server:', data);
-        if (data.data && data.data.length > 0) {
-          const ch = data.data[0];
-          
+        console.log('📄 Carga horaria from server:', data);
+          if (data.data && data.data.length > 0) {
+            // Combine all carga horaria entries into one
+            const allCursos: any[] = [];
+            let combinedCh: any = null;
+            
+            for (const ch of data.data) {
+              if (!combinedCh) {
+                combinedCh = ch;
+              }
+              if (ch.cursos) {
+                allCursos.push(...ch.cursos);
+              }
+            }
+            
+            console.log('📄 combinedCh:', combinedCh);
+          console.log('📄 combinedCh.asesoria:', combinedCh.asesoria);
           // Convert server data to our state structure
-          console.log('📄 ch.facultad:', ch.facultad, 'docente.facultad:', docente.facultad);
-          console.log('📄 ch.dpto_academico:', ch.dpto_academico, 'docente.dpto_academico:', docente.dpto_academico);
-          newFacultad = ch.facultad || docente.facultad || '';
-          newDptoAcademico = ch.dpto_academico || docente.dpto_academico || '';
-          newModalidad = ch.modalidad || '';
+          console.log('📄 ch.facultad:', combinedCh.facultad, 'docente.facultad:', docente.facultad);
+          console.log('📄 ch.dpto_academico:', combinedCh.dpto_academico, 'docente.dpto_academico:', docente.dpto_academico);
+          newFacultad = combinedCh.facultad || docente.facultad || '';
+          newDptoAcademico = combinedCh.dpto_academico || docente.dpto_academico || '';
+          newModalidad = combinedCh.modalidad || '';
           
           // Convert cursos
-          const convertedCursos: CursoAsignado[] = (ch.cursos || []).map((curso: any) => ({
-            id: curso.curso_id, // or Date.now().toString(), but use curso_id
-            curso_id: curso.curso_id, // NEW!
-            curso: String(curso.ciclo_plan),
-            codigo: curso.curso_codigo,
-            nombre: curso.curso_nombre,
-            seccion: curso.seccion,
-            escuela: curso.escuela,
-            condicionCurso: 'OB',
-            anioCiclo: '',
-            numeroAlumnos: String(curso.num_alumnos),
-            teoriaHoras: String(curso.horas_teoria),
-            teoriaGrupos: '1',
-            practicaHoras: String(curso.horas_practica),
-            practicaGrupos: '1',
-            laboratorioHoras: String(curso.horas_laboratorio),
-            laboratorioGrupos: '1',
-            totalHoras: String(curso.total_horas)
-          }));
+          const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
+          const convertedCursos: CursoAsignado[] = allCursos.map((curso: any) => {
+            const teoria = curso.horas_teoria ?? 0;
+            const teoriaGrupos = curso.teoria_grupos ?? 1;
+            const practica = curso.horas_practica ?? 0;
+            const practicaGrupos = curso.practica_grupos ?? 1;
+            const laboratorio = curso.horas_laboratorio ?? 0;
+            const laboratorioGrupos = curso.laboratorio_grupos ?? 1;
+            const total = (teoria * teoriaGrupos) + (practica * practicaGrupos) + (laboratorio * laboratorioGrupos);
+            
+            return {
+              id: curso.curso_id, // or Date.now().toString(), but use curso_id
+              curso_id: curso.curso_id, // NEW!
+              curso: String(curso.ciclo_plan),
+              codigo: curso.curso_codigo,
+              nombre: curso.curso_nombre,
+              seccion: curso.seccion,
+              escuela: curso.escuela,
+              condicionCurso: 'OB',
+              anioCiclo: cicloAcademico?.nombre || '',
+              numeroAlumnos: String(curso.num_alumnos ?? 0),
+              teoriaHoras: String(teoria),
+              teoriaGrupos: String(teoriaGrupos),
+              practicaHoras: String(practica),
+              practicaGrupos: String(practicaGrupos),
+              laboratorioHoras: String(laboratorio),
+              laboratorioGrupos: String(laboratorioGrupos),
+              totalHoras: String(total)
+            };
+          });
           newCursosAsignados = convertedCursos;
           
           // Convert secciones
           newSecciones = {
             preparacionEvaluacion: { 
-              items: [{ id: 'prep-1', descripcion: ch.preparacion?.descripcion || '' }], 
-              horas: String(ch.preparacion?.horas || 0) 
+              items: [{ id: 'prep-1', descripcion: combinedCh.preparacion?.descripcion || '' }], 
+              horas: String(combinedCh.preparacion?.horas ?? 0) 
             },
             consejeriaTutoria: { 
-              items: [{ id: 'consej-1', descripcion: ch.consejeria?.detalles || '' }], 
-              horas: String(ch.consejeria?.horas || 0) 
+              items: [{ id: 'consej-1', descripcion: combinedCh.consejeria?.detalles || '' }], 
+              horas: String(combinedCh.consejeria?.horas ?? 0) 
             },
             investigacion: { 
-              items: [{ id: 'invest-1', descripcion: ch.investigacion?.proyecto || '' }], 
-              horas: String(ch.investigacion?.horas || 0) 
+              items: [{ id: 'invest-1', descripcion: combinedCh.investigacion?.proyecto || '' }], 
+              horas: String(combinedCh.investigacion?.horas ?? 0) 
             },
             capacitacion: { 
-              items: [{ id: 'cap-1', descripcion: ch.capacitacion?.detalles || '' }], 
-              horas: String(ch.capacitacion?.horas || 0) 
+              items: [{ id: 'cap-1', descripcion: combinedCh.capacitacion?.detalles || '' }], 
+              horas: String(combinedCh.capacitacion?.horas ?? 0) 
             },
             gobierno: { 
-              items: [{ id: 'gob-1', descripcion: ch.gobierno?.detalles || '' }], 
-              horas: String(ch.gobierno?.horas || 0) 
+              items: [{ id: 'gob-1', descripcion: combinedCh.gobierno?.detalles || '' }], 
+              horas: String(combinedCh.gobierno?.horas ?? 0) 
             },
             administracion: { 
-              items: [{ id: 'admin-1', descripcion: ch.administracion?.detalles || '' }], 
-              horas: String(ch.administracion?.horas || 0) 
+              items: [{ id: 'admin-1', descripcion: combinedCh.administracion?.detalles || '' }], 
+              horas: String(combinedCh.administracion?.horas ?? 0) 
             },
             asesoriaTesis: { 
-              items: [{ id: 'tesis-1', descripcion: ch.asesoria?.detalles || '' }], 
-              horas: String(ch.asesoria?.horas || 0) 
+              items: [{ id: 'tesis-1', descripcion: combinedCh.asesoria?.detalles || '' }], 
+              horas: String(combinedCh.asesoria?.horas ?? 0) 
             },
             responsabilidadSocial: { 
-              items: [{ id: 'rs-1', descripcion: ch.rsu?.plan || '' }], 
-              horas: String(ch.rsu?.horas || 0) 
+              items: [{ id: 'rs-1', descripcion: combinedCh.rsu?.plan || '' }], 
+              horas: String(combinedCh.rsu?.horas ?? 0) 
             },
             comitesTecnicos: { 
-              items: [{ id: 'comites-1', descripcion: ch.comites?.detalles || '' }], 
-              horas: String(ch.comites?.horas || 0) 
+              items: [{ id: 'comites-1', descripcion: combinedCh.comites?.detalles || '' }], 
+              horas: String(combinedCh.comites?.horas ?? 0) 
             }
           };
-          
-          loadedFromServer = true;
         }
       } catch (e) {
         console.error('Error loading carga horaria from server:', e);
-      }
-    }
-    
-    // If not loaded from server, check localStorage
-    if (!loadedFromServer && cicloAcademicoSeleccionado) {
-      const savedDocData = localStorage.getItem(getStorageKey(cicloAcademicoSeleccionado, docente.id));
-      if (savedDocData) {
-        try {
-          const docData: SavedDocenteData = JSON.parse(savedDocData);
-          console.log('📦 Using saved doc data:', docData);
-          newFacultad = docData.facultad;
-          newDptoAcademico = docData.dptoAcademico;
-          newModalidad = docData.modalidad || '';
-          newCursosAsignados = docData.cursosAsignados;
-          newSecciones = docData.secciones || initialSecciones;
-        } catch (e) {
-          // If parse fails, keep the docente defaults
-          console.log('📦 Saved data failed, using docente defaults');
-        }
       }
     }
     
@@ -347,12 +309,38 @@ export default function NuevaCargaHorariaPage() {
     setSearchQuery(`${docente.apellidos || ''}, ${docente.nombre || ''}`);
     setIsSearching(false);
   };
-
+  
   const handleGuardar = async () => {
-    if (!docenteSeleccionado || !cicloAcademicoSeleccionado) return;
+    if (!docenteSeleccionado || !cicloAcademicoSeleccionado) {
+      setAlertMessage('Por favor seleccione un docente y ciclo académico');
+      return;
+    }
+
+    if (!modalidad) {
+      setAlertMessage('Por favor seleccione una modalidad');
+      return;
+    }
     
     // Filter out any courses that don't have curso_id!
     const validCursos = cursosAsignados.filter(curso => curso.curso_id && curso.curso_id.length > 0);
+    
+    if (validCursos.length === 0) {
+      setAlertMessage('Por favor agregue al menos un curso');
+      return;
+    }
+
+    if (parseFloat(totalHoras) <= 0) {
+      setAlertMessage('El total de horas debe ser mayor a 0');
+      return;
+    }
+    
+    // Check that all cursos have numeroAlumnos > 0
+    const cursosSinAlumnos = validCursos.filter(c => parseFloat(c.numeroAlumnos) <= 0);
+    if (cursosSinAlumnos.length > 0) {
+      setAlertMessage('Todos los cursos deben tener al menos 1 alumno');
+      return;
+    }
+    
     console.log('Valid cursos with curso_id:', validCursos);
     
     const bodyToSend = {
@@ -390,7 +378,7 @@ export default function NuevaCargaHorariaPage() {
       if (!res.ok) {
         const data = await res.json();
         console.error('Error from API:', data);
-        alert('Error guardando: ' + (data.error || 'Ocurrió un error'));
+        setAlertMessage('Error guardando: ' + (data.error || 'Ocurrió un error'));
         return;
       }
 
@@ -400,43 +388,11 @@ export default function NuevaCargaHorariaPage() {
       }, 2000);
     } catch (e) {
       console.error('Error guardando:', e);
-      alert('Error guardando la carga horaria');
+      setAlertMessage('Error guardando la carga horaria');
     } finally {
       setGuardando(false);
     }
   };
-
-  // Load all docentes initially - no pagination!
-  useEffect(() => {
-    fetch('/api/docentes?limit=1000')
-      .then(r => r.json())
-      .then(data => {
-        console.log('✅ Docentes loaded from API:', data.data);
-        data.data.forEach((doc: any) => {
-          console.log(`👨‍🏫 Docente ${doc.nombre} ${doc.apellidos}:`, {
-            facultad: doc.facultad,
-            dpto_academico: doc.dpto_academico
-          });
-        });
-        setDocentes(data.data || []);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-  
-  // Load all cursos for search/select
-  useEffect(() => {
-    const fetchCursos = async () => {
-      try {
-        const res = await fetch('/api/cursos?reporte=true');
-        const data = await res.json();
-        setCursos(data.data || []);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchCursos();
-  }, []);
 
   // Redirect back if no ciclo academico selected
   useEffect(() => {
@@ -452,24 +408,16 @@ export default function NuevaCargaHorariaPage() {
 
   // Filter docentes based on search query
   const filteredDocentes = docentes.filter(d => {
-    console.log('Checking docente:', d.nombre, d.apellidos, 'activo:', d.activo, 'dni:', d.dni, 'codigo:', d.codigo);
-    console.log('Checking docente fields:', {
-      facultad: d.facultad,
-      dpto_academico: d.dpto_academico,
-      ...d
-    });
+    console.log('Checking docente:', d.nombre, d.apellidos, 'activo:', d.activo, 'dni:', d.dni);
     if (!d.activo) return false;
     if (!searchQuery) return true;
     const query = normalizeText(searchQuery);
-    const matches = (
+    return (
       normalizeText(d.nombre || '').includes(query) ||
       normalizeText(d.apellidos || '').includes(query) ||
-      normalizeText(d.codigo || d.dni || '').includes(query)
+      normalizeText(d.dni || '').includes(query)
     );
-    console.log(`Does "${d.apellidos}, ${d.nombre}" match "${searchQuery}" (${query})?`, matches);
-    return matches;
   });
-  console.log('🔍 Filtered docentes count:', filteredDocentes.length, filteredDocentes);
 
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newQuery = e.target.value;
@@ -502,23 +450,52 @@ export default function NuevaCargaHorariaPage() {
     setIsSearching(false);
   };
 
+  const handleSeleccionarCurso = (curso: any) => {
+    const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
+    setSelectedCurso(curso);
+    setNuevoCurso({
+      curso_id: curso.id,
+      codigo: curso.codigo,
+      nombre: curso.nombre,
+      seccion: 'A',
+      condicionCurso: 'OB',
+      curso: String(curso.ciclo_plan),
+      escuela: 'Ing. Sistemas',
+      anioCiclo: cicloAcademico?.nombre || '',
+      numeroAlumnos: '40',
+      teoriaHoras: String(curso.horas_teoria || 0),
+      teoriaGrupos: '1',
+      practicaHoras: String(curso.horas_practica || 0),
+      practicaGrupos: '1',
+      laboratorioHoras: String(curso.horas_laboratorio || 0),
+      laboratorioGrupos: '1',
+      totalHoras: String((curso.horas_teoria || 0) + (curso.horas_practica || 0) + (curso.horas_laboratorio || 0)),
+    });
+  };
+
   const handleAgregarCurso = () => {
+    const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
     const id = Date.now().toString();
     setCursosAsignados([...cursosAsignados, { ...nuevoCurso, id }]);
     setNuevoCurso({
+      curso_id: '',
       codigo: '',
       nombre: '',
-      seccion: '',
-      tipo: '',
-      escuela: '',
-      ciclo: '',
-      numeroAlumnos: '',
-      horasTeoria: '',
-      horasPractica: '',
-      horasLaboratorio: '',
-      totalHoras: '',
+      seccion: 'A',
+      condicionCurso: 'OB',
+      curso: '',
+      escuela: 'Ing. Sistemas',
+      anioCiclo: cicloAcademico?.nombre || '',
+      numeroAlumnos: '40',
+      teoriaHoras: '0',
+      teoriaGrupos: '1',
+      practicaHoras: '0',
+      practicaGrupos: '1',
+      laboratorioHoras: '0',
+      laboratorioGrupos: '1',
+      totalHoras: '0',
     });
-    setShowAgregarCurso(false);
+    setShowAgregarCursoModal(false);
   };
 
   const handleEliminarCurso = (id: string) => {
@@ -529,8 +506,17 @@ export default function NuevaCargaHorariaPage() {
     setCursosAsignados(cursosAsignados.map(c => {
       if (c.id !== id) return c;
       
+      // If it's a numeric field, ensure it's >= 0
+      let processedValue = value;
+      if (['numeroAlumnos', 'teoriaHoras', 'teoriaGrupos', 'practicaHoras', 'practicaGrupos', 'laboratorioHoras', 'laboratorioGrupos'].includes(field)) {
+        const numValue = parseFloat(value);
+        if (isNaN(numValue) || numValue < 0) {
+          processedValue = '0';
+        }
+      }
+      
       // Update the field
-      const updated = { ...c, [field]: value };
+      const updated = { ...c, [field]: processedValue };
       
       // Recalculate totalHoras
       const tHoras = parseFloat(updated.teoriaHoras || '0') * parseFloat(updated.teoriaGrupos || '0');
@@ -575,11 +561,18 @@ export default function NuevaCargaHorariaPage() {
   };
 
   const handleUpdateHoras = (seccionKey: keyof Secciones, value: string) => {
+    // Ensure value is >= 0
+    let processedValue = value;
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || numValue < 0) {
+      processedValue = '0';
+    }
+    
     setSecciones(prev => ({
       ...prev,
       [seccionKey]: {
         ...prev[seccionKey],
-        horas: value
+        horas: processedValue
       }
     }));
   };
@@ -592,6 +585,10 @@ export default function NuevaCargaHorariaPage() {
   const totalHoras = totalTrabajoLectivo + Object.values(secciones).reduce((sum, actividad) => {
     return sum + parseFloat(actividad.horas || '0');
   }, 0);
+
+  if (loading) {
+    return <div className="p-8 text-center">Cargando...</div>;
+  }
 
   if (!cicloAcademicoSeleccionado) {
     return null;
@@ -624,9 +621,30 @@ export default function NuevaCargaHorariaPage() {
         </div>
       )}
       
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: '700', margin: '0 0 4px' }}>Nueva Carga Horaria</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>Selecciona docentes para continuar</p>
+      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ fontSize: '24px', fontWeight: '700', margin: '0 0 4px' }}>Nueva Carga Horaria</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>Selecciona un docente para continuar</p>
+        </div>
+        <button 
+          onClick={() => router.push('/carga-horaria')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 16px',
+            border: '1px solid var(--border-color)',
+            borderRadius: '8px',
+            background: 'var(--bg-card)',
+            color: 'var(--text-primary)',
+            cursor: 'pointer'
+          }}
+        >
+          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Volver
+        </button>
       </div>
 
       <div className="card" style={{ padding: '24px' }}>
@@ -639,7 +657,7 @@ export default function NuevaCargaHorariaPage() {
             <div style={{ marginBottom: '12px' }}>
               <input
                 className="form-input"
-                placeholder="Buscar docente por nombre, apellidos o código..."
+                placeholder="Buscar docente por nombre, apellidos o DNI..."
                 value={searchQuery}
                 onChange={handleSearchInputChange}
                 style={{ width: '100%' }}
@@ -661,7 +679,7 @@ export default function NuevaCargaHorariaPage() {
                       borderBottom: '1px solid var(--border-color)',
                       cursor: 'pointer',
                       background: docenteSeleccionado?.id === docente.id 
-                        ? '#eff6ff' 
+                        ? 'var(--bg-secondary)' 
                         : 'transparent'
                     }}
                   >
@@ -669,7 +687,7 @@ export default function NuevaCargaHorariaPage() {
                       {docente.apellidos || ''}, {docente.nombre || ''}
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                      DNI: {docente.dni || docente.codigo || ''}
+                      DNI: {docente.dni || ''}
                     </div>
                   </div>
                 ))}
@@ -753,7 +771,7 @@ export default function NuevaCargaHorariaPage() {
                           <option value="TIEMPO PARCIAL 12 H" style={{ color: '#1f2937' }}>Tiempo Parcial 12 Hr</option>
                           <option value="TIEMPO PARCIAL 16 H" style={{ color: '#1f2937' }}>Tiempo Parcial 16 Hr</option>
                           <option value="TIEMPO PARCIAL 20 H" style={{ color: '#1f2937' }}>Tiempo Parcial 20 Hr</option>
-                          <option value="TIEMPO COMPLETO 40 H" style={{ color: '#1f2937' }}>Tiempo Completo 40 H</option>
+                          <option value="TIEMPO COMPLETO 40 H" style={{ color: '#1f2937' }}>Tiempo Completo 40 Hr</option>
                         </select>
                       </td>
                     </tr>
@@ -851,8 +869,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={curso.numeroAlumnos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'numeroAlumnos', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '70px' }}
                             />
                           </td>
@@ -861,8 +881,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={curso.teoriaHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'teoriaHoras', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -870,8 +892,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={curso.teoriaGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'teoriaGrupos', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -880,8 +904,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={curso.practicaHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'practicaHoras', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -889,8 +915,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={curso.practicaGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'practicaGrupos', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -899,8 +927,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={curso.laboratorioHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'laboratorioHoras', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -908,8 +938,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={curso.laboratorioGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'laboratorioGrupos', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -965,8 +997,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.preparacionEvaluacion.horas}
                               onChange={(e) => handleUpdateHoras('preparacionEvaluacion', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1007,8 +1041,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.consejeriaTutoria.horas}
                               onChange={(e) => handleUpdateHoras('consejeriaTutoria', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1049,8 +1085,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.investigacion.horas}
                               onChange={(e) => handleUpdateHoras('investigacion', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1091,8 +1129,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.capacitacion.horas}
                               onChange={(e) => handleUpdateHoras('capacitacion', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1133,8 +1173,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.gobierno.horas}
                               onChange={(e) => handleUpdateHoras('gobierno', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1145,11 +1187,11 @@ export default function NuevaCargaHorariaPage() {
                 </div>
               </div>
 
-              {/* 7. ACTIVIDADES DE ADMINISTRACIÓN */}
+              {/* 7. ADMINISTRACIÓN */}
               <div style={{ marginBottom: '24px' }}>
                 <div style={{ marginBottom: '12px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
-                    7. ACTIVIDADES DE ADMINISTRACIÓN
+                    7. ADMINISTRACIÓN
                   </h3>
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
@@ -1175,8 +1217,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.administracion.horas}
                               onChange={(e) => handleUpdateHoras('administracion', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1187,11 +1231,11 @@ export default function NuevaCargaHorariaPage() {
                 </div>
               </div>
 
-              {/* 8. ASESORÍA DE TESIS, EXÁMENES PROFESIONALES Y EXPERIENCIA PROFESIONAL */}
+              {/* 8. ASESORÍA DE TESIS */}
               <div style={{ marginBottom: '24px' }}>
                 <div style={{ marginBottom: '12px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
-                    8. ASESORÍA DE TESIS, EXÁMENES PROFESIONALES Y EXPERIENCIA PROFESIONAL
+                    8. ASESORÍA DE TESIS
                   </h3>
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
@@ -1217,8 +1261,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.asesoriaTesis.horas}
                               onChange={(e) => handleUpdateHoras('asesoriaTesis', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1233,7 +1279,7 @@ export default function NuevaCargaHorariaPage() {
               <div style={{ marginBottom: '24px' }}>
                 <div style={{ marginBottom: '12px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
-                    9. RESPONSABILIDAD SOCIAL UNIVERSITARIA (Como máximo 02 horas semanales)
+                    9. RESPONSABILIDAD SOCIAL UNIVERSITARIA
                   </h3>
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
@@ -1259,8 +1305,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.responsabilidadSocial.horas}
                               onChange={(e) => handleUpdateHoras('responsabilidadSocial', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1271,11 +1319,11 @@ export default function NuevaCargaHorariaPage() {
                 </div>
               </div>
 
-              {/* 10. COMITÉS TÉCNICOS Y COMISIONES */}
+              {/* 10. COMITÉS TÉCNICOS */}
               <div style={{ marginBottom: '24px' }}>
                 <div style={{ marginBottom: '12px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
-                    10. COMITÉS TÉCNICOS Y COMISIONES
+                    10. COMITÉS TÉCNICOS
                   </h3>
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
@@ -1301,8 +1349,10 @@ export default function NuevaCargaHorariaPage() {
                             <input
                               className="form-input"
                               type="number"
+                              min="0"
                               value={secciones.comitesTecnicos.horas}
                               onChange={(e) => handleUpdateHoras('comitesTecnicos', e.target.value)}
+                              onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
                           </td>
@@ -1314,164 +1364,360 @@ export default function NuevaCargaHorariaPage() {
               </div>
 
               {/* TOTAL HORAS */}
-              <div style={{ marginTop: '24px', padding: '16px', border: '1px solid var(--border-color)', borderRadius: '8px', background: darkMode ? '#1e293b' : '#f8fafc' }}>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px' }}>
-                  <span style={{ fontSize: '14px', fontWeight: '600' }}>Total Horas:</span>
-                  <input
-                    className="form-input"
-                    type="number"
-                    value={totalHoras}
-                    readOnly
-                    style={{ width: '100px', padding: '8px 12px', fontSize: '14px', fontWeight: '600' }}
-                  />
+              <div style={{ 
+                background: darkMode ? '#1e293b' : '#f1f5f9', 
+                padding: '16px', 
+                borderRadius: '8px',
+                marginTop: '32px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '18px', fontWeight: '700' }}>TOTAL HORAS SEMANALES:</span>
+                  <span style={{ fontSize: '32px', fontWeight: '700', color: '#059669' }}>
+                    {totalHoras}
+                  </span>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* Modal para buscar/seleccionar curso */}
-          {showAgregarCursoModal && (
-            <div style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 100,
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'center',
-              paddingTop: '100px'
-            }} onClick={() => setShowAgregarCursoModal(false)}>
-              <div style={{
-                background: 'var(--bg-card)',
-                borderRadius: '16px',
-                width: '90%',
-                maxWidth: '450px',
-                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
-                border: '1px solid var(--border-color)',
-                animation: 'slideUp 0.3s ease'
-              }} onClick={(e) => e.stopPropagation()}>
-                <div style={{ padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <h2 style={{ fontSize: '15px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
-                    Seleccionar Curso
-                  </h2>
-                  <button onClick={() => setShowAgregarCursoModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px' }}>
-                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
-                <div style={{ padding: '0 16px 16px' }}>
-                  {/* Search input */}
-                  <div style={{ marginBottom: '10px' }}>
-                    <input
-                      className="form-input"
-                      placeholder="Buscar curso por código o nombre..."
-                      value={cursoSearchQuery}
-                      onChange={(e) => setCursoSearchQuery(e.target.value)}
-                      style={{ width: '100%', fontSize: '13px', padding: '8px 12px' }}
-                    />
-                  </div>
-                  
-                  {/* Cursos list */}
-                  <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '10px' }}>
-                    {cursos.filter(c => 
-                      c.nombre?.toLowerCase().includes(cursoSearchQuery.toLowerCase()) || 
-                      c.codigo?.toLowerCase().includes(cursoSearchQuery.toLowerCase())
-                    ).map(curso => (
-                      <div
-                        key={curso.id}
-                        onClick={() => setSelectedCurso(curso)}
-                        style={{
-                          padding: '9px 12px',
-                          borderBottom: '1px solid var(--border-color)',
-                          cursor: 'pointer',
-                          background: selectedCurso?.id === curso.id ? 'rgba(37, 99, 235, 0.1)' : 'transparent'
-                        }}
-                      >
-                        <div style={{ fontWeight: '700', fontSize: '12px', color: 'var(--text-primary)' }}>
-                          {curso.codigo} - {curso.nombre}
-                        </div>
-                        <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                          Ciclo {curso.ciclo_plan} • {curso.escuela_nombre || ''} • {curso.horas_teoria}h T / {curso.horas_practica}h P / {curso.horas_laboratorio}h L
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ padding: '0 16px 16px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                  <button
+              {/* GUARDAR BUTTON */}
+              {canWrite && (
+                <div style={{ marginTop: '32px', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                  <button 
                     className="btn-secondary"
-                    onClick={() => {
-                      setShowAgregarCursoModal(false);
-                      setSelectedCurso(null);
-                      setCursoSearchQuery('');
-                    }}
-                    style={{ fontSize: '12px', padding: '7px 14px' }}
+                    onClick={() => router.push('/carga-horaria')}
+                    style={{ padding: '10px 24px' }}
                   >
                     Cancelar
                   </button>
-                  <button
+                  <button 
                     className="btn-primary"
-                    disabled={!selectedCurso}
-                    onClick={() => {
-                      console.log('Adding course:', selectedCurso);
-                      console.log('selectedCurso.id:', selectedCurso.id);
-                      setCursosAsignados([
-                        ...cursosAsignados,
-                        {
-                          id: Date.now().toString(),
-                          curso_id: selectedCurso.id, // NEW - store curso.id
-                          codigo: selectedCurso.codigo || '',
-                          nombre: selectedCurso.nombre || '',
-                          seccion: 'A', // Default A
-                          condicionCurso: 'OB', // Default OB
-                          curso: selectedCurso.ciclo_plan?.toString() || '',
-                          escuela: 'Ingeniería de Sistemas', // Default
-                          anioCiclo: selectedCurso.ciclo_plan?.toString() || '',
-                          numeroAlumnos: '40', // Default 40
-                          teoriaHoras: selectedCurso.horas_teoria?.toString() || '0',
-                          teoriaGrupos: '0',
-                          practicaHoras: selectedCurso.horas_practica?.toString() || '0',
-                          practicaGrupos: '0',
-                          laboratorioHoras: selectedCurso.horas_laboratorio?.toString() || '0',
-                          laboratorioGrupos: '0',
-                          totalHoras: '0'
-                        }
-                      ]);
-                      setShowAgregarCursoModal(false);
-                      setSelectedCurso(null);
-                      setCursoSearchQuery('');
-                    }}
-                    style={{ fontSize: '12px', padding: '7px 14px' }}
+                    onClick={handleGuardar}
+                    disabled={guardando}
+                    style={{ padding: '10px 24px' }}
                   >
-                    Agregar
+                    {guardando ? 'Guardando...' : 'Guardar Carga Horaria'}
                   </button>
                 </div>
-              </div>
+              )}
             </div>
           )}
-
-          {/* Buttons */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
-            <button
-              className="btn-secondary"
-              onClick={() => {
-                // Clear saved data for current docente before canceling
-                if (cicloAcademicoSeleccionado && docenteSeleccionado) {
-                  localStorage.removeItem(getStorageKey(cicloAcademicoSeleccionado, docenteSeleccionado.id));
-                }
-                router.push('/carga-horaria');
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              className="btn-primary"
-              onClick={handleGuardar}
-              disabled={!docenteSeleccionado || guardando}
-            >
-              {guardando ? 'Guardando...' : 'Guardar'}
-            </button>
-          </div>
         </div>
       </div>
+
+      {/* Modal for adding courses */}
+      {showAgregarCursoModal && (
+        <div className="modal-overlay" onClick={() => setShowAgregarCursoModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', maxHeight: '80vh', overflow: 'auto' }}>
+            <div className="modal-header">
+              <h2 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>Seleccionar Curso</h2>
+              <button onClick={() => setShowAgregarCursoModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px' }}>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              <div style={{ marginBottom: '16px' }}>
+                <input
+                  className="form-input"
+                  placeholder="Buscar curso por nombre o código..."
+                  value={cursoSearchQuery}
+                  onChange={(e) => setCursoSearchQuery(e.target.value)}
+                />
+              </div>
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                {cursos
+                  .filter(c => 
+                    normalizeText(c.nombre).includes(normalizeText(cursoSearchQuery)) ||
+                    normalizeText(c.codigo).includes(normalizeText(cursoSearchQuery))
+                  )
+                  .map(curso => (
+                    <div
+                      key={curso.id}
+                      onClick={() => handleSeleccionarCurso(curso)}
+                      style={{
+                        padding: '12px',
+                        borderBottom: '1px solid var(--border-color)',
+                        cursor: 'pointer',
+                        background: selectedCurso?.id === curso.id ? '#eff6ff' : 'transparent'
+                      }}
+                    >
+                      <div style={{ fontWeight: '600' }}>
+                        {curso.codigo} - {curso.nombre}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        Ciclo: {curso.ciclo_plan} | Escuela: {curso.escuela || 'N/A'}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+              {selectedCurso && (
+                <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '24px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>Detalles del Curso</h3>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Sección</label>
+                      <input
+                        className="form-input"
+                        value={nuevoCurso.seccion}
+                        onChange={(e) => setNuevoCurso(prev => ({ ...prev, seccion: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Número de Alumnos</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min="0"
+                        value={nuevoCurso.numeroAlumnos}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (parseFloat(val) < 0) val = '0';
+                          setNuevoCurso(prev => ({ ...prev, numeroAlumnos: val }));
+                        }}
+                        onWheel={(e) => e.preventDefault()}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Horas Teoría</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min="0"
+                        value={nuevoCurso.teoriaHoras}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (parseFloat(val) < 0) val = '0';
+                          const tHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
+                          const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
+                          const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
+                          const total = (tHoras + pHoras + lHoras).toString();
+                          setNuevoCurso(prev => ({ ...prev, teoriaHoras: val, totalHoras: total }));
+                        }}
+                        onWheel={(e) => e.preventDefault()}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Teoría</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min="0"
+                        value={nuevoCurso.teoriaGrupos}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (parseFloat(val) < 0) val = '0';
+                          const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(val || '0');
+                          const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
+                          const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
+                          const total = (tHoras + pHoras + lHoras).toString();
+                          setNuevoCurso(prev => ({ ...prev, teoriaGrupos: val, totalHoras: total }));
+                        }}
+                        onWheel={(e) => e.preventDefault()}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Horas Práctica</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min="0"
+                        value={nuevoCurso.practicaHoras}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (parseFloat(val) < 0) val = '0';
+                          const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
+                          const pHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
+                          const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
+                          const total = (tHoras + pHoras + lHoras).toString();
+                          setNuevoCurso(prev => ({ ...prev, practicaHoras: val, totalHoras: total }));
+                        }}
+                        onWheel={(e) => e.preventDefault()}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Práctica</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min="0"
+                        value={nuevoCurso.practicaGrupos}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (parseFloat(val) < 0) val = '0';
+                          const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
+                          const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(val || '0');
+                          const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
+                          const total = (tHoras + pHoras + lHoras).toString();
+                          setNuevoCurso(prev => ({ ...prev, practicaGrupos: val, totalHoras: total }));
+                        }}
+                        onWheel={(e) => e.preventDefault()}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Horas Laboratorio</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min="0"
+                        value={nuevoCurso.laboratorioHoras}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (parseFloat(val) < 0) val = '0';
+                          const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
+                          const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
+                          const lHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
+                          const total = (tHoras + pHoras + lHoras).toString();
+                          setNuevoCurso(prev => ({ ...prev, laboratorioHoras: val, totalHoras: total }));
+                        }}
+                        onWheel={(e) => e.preventDefault()}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Laboratorio</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        min="0"
+                        value={nuevoCurso.laboratorioGrupos}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (parseFloat(val) < 0) val = '0';
+                          const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
+                          const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
+                          const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(val || '0');
+                          const total = (tHoras + pHoras + lHoras).toString();
+                          setNuevoCurso(prev => ({ ...prev, laboratorioGrupos: val, totalHoras: total }));
+                        }}
+                        onWheel={(e) => e.preventDefault()}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Total Horas</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={nuevoCurso.totalHoras}
+                        disabled
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                    <button className="btn-secondary" onClick={() => setShowAgregarCursoModal(false)}>
+                      Cancelar
+                    </button>
+                    <button className="btn-primary" onClick={handleAgregarCurso}>
+                      Agregar Curso
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Alert Modal */}
+      {alertMessage && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '24px',
+            borderRadius: '12px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+            maxWidth: '400px',
+            width: '90%'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              marginBottom: '16px'
+            }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                backgroundColor: '#fee2e2',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#dc2626',
+                fontSize: '20px',
+                fontWeight: 'bold'
+              }}>
+                !
+              </div>
+              <h3 style={{
+                margin: 0,
+                fontSize: '18px',
+                fontWeight: '600',
+                color: '#111827'
+              }}>
+                Atención
+              </h3>
+            </div>
+            <p style={{
+              margin: 0,
+              marginBottom: '20px',
+              fontSize: '14px',
+              color: '#4b5563',
+              lineHeight: '1.5'
+            }}>
+              {alertMessage}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                style={{
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                onClick={() => setAlertMessage(null)}
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Botones de Guardar y Cancelar */}
+      {docenteSeleccionado && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
+          <button
+            className="btn-secondary"
+            onClick={() => router.push('/carga-horaria')}
+          >
+            Cancelar
+          </button>
+          <button
+            className="btn-primary"
+            onClick={handleGuardar}
+            disabled={guardando}
+          >
+            {guardando ? 'Guardando...' : 'Guardar Carga Horaria'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
