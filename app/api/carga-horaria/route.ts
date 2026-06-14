@@ -274,17 +274,10 @@ export async function POST(req: NextRequest) {
         );
 
         // Insert carga_horaria for this ciclo_plan
+        // Note: previous DELETE already removed existing rows, so plain INSERT is safe
         const result = await client.query(
           `INSERT INTO carga_horaria (docente_id, ciclo_academico_id, ciclo_plan, modalidad, facultad, dpto_academico, horas_asignadas, activo)
            VALUES ($1, $2, $3, $4, $5, $6, $7, true)
-           ON CONFLICT (docente_id, ciclo_academico_id, ciclo_plan)
-           DO UPDATE SET
-             modalidad = EXCLUDED.modalidad,
-             facultad = EXCLUDED.facultad,
-             dpto_academico = EXCLUDED.dpto_academico,
-             horas_asignadas = EXCLUDED.horas_asignadas,
-             activo = true,
-             updated_at = NOW()
            RETURNING *`,
           [docente_id, ciclo_academico_id, cp, modalidad, facultad, dpto_academico, horasForCiclo || 0]
         );
@@ -303,12 +296,12 @@ export async function POST(req: NextRequest) {
             await client.query(
               `INSERT INTO carga_horaria_cursos (
                 carga_horaria_id, curso_id, seccion, escuela, num_alumnos, 
-                horas_teoria, horas_practica, horas_laboratorio, total_horas,
+                hrs_teo, hrs_pra, hrs_lab, total_hrs,
                 teoria_grupos, practica_grupos, laboratorio_grupos
               ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
               [
                 cargaHorariaId,
-                curso.curso_id, // ONLY use curso.curso_id (valid UUID from cursos table)
+                curso.curso_id,
                 curso.seccion,
                 curso.escuela,
                 ensureNonNegative(curso.numeroAlumnos),
@@ -324,7 +317,7 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Helper function to upsert section data
+        // Helper function to upsert section data (delete + insert to avoid needing unique constraint)
         const upsertSection = async (tableName: string, data: any) => {
           if (!data) return;
           
@@ -336,14 +329,11 @@ export async function POST(req: NextRequest) {
             tableName === 'carga_horaria_rsu' ? 'plan' :
             'detalles';
           
+          await client.query('DELETE FROM ' + tableName + ' WHERE carga_horaria_id = $1', [cargaHorariaId]);
+          
           await client.query(
             `INSERT INTO ${tableName} (carga_horaria_id, horas, ${descField})
-             VALUES ($1, $2, $3)
-             ON CONFLICT (carga_horaria_id)
-             DO UPDATE SET
-               horas = EXCLUDED.horas,
-               ${descField} = EXCLUDED.${descField},
-               updated_at = NOW()`,
+             VALUES ($1, $2, $3)`,
             [cargaHorariaId, horas, descripcion]
           );
         };
