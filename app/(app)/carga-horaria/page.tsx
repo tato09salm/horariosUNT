@@ -294,7 +294,7 @@ export default function CargaHorariaPage() {
     setCiclosExpandidos(newExpandidos);
   }
 
-  function generarPDF(docenteId: string) {
+  function generarF01CAD(docenteId: string) {
     // Obtener todos los datos de carga horaria del docente en el ciclo seleccionado
     const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
     if (cargasDocente.length === 0) {
@@ -308,11 +308,11 @@ export default function CargaHorariaPage() {
     cargasDocente.forEach(ch => {
       if (ch.cursos && ch.cursos.length > 0) {
         ch.cursos.forEach(curso => {
-          const hrsTeo = curso.horas_teoria || curso.hrs_teo || 0;
-          const gruposTeo = curso.teoria_grupos || 1;
-          const hrsPra = curso.horas_practica || curso.hrs_pra || 0;
-          const gruposPra = curso.practica_grupos || 1;
-          const hrsLab = curso.horas_laboratorio || curso.hrs_lab || 0;
+          const hrsTeo = curso.hrs_teo || 0;
+          const gruposTeo = (curso as any).teoria_grupos || 1;
+          const hrsPra = curso.hrs_pra || 0;
+          const gruposPra = (curso as any).practica_grupos || 1;
+          const hrsLab = curso.hrs_lab || 0;
           const gruposLab = curso.laboratorio_grupos || 1;
           const totalHrs = (hrsTeo * gruposTeo) + (hrsPra * gruposPra) + (hrsLab * gruposLab);
           
@@ -599,6 +599,134 @@ export default function CargaHorariaPage() {
     doc.save(`carga-horaria-${nombreDocente.replace(/\s+/g, '-')}.pdf`);
   }
 
+  function generarF02CAD(docenteId: string) {
+    const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
+    if (cargasDocente.length === 0) {
+      setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
+      return;
+    }
+
+    const nombreDocente = cargasDocente[0]
+      ? `${cargasDocente[0].docente_apellidos}, ${cargasDocente[0].docente_nombre}`.toUpperCase()
+      : 'DOCENTE';
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 15;
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('FORMATO N° 2 - CAD', pageWidth / 2, y, { align: 'center' });
+    y += 10;
+    doc.setFontSize(12);
+    doc.text('PROGRAMACIÓN DE ACTIVIDADES ACADÉMICAS', pageWidth / 2, y, { align: 'center' });
+    y += 8;
+    doc.setFontSize(10);
+    doc.text(`Docente: ${nombreDocente}`, 15, y);
+    y += 6;
+
+    const cursosDocente: any[] = [];
+    cargasDocente.forEach(ch => {
+      if (ch.cursos && ch.cursos.length > 0) {
+        ch.cursos.forEach((curso: any) => {
+          cursosDocente.push({
+            codigo: curso.curso_codigo || '',
+            nombre: curso.curso_nombre || curso.nombre,
+            seccion: curso.seccion,
+            hrsTeo: curso.hrs_teo || 0,
+            hrsPra: curso.hrs_pra || 0,
+            hrsLab: curso.hrs_lab || 0,
+            total: (curso.hrs_teo || 0) + (curso.hrs_pra || 0) + (curso.hrs_lab || 0)
+          });
+        });
+      }
+    });
+
+    autoTable(doc, {
+      head: [[{ content: 'Curso', styles: { fontStyle: 'bold' } }, { content: 'H.T', styles: { fontStyle: 'bold' } }, { content: 'H.P', styles: { fontStyle: 'bold' } }, { content: 'H.L', styles: { fontStyle: 'bold' } }, { content: 'Total', styles: { fontStyle: 'bold' } }]],
+      body: cursosDocente.map((c: any) => [c.nombre.substring(0, 40), c.hrsTeo, c.hrsPra, c.hrsLab, c.total]),
+      startY: y,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [220, 220, 220], textColor: 0 }
+    });
+
+    y = (doc as any).lastAutoTable.finalY + 10;
+    const fecha = new Date();
+    const mes = fecha.toLocaleString('es-ES', { month: 'long' });
+    doc.text(`Trujillo, ${fecha.getDate()} de ${mes} del ${fecha.getFullYear()}`, pageWidth / 2, y, { align: 'center' });
+
+    doc.save(`F02-CAD-${nombreDocente.replace(/\s+/g, '-')}.pdf`);
+  }
+
+  function generarF03CAD(docenteId: string) {
+    const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
+    if (cargasDocente.length === 0) {
+      setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
+      return;
+    }
+
+    const nombreDocente = cargasDocente[0]
+      ? `${cargasDocente[0].docente_apellidos}, ${cargasDocente[0].docente_nombre}`.toUpperCase()
+      : 'DOCENTE';
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 15;
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('FORMATO N° 3 - CAD', pageWidth / 2, y, { align: 'center' });
+    y += 10;
+    doc.setFontSize(12);
+    doc.text('REPORTE DE ACTIVIDADES NO LECTIVAS', pageWidth / 2, y, { align: 'center' });
+    y += 8;
+    doc.setFontSize(10);
+    doc.text(`Docente: ${nombreDocente}`, 15, y);
+    y += 6;
+
+    const seccionesLabels: Record<string, string> = {
+      preparacion: 'Preparación y Evaluación',
+      consejeria: 'Consejería',
+      investigacion: 'Investigación',
+      capacitacion: 'Capacitación',
+      gobierno: 'Gobierno',
+      administracion: 'Administración',
+      asesoria: 'Asesoría',
+      rsu: 'Responsabilidad Social',
+      comites: 'Comités'
+    };
+
+    const bodyRows: any[] = [];
+    cargasDocente.forEach((ch: any) => {
+      for (const [key, label] of Object.entries(seccionesLabels)) {
+        if (ch[key] && ch[key].horas) {
+          bodyRows.push([label, ch[key].horas]);
+        }
+      }
+    });
+
+    if (bodyRows.length === 0) {
+      bodyRows.push(['No hay actividades no lectivas registradas', '']);
+    }
+
+    autoTable(doc, {
+      head: [[{ content: 'Actividad', styles: { fontStyle: 'bold' } }, { content: 'Horas', styles: { fontStyle: 'bold' } }]],
+      body: bodyRows,
+      startY: y,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [220, 220, 220], textColor: 0 }
+    });
+
+    y = (doc as any).lastAutoTable.finalY + 10;
+    const fecha = new Date();
+    const mes = fecha.toLocaleString('es-ES', { month: 'long' });
+    doc.text(`Trujillo, ${fecha.getDate()} de ${mes} del ${fecha.getFullYear()}`, pageWidth / 2, y, { align: 'center' });
+
+    doc.save(`F03-CAD-${nombreDocente.replace(/\s+/g, '-')}.pdf`);
+  }
+
   // Obtener todos los ciclos de estudio (I-X)
   const todosLosCiclos = Array.from({ length: 10 }, (_, i) => i + 1);
 
@@ -762,7 +890,7 @@ export default function CargaHorariaPage() {
               marginBottom: '-1px'
             }}
           >
-            Reportes
+            Formatos
           </button>
         </div>
       </div>
@@ -1242,20 +1370,50 @@ export default function CargaHorariaPage() {
                               {ch.docente_apellidos}, {ch.docente_nombre}
                             </td>
                             <td style={{ verticalAlign: 'middle' }}>
-                              <button
-                                className="btn-secondary"
-                                style={{ 
-                                  padding: '6px 12px', 
-                                  fontSize: '13px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '6px'
-                                }}
-                                onClick={() => generarPDF(ch.docente_id)}
-                              >
-                                <span style={{ fontSize: '16px' }}>📄</span>
-                                Ver PDF
-                              </button>
+                              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                <button
+                                  className="btn-secondary"
+                                  style={{ 
+                                    padding: '6px 12px', 
+                                    fontSize: '13px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                  }}
+                                  onClick={() => generarF01CAD(ch.docente_id)}
+                                >
+                                  <span style={{ fontSize: '14px' }}>📄</span>
+                                  F01-CAD
+                                </button>
+                                <button
+                                  className="btn-secondary"
+                                  style={{ 
+                                    padding: '6px 12px', 
+                                    fontSize: '13px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                  }}
+                                  onClick={() => generarF02CAD(ch.docente_id)}
+                                >
+                                  <span style={{ fontSize: '14px' }}>📄</span>
+                                  F02-CAD
+                                </button>
+                                <button
+                                  className="btn-secondary"
+                                  style={{ 
+                                    padding: '6px 12px', 
+                                    fontSize: '13px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                  }}
+                                  onClick={() => generarF03CAD(ch.docente_id)}
+                                >
+                                  <span style={{ fontSize: '14px' }}>📄</span>
+                                  F03-CAD
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ));
