@@ -666,65 +666,224 @@ export default function CargaHorariaPage() {
       return;
     }
 
-    const nombreDocente = cargasDocente[0]
-      ? `${cargasDocente[0].docente_apellidos}, ${cargasDocente[0].docente_nombre}`.toUpperCase()
-      : 'DOCENTE';
+    const docenteData = allDocentes.find(d => d.id === docenteId);
+    const primeraCarga = cargasDocente[0];
+    const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
+    const dAny = docenteData as any;
+
+    const apellidosNombre = `${primeraCarga.docente_apellidos}, ${primeraCarga.docente_nombre}`.toUpperCase();
+    const dni = dAny?.dni || '—';
+    const categoria = dAny?.categoria?.toUpperCase() || '—';
+    const condicionDisplay = dAny?.condicion === 'nombrado' ? 'TC' : dAny?.condicion === 'contratado' ? 'TP' : 'TC';
+    const facultad = (primeraCarga as any)?.facultad || (primeraCarga as any)?.docente_facultad || 'Ingeniería';
+    const dpto = (primeraCarga as any)?.dpto_academico || (primeraCarga as any)?.docente_dpto_academico || 'Ingeniería de Sistemas';
+    const año = cicloAcademico?.año || new Date().getFullYear();
+    const semestre = cicloAcademico?.semestre || 'I';
+    const formatDate = (ds: string) => {
+      if (!ds) return '—';
+      const d = new Date(ds);
+      return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    };
+    const fechaInicio = formatDate((cicloAcademico as any)?.fecha_inicio);
+    const fechaFin = formatDate((cicloAcademico as any)?.fecha_fin);
 
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    let y = 15;
+    const pw = doc.internal.pageSize.getWidth();
+    const ml = 7;
+    let y = 10;
 
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('FORMATO N° 3 - CAD', pageWidth / 2, y, { align: 'center' });
-    y += 10;
+    // 1. TITLE
     doc.setFontSize(12);
-    doc.text('REPORTE DE ACTIVIDADES NO LECTIVAS', pageWidth / 2, y, { align: 'center' });
-    y += 8;
-    doc.setFontSize(10);
-    doc.text(`Docente: ${nombreDocente}`, 15, y);
-    y += 6;
+    doc.setFont('helvetica', 'bold');
+    doc.text('HORARIO SEMANAL DE LA CARGA ACADÉMICA DOCENTE (F03-CAD)', pw / 2, y, { align: 'center' });
+    y += 7;
 
-    const seccionesLabels: Record<string, string> = {
-      preparacion: 'Preparación y Evaluación',
-      consejeria: 'Consejería',
-      investigacion: 'Investigación',
-      capacitacion: 'Capacitación',
-      gobierno: 'Gobierno',
-      administracion: 'Administración',
-      asesoria: 'Asesoría',
-      rsu: 'Responsabilidad Social',
-      comites: 'Comités'
-    };
+    // 2. HEADER BLOCK
+    autoTable(doc, {
+      body: [
+        [
+          { content: `Facultad / Filial: ${facultad}`, styles: { fontSize: 8, fontStyle: 'bold' } },
+          { content: `Dpto. Académico: ${dpto}`, styles: { fontSize: 8, fontStyle: 'bold' }, colSpan: 2 }
+        ],
+        [
+          { content: `DNI ${dni}`, styles: { fontSize: 8, fontStyle: 'bold' } },
+          { content: `Docente: ${apellidosNombre}`, styles: { fontSize: 8, fontStyle: 'bold' } },
+          { content: `${categoria}\n${condicionDisplay}`, styles: { fontSize: 8, fontStyle: 'bold', halign: 'center' } }
+        ],
+        [
+          { content: `AÑO ACADEMICO: ${año}  SEMESTRE: ${semestre}  Inicio: ${fechaInicio}  Término: ${fechaFin}`, styles: { fontSize: 7.5, fontStyle: 'bold', halign: 'center' }, colSpan: 3 }
+        ]
+      ],
+      startY: y,
+      theme: 'grid',
+      styles: { cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.5 },
+      margin: { left: ml, right: ml },
+      columnStyles: { 0: { cellWidth: 48 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 40 } },
+      tableLineWidth: 0.5,
+      tableLineColor: [0, 0, 0]
+    });
+    y = (doc as any).lastAutoTable.finalY + 5;
 
-    const bodyRows: any[] = [];
-    cargasDocente.forEach((ch: any) => {
-      for (const [key, label] of Object.entries(seccionesLabels)) {
-        if (ch[key] && ch[key].horas) {
-          bodyRows.push([label, ch[key].horas]);
-        }
+    const headStyle = { fillColor: [220, 230, 241] as [number, number, number], textColor: 0 as number, fontSize: 7.5, fontStyle: 'bold' as const, halign: 'center' as const };
+    const cellStyle = { fontSize: 7.5, fontStyle: 'bold' as const };
+
+    // 3. CHL TABLE
+    const chlRows: any[] = [];
+    let totalLectiva = 0;
+    cargasDocente.forEach(ch => {
+      if (ch.cursos && ch.cursos.length > 0) {
+        ch.cursos.forEach(curso => {
+          const cAny = curso as any;
+          const ht = cAny.hrs_teo || 0;
+          const hp = cAny.hrs_pra || 0;
+          const hl = cAny.hrs_lab || 0;
+          const sum = cAny.total_horas || cAny.total_hrs || (ht + hp + hl);
+          totalLectiva += sum;
+          chlRows.push([
+            { content: 'NO DEFINIDO', styles: { ...cellStyle, halign: 'center' as const } },
+            { content: `${cAny.curso_nombre || ''} ${cAny.seccion || ''}-${cAny.escuela || 'Ing. Sistemas'}`, styles: cellStyle },
+            { content: 'NO DEFINIDO', styles: { ...cellStyle, halign: 'center' as const } },
+            { content: 'NO DEFINIDO', styles: { ...cellStyle, halign: 'center' as const } },
+            { content: String(sum), styles: { ...cellStyle, halign: 'center' as const } }
+          ]);
+        });
       }
     });
-
-    if (bodyRows.length === 0) {
-      bodyRows.push(['No hay actividades no lectivas registradas', '']);
+    if (chlRows.length === 0) {
+      chlRows.push([{ content: '—', styles: cellStyle }, { content: 'Sin cursos asignados', styles: cellStyle }, { content: '—', styles: { ...cellStyle, halign: 'center' as const } }, { content: '—', styles: { ...cellStyle, halign: 'center' as const } }, { content: '—', styles: { ...cellStyle, halign: 'center' as const } }]);
     }
 
     autoTable(doc, {
-      head: [[{ content: 'Actividad', styles: { fontStyle: 'bold' } }, { content: 'Horas', styles: { fontStyle: 'bold' } }]],
-      body: bodyRows,
+      head: [[
+        { content: 'HORARIO', styles: headStyle },
+        { content: 'CARGA HORARIA LECTIVA (CHL)', styles: headStyle },
+        { content: 'LUGAR', styles: headStyle },
+        { content: 'AULA', styles: headStyle },
+        { content: 'TOTAL', styles: headStyle }
+      ]],
+      body: chlRows,
       startY: y,
       theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [220, 220, 220], textColor: 0 }
+      styles: { cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.5 },
+      margin: { left: ml, right: ml },
+      columnStyles: { 0: { cellWidth: 28 }, 2: { cellWidth: 15 }, 3: { cellWidth: 18 }, 4: { cellWidth: 12 } },
+      tableLineWidth: 0.5,
+      tableLineColor: [0, 0, 0]
+    });
+    y = (doc as any).lastAutoTable.finalY + 5;
+
+    // 4. CHNL TABLE
+    const secMapping: { key: string; label: string; field: string | null }[] = [
+      { key: 'preparacion', label: 'PREPARACION Y EVALUACION', field: 'preparacion' },
+      { key: 'consejeria', label: 'TUTORIA Y CONSEJERIA', field: 'consejeria' },
+      { key: 'investigacion', label: 'INVESTIGACION', field: 'investigacion' },
+      { key: 'rsu', label: 'RESPONSABILIDAD SOCIAL UNIVERSITARIA', field: 'rsu' },
+      { key: 'asesoria', label: 'ASESORÍA DE TESIS Y EXAMENES PROFESIONALES', field: 'asesoria' },
+      { key: 'capacitacion', label: 'FORMACION ACADEMICA Y CAPACITACION', field: 'capacitacion' },
+      { key: 'autoevaluacion', label: 'AUTOEVALUACION Y/O ACREDITACION DE LA ESCUELA PROFESIONAL', field: null },
+      { key: 'comites', label: 'COMITES O COMISIONES ESPECIALES', field: 'comites' },
+      { key: 'gobierno', label: 'ACTIVIDADES DE GOBIERNO O AUTORIDAD', field: 'gobierno' },
+      { key: 'administracion', label: 'ACTIVIDADES DE GESTION INSTITUCIONAL', field: 'administracion' },
+    ];
+
+    const secciones: Record<string, any> = {};
+    cargasDocente.forEach((ch: any) => {
+      for (const s of secMapping) {
+        if (s.field && ch[s.field] && !secciones[s.field]) secciones[s.field] = ch[s.field];
+      }
     });
 
-    y = (doc as any).lastAutoTable.finalY + 10;
-    const fecha = new Date();
-    const mes = fecha.toLocaleString('es-ES', { month: 'long' });
-    doc.text(`Trujillo, ${fecha.getDate()} de ${mes} del ${fecha.getFullYear()}`, pageWidth / 2, y, { align: 'center' });
+    let totalNoLectiva = 0;
+    const chnlRows: any[] = [];
+    for (const s of secMapping) {
+      const hr = s.field ? (secciones[s.field]?.horas || 0) : 0;
+      totalNoLectiva += hr;
+      chnlRows.push([
+        { content: s.field && secciones[s.field] ? 'NO DEFINIDO' : '', styles: { ...cellStyle, halign: 'center' as const } },
+        { content: s.label, styles: cellStyle },
+        { content: s.field && secciones[s.field] ? 'NO DEFINIDO' : '', styles: { ...cellStyle, halign: 'center' as const } },
+        { content: s.field && secciones[s.field] ? 'NO DEFINIDO' : '', styles: { ...cellStyle, halign: 'center' as const } },
+        { content: hr > 0 ? String(hr) : '', styles: { ...cellStyle, halign: 'center' as const } }
+      ]);
+    }
 
-    doc.save(`F03-CAD-${nombreDocente.replace(/\s+/g, '-')}.pdf`);
+    autoTable(doc, {
+      head: [[
+        { content: 'HORARIO', styles: headStyle },
+        { content: 'CARGA HORARIA NO LECTIVA (CHNL)', styles: headStyle },
+        { content: 'LUGAR', styles: headStyle },
+        { content: 'AULA', styles: headStyle },
+        { content: 'TOTAL', styles: headStyle }
+      ]],
+      body: chnlRows,
+      startY: y,
+      theme: 'grid',
+      styles: { cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.5 },
+      margin: { left: ml, right: ml },
+      columnStyles: { 0: { cellWidth: 28 }, 2: { cellWidth: 15 }, 3: { cellWidth: 18 }, 4: { cellWidth: 12 } },
+      tableLineWidth: 0.5,
+      tableLineColor: [0, 0, 0]
+    });
+    y = (doc as any).lastAutoTable.finalY;
+
+    // 5. TOTAL ROW
+    const totalGeneral = totalLectiva + totalNoLectiva;
+    autoTable(doc, {
+      body: [[
+        { content: 'TOTAL HORAS CARGA ACADÉMICA', styles: { fillColor: [220, 230, 241], fontSize: 8.5, fontStyle: 'bold', halign: 'center' }, colSpan: 4 },
+        { content: String(totalGeneral), styles: { fillColor: [220, 230, 241], fontSize: 8.5, fontStyle: 'bold', halign: 'center' } }
+      ]],
+      startY: y,
+      theme: 'grid',
+      styles: { cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.5 },
+      margin: { left: ml, right: ml },
+      tableLineWidth: 0.5,
+      tableLineColor: [0, 0, 0]
+    });
+    y = (doc as any).lastAutoTable.finalY + 5;
+
+    // 6. LEGEND
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    const legend = [
+      'T: TEORIA - P: PRACTICA',
+      'LU (LUNES); MA (MARTES); MI (MIERCOLES); JU (JUEVES); VI (VIERNES); TIEMPO EN FORMATO DE 24 HORAS.',
+      'LUGAR: (F01: "CC. Agropecuarias", F02: "CC. Biológicas"; F03: "CC. Económicas"; F04: "CC. Físicas y Matemáticas"; F05: "CC. Sociales"; F06: "Derecho y Ciencias Políticas"; F07: "Educación y Comunicación"; F08: "Enfermería"; F09: "Estomatología"; F10: "Farmacia y Bioquímica"; F11: "Ingeniería"; F12: "Ingeniería Química"; F13: "Medicina"; F14: "Filial Valle Jequetepeque"; F15: "Filial Huamachuco"; F16: "Filial Santiago de Chuco"; OA: "Oficina Administrativa"; SC: "Salida de Campo").'
+    ];
+    for (const line of legend) {
+      const lines = doc.splitTextToSize(line, pw - ml * 2);
+      lines.forEach(l => { doc.text(l, ml, y); y += 3.8; });
+    }
+    y += 6;
+
+    // 7. SIGNATURES
+    const colW3 = (pw - ml * 2) / 3;
+    const centers = [ml + colW3 / 2, ml + colW3 * 1.5, ml + colW3 * 2.5];
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'bold');
+    centers.forEach((cx, i) => {
+      doc.line(cx - 25, y, cx + 25, y);
+      const labels = ['FIRMA DEL DOCENTE', 'FIRMA Y SELLO DEL DIRECTOR DE DPTO. ACADÉMICO', "V° B° DECANO"];
+      doc.text(labels[i], cx, y + 5, { align: 'center' });
+    });
+    y += 11;
+
+    // 8. DATE & EMAIL
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const fechaReg = `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
+    const email = dAny?.email || '—';
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`FECHA DE REGISTRO: (${fechaReg})    EMAIL: ${email}`, ml, y);
+
+    doc.save(`F03-CAD-${apellidosNombre.replace(/[\s,]+/g, '-')}.pdf`);
   }
 
   // Obtener todos los ciclos de estudio (I-X)
