@@ -92,7 +92,7 @@ export default function HorariosPage() {
       fetch('/api/docentes').then(r => r.json()),
       fetch('/api/aulas').then(r => r.json()),
       fetch('/api/dashboard').then(r => r.json()),
-      fetch('/api/curriculas?manage=true').then(r => r.json()),
+      fetch('/api/curriculas?manage=true').then(r => r.json()).catch(() => ({ data: [] })),
       fetch('/api/configuracion?clave=HORARIOS_RESTRINGIDOS').then(r => r.json()).catch(() => ({ data: null })),
     ]).then(([ciclosRes, docRes, ambRes, dashRes, currRes, configRes]) => {
       setCiclos(ciclosRes.data || []);
@@ -198,13 +198,62 @@ export default function HorariosPage() {
 
   // Cargar horario personal del docente si está logueado como docente
   useEffect(() => {
-    if (!isDocente || !cicloId) return;
+    if (!isDocente || !cicloId || !user?.docente_id) return;
     setLoadingMiHorario(true);
-    fetch(`/api/horarios?ciclo_id=${cicloId}&docente_id=${user?.id}`)
+    fetch(`/api/horarios?ciclo_id=${cicloId}&docente_id=${user.docente_id}`)
       .then(r => r.json())
-      .then(d => setMiHorario(d.data || []))
-      .finally(() => setLoadingMiHorario(false));
-  }, [isDocente, cicloId, user?.id]);
+      .then(d => {
+        let data = d.data || [];
+        if (data.length === 0) {
+          fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`)
+            .then(r => r.json())
+            .then(async (progsRes) => {
+              const progs = progsRes.data || [];
+              const selectedProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
+              if (selectedProg) {
+                const exportRes = await fetch(`/api/horarios/programaciones/${selectedProg.id}/exportar`);
+                if (exportRes.ok) {
+                  const exportData = await exportRes.json();
+                  const slotByTime = new Map(
+                    (slots || []).map((s: any) => [`${s.hora_inicio}-${s.hora_fin}`, s])
+                  );
+                  const ambienteByCodigo = new Map(
+                    (ambientes || []).map((a: any) => [a.codigo, a])
+                  );
+                  data = (exportData.asignaciones || []).filter((a: any) => a.docente_id === user.docente_id).map((a: any) => ({
+                    id: a.id,
+                    dia: a.dia,
+                    slot_id: a.slot_id || slotByTime.get(`${a.hora_inicio}-${a.hora_fin}`)?.id || null,
+                    hora_inicio: a.hora_inicio,
+                    hora_fin: a.hora_fin,
+                    curso_nombre: a.curso_nombre,
+                    curso_codigo: a.curso_codigo,
+                    ciclo_plan: a.ciclo,
+                    numero_grupo: parseInt(String(a.grupo || '').replace('G', ''), 10) || 1,
+                    tipo: a.tipo_sesion || a.tipo,
+                    docente_id: a.docente_id || null,
+                    docente_nombre: a.docente_nombre || '',
+                    ambiente_id: ambienteByCodigo.get(a.aula || '')?.id || null,
+                    ambiente_nombre: ambienteByCodigo.get(a.aula || '')?.nombre || a.aula || '',
+                    ambiente_codigo: ambienteByCodigo.get(a.aula || '')?.codigo || a.aula || '',
+                    ambiente_tipo: ambienteByCodigo.get(a.aula || '')?.tipo || '',
+                  }));
+                }
+              }
+              setMiHorario(data);
+              setLoadingMiHorario(false);
+            })
+            .catch(() => {
+              setMiHorario([]);
+              setLoadingMiHorario(false);
+            });
+        } else {
+          setMiHorario(data);
+          setLoadingMiHorario(false);
+        }
+      })
+      .catch(() => { setMiHorario([]); setLoadingMiHorario(false); });
+  }, [isDocente, cicloId, user?.docente_id]);
 
 
   // Crear programación
@@ -294,7 +343,7 @@ export default function HorariosPage() {
       <p style={{color:'#64748b'}}>Cargando...</p>
     </div>
   );
-  if (loadedCurriculas && curriculas.length === 0) {
+  if (loadedCurriculas && curriculas.length === 0 && !isDocente) {
     return (
       <div className="page-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center' }}>
         <div style={{ fontSize: '64px', marginBottom: '20px' }}>⚠️</div>
@@ -579,46 +628,20 @@ export default function HorariosPage() {
       )}
 
       {vista === 'horario' && (
-        <GrillaHorarios asignaciones={asignaciones} slots={slots} restringidosConfig={restringidosConfig} />
+        <GrillaHorarios asignaciones={asignaciones} slots={slots} restringidosConfig={restringidosConfig} hideDocenteFilter={isDocente} />
       )}
 
       {/* ===== VISTA: MI HORARIO (solo docentes) ===== */}
       {vista === 'mi-horario' && isDocente && (
-        <div className="card" style={{padding:'16px',overflowX:'auto'}}>
-          <div style={{marginBottom:'16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <h3 style={{fontSize:'18px',fontWeight:'600',color:'var(--text-primary)',margin:0}}>Mi Horario Asignado</h3>
-            <span style={{background:'rgba(34,197,94,0.14)',color:'var(--text-primary)',padding:'4px 12px',borderRadius:'9999px',fontSize:'12px',fontWeight:'600',border:'1px solid var(--border-color)'}}>
-              Total: {miHorario.length} horas
-            </span>
-          </div>
+        <div>
           {loadingMiHorario ? (
             <p style={{textAlign:'center',padding:'40px',color:'var(--text-secondary)'}}>Cargando mi horario...</p>
-          ) : (
-            <div className="horario-grid" style={{minWidth:'900px'}}>
-              <div className="horario-header">Hora</div>
-              {DIAS.map(d => <div key={d} className="horario-header">{DIAS_LABEL[d]}</div>)}
-              {slots.map((slot: any) => (
-                <div key={slot.id} style={{display:'contents'}}>
-                  <div className="horario-time">{slot.hora_inicio}<br/>{slot.hora_fin}</div>
-                  {DIAS.map(dia => {
-                    const cells = miHorario.filter((a: any) => a.dia === dia && a.slot_id === slot.id);
-                    return (
-                      <div key={`${dia}-${slot.id}`} className="horario-cell">
-                        {cells.map(c => (
-                          <div key={c.id} className={`block-${c.tipo}`} style={{marginBottom:'2px',cursor:'pointer'}} title={`${c.curso_nombre}\nG${c.numero_grupo}\n${c.ambiente_nombre}`}>
-                            <div style={{fontWeight:'600',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:'11px'}}>{c.curso_codigo} - G{c.numero_grupo}</div>
-                            <div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:'10px'}}>{c.ambiente_codigo} ({c.tipo.substring(0,3).toUpperCase()})</div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+          ) : miHorario.length === 0 ? (
+            <div className="card" style={{padding:'32px',textAlign:'center'}}>
+              <p style={{color:'#94a3b8',fontSize:'14px'}}>No tienes clases asignadas en el horario publicado de este ciclo.</p>
             </div>
-          )}
-          {!loadingMiHorario && miHorario.length === 0 && (
-            <p style={{textAlign:'center',padding:'40px',color:'#94a3b8',fontSize:'14px'}}>No tienes clases asignadas en el horario publicado de este ciclo.</p>
+          ) : (
+            <GrillaHorarios asignaciones={miHorario} slots={slots} restringidosConfig={restringidosConfig} hideDocenteFilter />
           )}
         </div>
       )}
