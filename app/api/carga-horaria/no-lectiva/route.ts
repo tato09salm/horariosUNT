@@ -58,17 +58,39 @@ export async function PUT(req: NextRequest) {
     for (const { key, table } of sectionsConfig) {
       const data = sections[key];
       if (data === undefined) continue;
-      const horas = ensureNonNegative(data.horas);
-      const descripcion = data.items?.[0]?.descripcion || data.descripcion || data.detalles || data.proyecto || data.plan || '';
       const descField = getDescField(table);
 
-      // Delete + insert
+      // Delete all existing rows for this section
       await query(`DELETE FROM ${table} WHERE carga_horaria_id = $1`, [carga_horaria_id]);
-      if (horas > 0) {
-        await query(
-          `INSERT INTO ${table} (carga_horaria_id, horas, ${descField}) VALUES ($1, $2, $3)`,
-          [carga_horaria_id, horas, descripcion]
-        );
+
+      // Insert each item as its own row
+      const items = data.items || [];
+      if (items.length > 0) {
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          const horas = ensureNonNegative(item.horas || data.horas || 0);
+          const descripcion = item.descripcion || '';
+          const dia = item.dia || null;
+          const hora_inicio = item.hora_inicio || null;
+          const hora_fin = item.hora_fin || null;
+
+          if (horas > 0 || descripcion) {
+            await query(
+              `INSERT INTO ${table} (carga_horaria_id, horas, ${descField}, dia, hora_inicio, hora_fin, orden) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+              [carga_horaria_id, horas, descripcion, dia, hora_inicio, hora_fin, i]
+            );
+          }
+        }
+      } else {
+        // Legacy fallback: single row
+        const horas = ensureNonNegative(data.horas || 0);
+        const descripcion = data.descripcion || data.detalles || data.proyecto || data.plan || '';
+        if (horas > 0) {
+          await query(
+            `INSERT INTO ${table} (carga_horaria_id, horas, ${descField}) VALUES ($1, $2, $3)`,
+            [carga_horaria_id, horas, descripcion]
+          );
+        }
       }
     }
 

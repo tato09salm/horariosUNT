@@ -38,7 +38,8 @@ function IconoTipoSesion({ tipo }: { tipo: string }) {
     teoria:      { label: 'T', color: '#1e40af' },
     practica:    { label: 'P', color: '#b45309' },
     laboratorio: { label: 'L', color: '#166534' },
-    asesoria:    { label: 'C', color: '#7c2d12' }
+    asesoria:    { label: 'C', color: '#7c2d12' },
+    no_lectiva:  { label: 'NL', color: '#6366f1' }
   };
   
   const info = iconos[tipo] || { label: 'T', color: '#1e40af' };
@@ -70,8 +71,8 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
   const isAsesoria = c.tipo === 'asesoria';
   const cicloColor = colorCiclo(c.ciclo_plan);
   const tipo = c.tipo || 'teoria';
-  const icon = TIPO_SESION_ICON[tipo] || '📘';
-  const tipoLabel = TIPO_SESION_LABEL[tipo] || tipo;
+  const icon = tipo === 'no_lectiva' ? '💼' : (TIPO_SESION_ICON[tipo] || '📘');
+  const tipoLabel = tipo === 'no_lectiva' ? 'No Lectiva' : (TIPO_SESION_LABEL[tipo] || tipo);
   const ambLabel = tipoAmbienteLabel(isAsesoria ? 'asesoria' : (c.ambiente_tipo || 'aula'), c.ambiente_codigo);
   const continuo =
     duracion > 1
@@ -81,7 +82,7 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
         : '';
   const color = mapaColores 
     ? obtenerColorCurso(mapaColores, c.ciclo_plan, c.curso_codigo, c.tipo)
-    : { bg: isAsesoria ? '#f3f4f6' : cicloColor + '15', border: isAsesoria ? '#6b7280' : cicloColor, name: 'default' };
+    : { bg: isAsesoria ? '#f3f4f6' : (tipo === 'no_lectiva' ? 'rgba(99,102,241,0.1)' : cicloColor + '15'), border: isAsesoria ? '#6b7280' : (tipo === 'no_lectiva' ? '#6366f1' : cicloColor), name: 'default' };
 
   const customStyle: React.CSSProperties = {
     backgroundColor: color.bg,
@@ -109,7 +110,7 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
       style={customStyle}
     title={[
         c.curso_nombre,
-        `Sección G${c.numero_grupo}`,
+        c.tipo !== 'no_lectiva' ? `Sección G${c.numero_grupo}` : '',
         tipoLabel,
         ambLabel,
         formatDocente(c.docente_nombre),
@@ -121,6 +122,11 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
         {isAsesoria ? (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
             ASESORÍA <IconoTipoSesion tipo="asesoria" />
+          </span>
+        ) : tipo === 'no_lectiva' ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+            <strong>{c.curso_nombre}</strong>
+            <IconoTipoSesion tipo="no_lectiva" />
           </span>
         ) : (
           <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>

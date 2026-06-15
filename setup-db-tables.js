@@ -49,13 +49,19 @@ async function main() {
       await pool.query(`
         CREATE TABLE IF NOT EXISTS carga_horaria_${s.name} (
           id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-          carga_horaria_id UUID NOT NULL REFERENCES carga_horaria(id) ON DELETE CASCADE UNIQUE,
+          carga_horaria_id UUID NOT NULL REFERENCES carga_horaria(id) ON DELETE CASCADE,
           horas INTEGER DEFAULT 0,
           ${s.descCol} TEXT,
+          dia VARCHAR(10),
+          hora_inicio TIME,
+          hora_fin TIME,
+          orden INTEGER DEFAULT 0,
           created_at TIMESTAMP DEFAULT NOW(),
           updated_at TIMESTAMP DEFAULT NOW()
         )
       `);
+      // Ensure UNIQUE constraint is removed for multi-item support
+      await pool.query(`ALTER TABLE carga_horaria_${s.name} DROP CONSTRAINT IF EXISTS carga_horaria_${s.name}_carga_horaria_id_key`);
       console.log(`✅ carga_horaria_${s.name} ready`);
     }
 

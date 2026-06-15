@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from '@/lib/theme';
 import { useUser } from '@/app/(app)/layout';
 
+const DIAS_LABEL: Record<string, string> = { lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue', viernes: 'Vie', sabado: 'Sáb' };
+
 interface Docente {
   id: string;
   nombre: string;
@@ -48,6 +50,10 @@ interface CursoAsignado {
 interface ItemActividad {
   id: string;
   descripcion: string;
+  horas?: string;
+  dia?: string;
+  hora_inicio?: string;
+  hora_fin?: string;
 }
 
 interface Actividad {
@@ -84,15 +90,15 @@ export default function NuevaCargaHorariaPage() {
   
   // Initial state for secciones (each with 1 default item)
   const initialSecciones: Secciones = {
-    preparacionEvaluacion: { items: [{ id: 'prep-1', descripcion: '' }], horas: '0' },
-    consejeriaTutoria: { items: [{ id: 'consej-1', descripcion: '' }], horas: '0' },
-    investigacion: { items: [{ id: 'invest-1', descripcion: '' }], horas: '0' },
-    capacitacion: { items: [{ id: 'cap-1', descripcion: '' }], horas: '0' },
-    gobierno: { items: [{ id: 'gob-1', descripcion: '' }], horas: '0' },
-    administracion: { items: [{ id: 'admin-1', descripcion: '' }], horas: '0' },
-    asesoriaTesis: { items: [{ id: 'tesis-1', descripcion: '' }], horas: '0' },
-    responsabilidadSocial: { items: [{ id: 'rs-1', descripcion: '' }], horas: '0' },
-    comitesTecnicos: { items: [{ id: 'comites-1', descripcion: '' }], horas: '0' },
+    preparacionEvaluacion: { items: [{ id: 'prep-1', descripcion: '', horas: '0' }], horas: '0' },
+    consejeriaTutoria: { items: [{ id: 'consej-1', descripcion: '', horas: '0' }], horas: '0' },
+    investigacion: { items: [{ id: 'invest-1', descripcion: '', horas: '0' }], horas: '0' },
+    capacitacion: { items: [{ id: 'cap-1', descripcion: '', horas: '0' }], horas: '0' },
+    gobierno: { items: [{ id: 'gob-1', descripcion: '', horas: '0' }], horas: '0' },
+    administracion: { items: [{ id: 'admin-1', descripcion: '', horas: '0' }], horas: '0' },
+    asesoriaTesis: { items: [{ id: 'tesis-1', descripcion: '', horas: '0' }], horas: '0' },
+    responsabilidadSocial: { items: [{ id: 'rs-1', descripcion: '', horas: '0' }], horas: '0' },
+    comitesTecnicos: { items: [{ id: 'comites-1', descripcion: '', horas: '0' }], horas: '0' },
   };
   
   // State
@@ -258,44 +264,41 @@ export default function NuevaCargaHorariaPage() {
           });
           newCursosAsignados = convertedCursos;
           
+          // Helper to parse sections that come as arrays
+          const parseSeccion = (data: any, descField: string) => {
+            if (!data || !Array.isArray(data) || data.length === 0) {
+              // Legacy object fallback
+              if (data && !Array.isArray(data)) {
+                return {
+                  items: [{ id: `item-${Date.now()}-0`, descripcion: data[descField] || '', horas: String(data.horas || 0) }],
+                  horas: String(data.horas || 0)
+                };
+              }
+              return { items: [{ id: `item-${Date.now()}-0`, descripcion: '', horas: '0' }], horas: '0' };
+            }
+            const totalHoras = data.reduce((sum: number, item: any) => sum + (item.horas || 0), 0);
+            const items = data.map((item: any, index: number) => ({
+              id: `item-${Date.now()}-${index}`,
+              descripcion: item[descField] || '',
+              horas: String(item.horas || 0),
+              dia: item.dia || '',
+              hora_inicio: item.hora_inicio || '',
+              hora_fin: item.hora_fin || ''
+            }));
+            return { items, horas: String(totalHoras) };
+          };
+
           // Convert secciones
           newSecciones = {
-            preparacionEvaluacion: { 
-              items: [{ id: 'prep-1', descripcion: combinedCh.preparacion?.descripcion || '' }], 
-              horas: String(combinedCh.preparacion?.horas ?? 0) 
-            },
-            consejeriaTutoria: { 
-              items: [{ id: 'consej-1', descripcion: combinedCh.consejeria?.detalles || '' }], 
-              horas: String(combinedCh.consejeria?.horas ?? 0) 
-            },
-            investigacion: { 
-              items: [{ id: 'invest-1', descripcion: combinedCh.investigacion?.proyecto || '' }], 
-              horas: String(combinedCh.investigacion?.horas ?? 0) 
-            },
-            capacitacion: { 
-              items: [{ id: 'cap-1', descripcion: combinedCh.capacitacion?.detalles || '' }], 
-              horas: String(combinedCh.capacitacion?.horas ?? 0) 
-            },
-            gobierno: { 
-              items: [{ id: 'gob-1', descripcion: combinedCh.gobierno?.detalles || '' }], 
-              horas: String(combinedCh.gobierno?.horas ?? 0) 
-            },
-            administracion: { 
-              items: [{ id: 'admin-1', descripcion: combinedCh.administracion?.detalles || '' }], 
-              horas: String(combinedCh.administracion?.horas ?? 0) 
-            },
-            asesoriaTesis: { 
-              items: [{ id: 'tesis-1', descripcion: combinedCh.asesoria?.detalles || '' }], 
-              horas: String(combinedCh.asesoria?.horas ?? 0) 
-            },
-            responsabilidadSocial: { 
-              items: [{ id: 'rs-1', descripcion: combinedCh.rsu?.plan || '' }], 
-              horas: String(combinedCh.rsu?.horas ?? 0) 
-            },
-            comitesTecnicos: { 
-              items: [{ id: 'comites-1', descripcion: combinedCh.comites?.detalles || '' }], 
-              horas: String(combinedCh.comites?.horas ?? 0) 
-            }
+            preparacionEvaluacion: parseSeccion(combinedCh.preparacion, 'descripcion'),
+            consejeriaTutoria: parseSeccion(combinedCh.consejeria, 'detalles'),
+            investigacion: parseSeccion(combinedCh.investigacion, 'proyecto'),
+            capacitacion: parseSeccion(combinedCh.capacitacion, 'detalles'),
+            gobierno: parseSeccion(combinedCh.gobierno, 'detalles'),
+            administracion: parseSeccion(combinedCh.administracion, 'detalles'),
+            asesoriaTesis: parseSeccion(combinedCh.asesoria, 'detalles'),
+            responsabilidadSocial: parseSeccion(combinedCh.rsu, 'plan'),
+            comitesTecnicos: parseSeccion(combinedCh.comites, 'detalles')
           };
         }
       } catch (e) {
@@ -334,11 +337,6 @@ export default function NuevaCargaHorariaPage() {
     // Filter out any courses that don't have curso_id!
     const validCursos = cursosAsignados.filter(curso => curso.curso_id && curso.curso_id.length > 0);
     
-    if (validCursos.length === 0) {
-      setAlertMessage('Por favor agregue al menos un curso');
-      return;
-    }
-
     if (parseFloat(totalHoras) <= 0) {
       setAlertMessage('El total de horas debe ser mayor a 0');
       return;
@@ -392,9 +390,11 @@ export default function NuevaCargaHorariaPage() {
         return;
       }
 
+      const resData = await res.json();
       setMostrarExito(true);
       setTimeout(() => {
-        router.push('/carga-horaria');
+        const chId = resData?.data?.[0]?.id || cargaHorariaId;
+        router.push(`/carga-horaria/horario-no-lectiva?docenteId=${docenteSeleccionado.id}&cicloAcademico=${cicloAcademicoSeleccionado}&cargaHorariaId=${chId}`);
       }, 2000);
     } catch (e) {
       console.error('Error guardando:', e);
@@ -589,6 +589,28 @@ export default function NuevaCargaHorariaPage() {
         horas: processedValue
       }
     }));
+  };
+
+  const handleUpdateItemHoras = (seccionKey: keyof Secciones, itemId: string, value: string) => {
+    let processedValue = value;
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || numValue < 0) {
+      processedValue = '0';
+    }
+    
+    setSecciones(prev => {
+      const updatedItems = prev[seccionKey].items.map(item => 
+        item.id === itemId ? { ...item, horas: processedValue } : item
+      );
+      const newTotalHoras = updatedItems.reduce((sum, item) => sum + parseFloat(item.horas || '0'), 0);
+      return {
+        ...prev,
+        [seccionKey]: {
+          items: updatedItems,
+          horas: String(newTotalHoras)
+        }
+      };
+    });
   };
 
   // Calculate total horas: includes Trabajo Lectivo + other sections
@@ -994,6 +1016,7 @@ export default function NuevaCargaHorariaPage() {
           {docenteSeleccionado && (
             <div style={{ marginTop: '32px' }}>
               {/* 2. PREPARACIÓN Y EVALUACIÓN */}
+
               <div style={{ marginBottom: '24px' }}>
                 <div style={{ marginBottom: '12px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
@@ -1012,20 +1035,37 @@ export default function NuevaCargaHorariaPage() {
                       {secciones.preparacionEvaluacion.items.map(item => (
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              value={item.descripcion}
-                              onChange={(e) => handleUpdateItemDescripcion('preparacionEvaluacion', item.id, e.target.value)}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input
+                                className="form-input"
+                                value={item.descripcion}
+                                onChange={(e) => handleUpdateItemDescripcion('preparacionEvaluacion', item.id, e.target.value)}
+                                disabled={!!item.dia}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                              {item.dia && (
+                                <span style={{ 
+                                  fontSize: '10px', 
+                                  padding: '2px 6px', 
+                                  borderRadius: '4px', 
+                                  background: '#e0f2fe', 
+                                  color: '#0369a1',
+                                  whiteSpace: 'nowrap',
+                                  fontWeight: '600'
+                                }}>
+                                  {DIAS_LABEL[item.dia]} {item.hora_inicio?.slice(0, 5)}-{item.hora_fin?.slice(0, 5)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
                               type="number"
                               min="0"
-                              value={secciones.preparacionEvaluacion.horas}
-                              onChange={(e) => handleUpdateHoras('preparacionEvaluacion', e.target.value)}
+                              value={item.horas || '0'}
+                              onChange={(e) => handleUpdateItemHoras('preparacionEvaluacion', item.id, e.target.value)}
+                              disabled={!!item.dia}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1056,20 +1096,37 @@ export default function NuevaCargaHorariaPage() {
                       {secciones.consejeriaTutoria.items.map(item => (
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              value={item.descripcion}
-                              onChange={(e) => handleUpdateItemDescripcion('consejeriaTutoria', item.id, e.target.value)}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input
+                                className="form-input"
+                                value={item.descripcion}
+                                onChange={(e) => handleUpdateItemDescripcion('consejeriaTutoria', item.id, e.target.value)}
+                                disabled={!!item.dia}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                              {item.dia && (
+                                <span style={{ 
+                                  fontSize: '10px', 
+                                  padding: '2px 6px', 
+                                  borderRadius: '4px', 
+                                  background: '#e0f2fe', 
+                                  color: '#0369a1',
+                                  whiteSpace: 'nowrap',
+                                  fontWeight: '600'
+                                }}>
+                                  {DIAS_LABEL[item.dia]} {item.hora_inicio?.slice(0, 5)}-{item.hora_fin?.slice(0, 5)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
                               type="number"
                               min="0"
-                              value={secciones.consejeriaTutoria.horas}
-                              onChange={(e) => handleUpdateHoras('consejeriaTutoria', e.target.value)}
+                              value={item.horas || '0'}
+                              onChange={(e) => handleUpdateItemHoras('consejeriaTutoria', item.id, e.target.value)}
+                              disabled={!!item.dia}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1100,20 +1157,37 @@ export default function NuevaCargaHorariaPage() {
                       {secciones.investigacion.items.map(item => (
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              value={item.descripcion}
-                              onChange={(e) => handleUpdateItemDescripcion('investigacion', item.id, e.target.value)}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input
+                                className="form-input"
+                                value={item.descripcion}
+                                onChange={(e) => handleUpdateItemDescripcion('investigacion', item.id, e.target.value)}
+                                disabled={!!item.dia}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                              {item.dia && (
+                                <span style={{ 
+                                  fontSize: '10px', 
+                                  padding: '2px 6px', 
+                                  borderRadius: '4px', 
+                                  background: '#e0f2fe', 
+                                  color: '#0369a1',
+                                  whiteSpace: 'nowrap',
+                                  fontWeight: '600'
+                                }}>
+                                  {DIAS_LABEL[item.dia]} {item.hora_inicio?.slice(0, 5)}-{item.hora_fin?.slice(0, 5)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
                               type="number"
                               min="0"
-                              value={secciones.investigacion.horas}
-                              onChange={(e) => handleUpdateHoras('investigacion', e.target.value)}
+                              value={item.horas || '0'}
+                              onChange={(e) => handleUpdateItemHoras('investigacion', item.id, e.target.value)}
+                              disabled={!!item.dia}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1144,20 +1218,37 @@ export default function NuevaCargaHorariaPage() {
                       {secciones.capacitacion.items.map(item => (
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              value={item.descripcion}
-                              onChange={(e) => handleUpdateItemDescripcion('capacitacion', item.id, e.target.value)}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input
+                                className="form-input"
+                                value={item.descripcion}
+                                onChange={(e) => handleUpdateItemDescripcion('capacitacion', item.id, e.target.value)}
+                                disabled={!!item.dia}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                              {item.dia && (
+                                <span style={{ 
+                                  fontSize: '10px', 
+                                  padding: '2px 6px', 
+                                  borderRadius: '4px', 
+                                  background: '#e0f2fe', 
+                                  color: '#0369a1',
+                                  whiteSpace: 'nowrap',
+                                  fontWeight: '600'
+                                }}>
+                                  {DIAS_LABEL[item.dia]} {item.hora_inicio?.slice(0, 5)}-{item.hora_fin?.slice(0, 5)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
                               type="number"
                               min="0"
-                              value={secciones.capacitacion.horas}
-                              onChange={(e) => handleUpdateHoras('capacitacion', e.target.value)}
+                              value={item.horas || '0'}
+                              onChange={(e) => handleUpdateItemHoras('capacitacion', item.id, e.target.value)}
+                              disabled={!!item.dia}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1188,20 +1279,37 @@ export default function NuevaCargaHorariaPage() {
                       {secciones.gobierno.items.map(item => (
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              value={item.descripcion}
-                              onChange={(e) => handleUpdateItemDescripcion('gobierno', item.id, e.target.value)}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input
+                                className="form-input"
+                                value={item.descripcion}
+                                onChange={(e) => handleUpdateItemDescripcion('gobierno', item.id, e.target.value)}
+                                disabled={!!item.dia}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                              {item.dia && (
+                                <span style={{ 
+                                  fontSize: '10px', 
+                                  padding: '2px 6px', 
+                                  borderRadius: '4px', 
+                                  background: '#e0f2fe', 
+                                  color: '#0369a1',
+                                  whiteSpace: 'nowrap',
+                                  fontWeight: '600'
+                                }}>
+                                  {DIAS_LABEL[item.dia]} {item.hora_inicio?.slice(0, 5)}-{item.hora_fin?.slice(0, 5)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
                               type="number"
                               min="0"
-                              value={secciones.gobierno.horas}
-                              onChange={(e) => handleUpdateHoras('gobierno', e.target.value)}
+                              value={item.horas || '0'}
+                              onChange={(e) => handleUpdateItemHoras('gobierno', item.id, e.target.value)}
+                              disabled={!!item.dia}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1232,20 +1340,37 @@ export default function NuevaCargaHorariaPage() {
                       {secciones.administracion.items.map(item => (
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              value={item.descripcion}
-                              onChange={(e) => handleUpdateItemDescripcion('administracion', item.id, e.target.value)}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input
+                                className="form-input"
+                                value={item.descripcion}
+                                onChange={(e) => handleUpdateItemDescripcion('administracion', item.id, e.target.value)}
+                                disabled={!!item.dia}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                              {item.dia && (
+                                <span style={{ 
+                                  fontSize: '10px', 
+                                  padding: '2px 6px', 
+                                  borderRadius: '4px', 
+                                  background: '#e0f2fe', 
+                                  color: '#0369a1',
+                                  whiteSpace: 'nowrap',
+                                  fontWeight: '600'
+                                }}>
+                                  {DIAS_LABEL[item.dia]} {item.hora_inicio?.slice(0, 5)}-{item.hora_fin?.slice(0, 5)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
                               type="number"
                               min="0"
-                              value={secciones.administracion.horas}
-                              onChange={(e) => handleUpdateHoras('administracion', e.target.value)}
+                              value={item.horas || '0'}
+                              onChange={(e) => handleUpdateItemHoras('administracion', item.id, e.target.value)}
+                              disabled={!!item.dia}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1276,20 +1401,37 @@ export default function NuevaCargaHorariaPage() {
                       {secciones.asesoriaTesis.items.map(item => (
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              value={item.descripcion}
-                              onChange={(e) => handleUpdateItemDescripcion('asesoriaTesis', item.id, e.target.value)}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input
+                                className="form-input"
+                                value={item.descripcion}
+                                onChange={(e) => handleUpdateItemDescripcion('asesoriaTesis', item.id, e.target.value)}
+                                disabled={!!item.dia}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                              {item.dia && (
+                                <span style={{ 
+                                  fontSize: '10px', 
+                                  padding: '2px 6px', 
+                                  borderRadius: '4px', 
+                                  background: '#e0f2fe', 
+                                  color: '#0369a1',
+                                  whiteSpace: 'nowrap',
+                                  fontWeight: '600'
+                                }}>
+                                  {DIAS_LABEL[item.dia]} {item.hora_inicio?.slice(0, 5)}-{item.hora_fin?.slice(0, 5)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
                               type="number"
                               min="0"
-                              value={secciones.asesoriaTesis.horas}
-                              onChange={(e) => handleUpdateHoras('asesoriaTesis', e.target.value)}
+                              value={item.horas || '0'}
+                              onChange={(e) => handleUpdateItemHoras('asesoriaTesis', item.id, e.target.value)}
+                              disabled={!!item.dia}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1320,20 +1462,37 @@ export default function NuevaCargaHorariaPage() {
                       {secciones.responsabilidadSocial.items.map(item => (
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              value={item.descripcion}
-                              onChange={(e) => handleUpdateItemDescripcion('responsabilidadSocial', item.id, e.target.value)}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input
+                                className="form-input"
+                                value={item.descripcion}
+                                onChange={(e) => handleUpdateItemDescripcion('responsabilidadSocial', item.id, e.target.value)}
+                                disabled={!!item.dia}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                              {item.dia && (
+                                <span style={{ 
+                                  fontSize: '10px', 
+                                  padding: '2px 6px', 
+                                  borderRadius: '4px', 
+                                  background: '#e0f2fe', 
+                                  color: '#0369a1',
+                                  whiteSpace: 'nowrap',
+                                  fontWeight: '600'
+                                }}>
+                                  {DIAS_LABEL[item.dia]} {item.hora_inicio?.slice(0, 5)}-{item.hora_fin?.slice(0, 5)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
                               type="number"
                               min="0"
-                              value={secciones.responsabilidadSocial.horas}
-                              onChange={(e) => handleUpdateHoras('responsabilidadSocial', e.target.value)}
+                              value={item.horas || '0'}
+                              onChange={(e) => handleUpdateItemHoras('responsabilidadSocial', item.id, e.target.value)}
+                              disabled={!!item.dia}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1364,20 +1523,37 @@ export default function NuevaCargaHorariaPage() {
                       {secciones.comitesTecnicos.items.map(item => (
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              value={item.descripcion}
-                              onChange={(e) => handleUpdateItemDescripcion('comitesTecnicos', item.id, e.target.value)}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input
+                                className="form-input"
+                                value={item.descripcion}
+                                onChange={(e) => handleUpdateItemDescripcion('comitesTecnicos', item.id, e.target.value)}
+                                disabled={!!item.dia}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                              {item.dia && (
+                                <span style={{ 
+                                  fontSize: '10px', 
+                                  padding: '2px 6px', 
+                                  borderRadius: '4px', 
+                                  background: '#e0f2fe', 
+                                  color: '#0369a1',
+                                  whiteSpace: 'nowrap',
+                                  fontWeight: '600'
+                                }}>
+                                  {DIAS_LABEL[item.dia]} {item.hora_inicio?.slice(0, 5)}-{item.hora_fin?.slice(0, 5)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
                               type="number"
                               min="0"
-                              value={secciones.comitesTecnicos.horas}
-                              onChange={(e) => handleUpdateHoras('comitesTecnicos', e.target.value)}
+                              value={item.horas || '0'}
+                              onChange={(e) => handleUpdateItemHoras('comitesTecnicos', item.id, e.target.value)}
+                              disabled={!!item.dia}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1406,7 +1582,7 @@ export default function NuevaCargaHorariaPage() {
 
               {/* GUARDAR BUTTON */}
               {(canWrite || isDocente) && (
-                <div style={{ marginTop: '32px', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <div style={{ marginTop: '32px', display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                   <button 
                     className="btn-secondary"
                     onClick={() => router.push('/carga-horaria')}
@@ -1414,13 +1590,22 @@ export default function NuevaCargaHorariaPage() {
                   >
                     Cancelar
                   </button>
+                  {cargaHorariaId && (
+                    <button
+                      className="btn-secondary"
+                      onClick={() => router.push(`/carga-horaria/horario-no-lectiva?docenteId=${docenteSeleccionado.id}&cicloAcademico=${cicloAcademicoSeleccionado}&cargaHorariaId=${cargaHorariaId}`)}
+                      style={{ padding: '10px 24px', backgroundColor: '#e2e8f0', color: '#334155' }}
+                    >
+                      Programar Horario No Lectivo
+                    </button>
+                  )}
                   <button 
                     className="btn-primary"
                     onClick={handleGuardar}
                     disabled={guardando}
                     style={{ padding: '10px 24px' }}
                   >
-                    {guardando ? 'Guardando...' : 'Guardar Carga Horaria'}
+                    {guardando ? 'Guardando...' : 'Guardar y Programar Horario'}
                   </button>
                 </div>
               )}

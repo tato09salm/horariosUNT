@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { query } from '@/lib/db';
-import { crearAsignacion, verificarConflicto } from '@/lib/horarios';
+import { crearAsignacion, verificarConflicto, getHorarioNoLectivaDocente, getHorarioNoLectivaCiclo } from '@/lib/horarios';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -44,7 +44,18 @@ export async function GET(req: NextRequest) {
   sql += ` ORDER BY CASE a.dia WHEN 'lunes' THEN 1 WHEN 'martes' THEN 2 WHEN 'miercoles' THEN 3 WHEN 'jueves' THEN 4 WHEN 'viernes' THEN 5 WHEN 'sabado' THEN 6 END, st.orden`;
 
   const asignaciones = await query(sql, params);
-  return NextResponse.json({ data: asignaciones });
+
+  // Append non-lectiva schedules if relevant
+  let noLectivas: any[] = [];
+  if (ciclo_id && !ambiente_id && !curso_id) {
+    if (docente_id) {
+      noLectivas = await getHorarioNoLectivaDocente(docente_id, ciclo_id);
+    } else {
+      noLectivas = await getHorarioNoLectivaCiclo(ciclo_id);
+    }
+  }
+
+  return NextResponse.json({ data: [...asignaciones, ...noLectivas] });
 }
 
 export async function POST(req: NextRequest) {

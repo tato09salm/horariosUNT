@@ -158,7 +158,9 @@ export default function HorariosPage() {
           setRestringidosConfig(selectedProg.config.horarios_restringidos);
         }
 
-        if (data.length === 0) {
+        const hasAcademic = data.some((a: any) => a.tipo !== 'no_lectiva');
+        const noLectivaData = data.filter((a: any) => a.tipo === 'no_lectiva');
+        if (!hasAcademic) {
           if (selectedProg) {
             const exportRes = await fetch(`/api/horarios/programaciones/${selectedProg.id}/exportar`);
             if (exportRes.ok) {
@@ -169,7 +171,7 @@ export default function HorariosPage() {
               const ambienteByCodigo = new Map(
                 (ambientes || []).map((a: any) => [a.codigo, a])
               );
-              data = (exportData.asignaciones || []).map((a: any) => ({
+              const exported = (exportData.asignaciones || []).map((a: any) => ({
                 id: a.id,
                 dia: a.dia,
                 slot_id: a.slot_id || slotByTime.get(`${a.hora_inicio}-${a.hora_fin}`)?.id || null,
@@ -187,6 +189,7 @@ export default function HorariosPage() {
                 ambiente_codigo: ambienteByCodigo.get(a.aula || '')?.codigo || a.aula || '',
                 ambiente_tipo: ambienteByCodigo.get(a.aula || '')?.tipo || '',
               }));
+              data = [...exported, ...noLectivaData];
             }
           }
         }
@@ -204,7 +207,9 @@ export default function HorariosPage() {
       .then(r => r.json())
       .then(d => {
         let data = d.data || [];
-        if (data.length === 0) {
+        const hasAcademic = data.some((a: any) => a.tipo !== 'no_lectiva');
+        const noLectivaData = data.filter((a: any) => a.tipo === 'no_lectiva');
+        if (!hasAcademic) {
           fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`)
             .then(r => r.json())
             .then(async (progsRes) => {
@@ -220,7 +225,7 @@ export default function HorariosPage() {
                   const ambienteByCodigo = new Map(
                     (ambientes || []).map((a: any) => [a.codigo, a])
                   );
-                  data = (exportData.asignaciones || []).filter((a: any) => a.docente_id === user.docente_id).map((a: any) => ({
+                  const exported = (exportData.asignaciones || []).filter((a: any) => a.docente_id === user.docente_id).map((a: any) => ({
                     id: a.id,
                     dia: a.dia,
                     slot_id: a.slot_id || slotByTime.get(`${a.hora_inicio}-${a.hora_fin}`)?.id || null,
@@ -238,13 +243,14 @@ export default function HorariosPage() {
                     ambiente_codigo: ambienteByCodigo.get(a.aula || '')?.codigo || a.aula || '',
                     ambiente_tipo: ambienteByCodigo.get(a.aula || '')?.tipo || '',
                   }));
+                  data = [...exported, ...noLectivaData];
                 }
               }
               setMiHorario(data);
               setLoadingMiHorario(false);
             })
             .catch(() => {
-              setMiHorario([]);
+              setMiHorario(noLectivaData);
               setLoadingMiHorario(false);
             });
         } else {

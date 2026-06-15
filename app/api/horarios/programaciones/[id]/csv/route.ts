@@ -56,8 +56,10 @@ export async function POST(
       const grupo_numero = parseInt(grupo_numero_str || '1');
       const grupo = await queryOne(`
         SELECT g.* FROM grupos g
-        WHERE g.curso_id = $1 AND g.ciclo_id = $2 AND g.numero_grupo = $3
-      `, [curso.id, prog.ciclo_id, grupo_numero]);
+        WHERE g.curso_id = $1 AND g.programacion_id = $2 AND g.numero_grupo = $3
+        ORDER BY CASE g.tipo_actividad WHEN 'teoria' THEN 1 WHEN 'practica' THEN 2 ELSE 3 END
+        LIMIT 1
+      `, [curso.id, id, grupo_numero]);
       if (!grupo) {
         resultados.errores.push(`Línea ${i + 1}: Grupo ${grupo_numero} de ${curso_codigo} no existe para este ciclo`);
         continue;
