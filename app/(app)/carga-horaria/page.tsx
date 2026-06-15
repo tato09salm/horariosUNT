@@ -66,7 +66,9 @@ export default function CargaHorariaPage() {
 
   const [ciclosAcademicos, setCiclosAcademicos] = useState<CicloAcademico[]>([]);
   const [cicloAcademicoSeleccionado, setCicloAcademicoSeleccionado] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'carga-horaria' | 'reportes'>('carga-horaria');
+  const [activeTab, setActiveTab] = useState<'carga-horaria' | 'carga-aula' | 'reportes'>('carga-horaria');
+  const [aulaData, setAulaData] = useState<any[]>([]);
+  const [loadingAula, setLoadingAula] = useState(false);
   
   // Cargar el ciclo academico guardado en sessionStorage
   useEffect(() => {
@@ -193,6 +195,31 @@ export default function CargaHorariaPage() {
       .catch(() => setToast({ type: 'error', text: 'Error al cargar docentes' }))
       .finally(() => setLoadingDocentes(false));
   }, [showModal, buscarDocente]);
+
+  // Cargar horario asignado para vista "Carga por Aula"
+  useEffect(() => {
+    if (activeTab !== 'carga-aula' || !cicloAcademicoSeleccionado) return;
+    setLoadingAula(true);
+    fetch(`/api/horarios/por-aula?ciclo_id=${cicloAcademicoSeleccionado}`)
+      .then(r => r.json())
+      .then(json => {
+        const rows = (json.data || []).map((a: any) => ({
+          ambiente_nombre: a.ambiente_nombre || a.ambiente_codigo || '—',
+          ambiente_codigo: a.ambiente_codigo || '—',
+          ambiente_tipo: a.ambiente_tipo || 'aula',
+          curso_codigo: a.curso_codigo || '—',
+          curso_nombre: a.curso_nombre || '—',
+          numero_grupo: a.numero_grupo || '—',
+          docente_nombre: a.docente_nombre || '—',
+          dia: a.dia || '—',
+          hora_inicio: (a.hora_inicio || '').slice(0, 5),
+          hora_fin: (a.hora_fin || '').slice(0, 5),
+        }));
+        setAulaData(rows);
+      })
+      .catch(() => setAulaData([]))
+      .finally(() => setLoadingAula(false));
+  }, [activeTab, cicloAcademicoSeleccionado]);
 
   async function asignarDocente() {
     if (!docenteSeleccionado || !cicloAcademicoSeleccionado || cicloPlanSeleccionado === null) {
@@ -665,7 +692,7 @@ export default function CargaHorariaPage() {
     doc.save(`F02-CAD-${nombreDocente.replace(/\s+/g, '-')}.pdf`);
   }
 
-  function generarF03CAD(docenteId: string) {
+  async function generarF03CAD(docenteId: string) {
     const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
     if (cargasDocente.length === 0) {
       setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
@@ -682,6 +709,17 @@ export default function CargaHorariaPage() {
     const categoria = dAny?.categoria?.toUpperCase() || '—';
     const condicionDisplay = dAny?.condicion === 'nombrado' ? 'TC' : dAny?.condicion === 'contratado' ? 'TP' : 'TC';
     const facultad = (primeraCarga as any)?.facultad || (primeraCarga as any)?.docente_facultad || 'Ingeniería';
+    const lugarLegendCode: Record<string, string> = {
+      F01: 'CC. Agropecuarias', F02: 'CC. Biológicas', F03: 'CC. Económicas',
+      F04: 'CC. Físicas y Matemáticas', F05: 'CC. Sociales', F06: 'Derecho y Ciencias Políticas',
+      F07: 'Educación y Comunicación', F08: 'Enfermería', F09: 'Estomatología',
+      F10: 'Farmacia y Bioquímica', F11: 'Ingeniería', F12: 'Ingeniería Química',
+      F13: 'Medicina', F14: 'Filial Valle Jequetepeque', F15: 'Filial Huamachuco',
+      F16: 'Filial Santiago de Chuco', OA: 'Oficina Administrativa', SC: 'Salida de Campo'
+    };
+    const lugarLegendName = Object.fromEntries(Object.entries(lugarLegendCode).map(([k, v]) => [v.toLowerCase(), k]));
+    const lugarCode = lugarLegendName[facultad.toLowerCase()] || 'F11';
+    const lugarDisplay = `${lugarCode}`;
     const dpto = (primeraCarga as any)?.dpto_academico || (primeraCarga as any)?.docente_dpto_academico || 'Ingeniería de Sistemas';
     const año = cicloAcademico?.año || new Date().getFullYear();
     const semestre = cicloAcademico?.semestre || 'I';
@@ -692,6 +730,65 @@ export default function CargaHorariaPage() {
     };
     const fechaInicio = formatDate((cicloAcademico as any)?.fecha_inicio);
     const fechaFin = formatDate((cicloAcademico as any)?.fecha_fin);
+
+    // 0. FETCH HORARIO ASIGNADO DEL DOCENTE
+    const diaLabels: Record<string, string> = { lunes: 'LU', martes: 'MA', miercoles: 'MI', jueves: 'JU', viernes: 'VI', sabado: 'SA' };
+    const tipoLabels: Record<string, string> = { teoria: 'T', practica: 'P', laboratorio: 'L' };
+    let horarioLookup: Map<string, { tipo: string; dia: string; hora_inicio: string; hora_fin: string; lugar: string; aula: string }[]> = new Map();
+    try {
+      const res = await fetch(`/api/docentes/${docenteId}/horario?ciclo_id=${cicloAcademicoSeleccionado}`);
+      if (res.ok) {
+        const json = await res.json();
+        const asignaciones: any[] = json.data || [];
+        for (const a of asignaciones) {
+          const key = a.curso_codigo || a.curso_nombre || '';
+          if (!horarioLookup.has(key)) horarioLookup.set(key, []);
+          horarioLookup.get(key)!.push({
+            tipo: a.tipo || 'teoria',
+            dia: a.dia,
+            hora_inicio: (a.hora_inicio || '').slice(0, 5),
+            hora_fin: (a.hora_fin || '').slice(0, 5),
+            lugar: 'F11',
+            aula: a.ambiente_codigo || a.ambiente_nombre || '—',
+          });
+        }
+      }
+    } catch { /* si no hay horario, queda vacío -> NO DEFINIDO */ }
+
+    const formatHorarioF03 = (entries: { tipo: string; dia: string; hora_inicio: string; hora_fin: string }[]): string => {
+      if (entries.length === 0) return 'NO DEFINIDO';
+      // Group by tipo
+      const porTipo: Record<string, { dia: string; hora_inicio: string; hora_fin: string }[]> = {};
+      for (const e of entries) {
+        const t = tipoLabels[e.tipo] || 'T';
+        if (!porTipo[t]) porTipo[t] = [];
+        porTipo[t].push({ dia: e.dia, hora_inicio: e.hora_inicio, hora_fin: e.hora_fin });
+      }
+      // For each tipo, group by day and merge consecutive slots
+      const partes: string[] = [];
+      for (const [t, slots] of Object.entries(porTipo)) {
+        const porDia: Record<string, { hora_inicio: string; hora_fin: string }[]> = {};
+        for (const s of slots) {
+          if (!porDia[s.dia]) porDia[s.dia] = [];
+          porDia[s.dia].push({ hora_inicio: s.hora_inicio, hora_fin: s.hora_fin });
+        }
+        const bloques: string[] = [];
+        for (const [dia, hrs] of Object.entries(porDia)) {
+          // Sort by hora_inicio
+          hrs.sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
+          // Merge consecutive
+          let merged: { inicio: string; fin: string }[] = [];
+          for (const h of hrs) {
+            const last = merged[merged.length - 1];
+            if (last && last.fin === h.hora_inicio) last.fin = h.hora_fin;
+            else merged.push({ inicio: h.hora_inicio, fin: h.hora_fin });
+          }
+          for (const m of merged) bloques.push(`${diaLabels[dia] || dia}(${m.inicio}-${m.fin})`);
+        }
+        partes.push(`${t}: ${bloques.join(', ')}`);
+      }
+      return partes.join('\n');
+    };
 
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
     const pw = doc.internal.pageSize.getWidth();
@@ -748,11 +845,23 @@ export default function CargaHorariaPage() {
           const lG = cAny.laboratorio_grupos ?? 1;
           const sum = (ht * tG) + (hp * pG) + (hl * lG);
           totalLectiva += sum;
+          const codCurso = cAny.curso_codigo || '';
+          const horarioEntradas = horarioLookup.get(codCurso) || [];
+          const horarioStr = formatHorarioF03(horarioEntradas);
+          // Collect unique aulas
+          const aulasSet = new Set(horarioEntradas.map(e => e.aula));
+          const aulaStr = aulasSet.size > 0 ? [...aulasSet].join(', ') : 'NO DEFINIDO';
+          const lugarStr = horarioEntradas.length > 0 ? lugarDisplay : 'NO DEFINIDO';
+          const cicloPlan = cAny.ciclo_plan || ch.ciclo_plan || 1;
+          const cicloCurso = `${cicloPlan}-C`;
+          const escuelaCurso = cAny.escuela || (primeraCarga as any)?.docente_dpto_academico || 'Ingeniería de Sistemas';
+          const seccionCurso = cAny.seccion || '';
+          const cursoDisplay = `${cAny.curso_nombre || ''} / ${cicloCurso} ${escuelaCurso}${seccionCurso ? ' ' + seccionCurso : ''}`;
           chlRows.push([
-            { content: 'NO DEFINIDO', styles: { ...cellStyle, halign: 'center' as const } },
-            { content: `${cAny.curso_nombre || ''} ${cAny.seccion || ''}-${cAny.escuela || 'Ing. Sistemas'}`, styles: cellStyle },
-            { content: 'NO DEFINIDO', styles: { ...cellStyle, halign: 'center' as const } },
-            { content: 'NO DEFINIDO', styles: { ...cellStyle, halign: 'center' as const } },
+            { content: horarioStr, styles: { ...cellStyle, halign: 'center' as const, fontSize: 6 } },
+            { content: cursoDisplay, styles: cellStyle },
+            { content: lugarStr, styles: { ...cellStyle, halign: 'center' as const, fontSize: 6 } },
+            { content: aulaStr, styles: { ...cellStyle, halign: 'center' as const, fontSize: 6.5 } },
             { content: String(sum), styles: { ...cellStyle, halign: 'center' as const } }
           ]);
         });
@@ -775,7 +884,7 @@ export default function CargaHorariaPage() {
       theme: 'grid',
       styles: { cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.5 },
       margin: { left: ml, right: ml },
-      columnStyles: { 0: { cellWidth: 28 }, 2: { cellWidth: 15 }, 3: { cellWidth: 18 }, 4: { cellWidth: 12 } },
+      columnStyles: { 0: { cellWidth: 28 }, 2: { cellWidth: 22 }, 3: { cellWidth: 18 }, 4: { cellWidth: 12 } },
       tableLineWidth: 0.5,
       tableLineColor: [0, 0, 0]
     });
@@ -808,11 +917,11 @@ export default function CargaHorariaPage() {
       const hr = s.field ? (secciones[s.field]?.horas || 0) : 0;
       totalNoLectiva += hr;
       chnlRows.push([
-        { content: s.field && secciones[s.field] ? 'NO DEFINIDO' : '', styles: { ...cellStyle, halign: 'center' as const } },
+        { content: '', styles: { ...cellStyle, halign: 'center' as const } },
         { content: s.label, styles: cellStyle },
-        { content: s.field && secciones[s.field] ? 'NO DEFINIDO' : '', styles: { ...cellStyle, halign: 'center' as const } },
-        { content: s.field && secciones[s.field] ? 'NO DEFINIDO' : '', styles: { ...cellStyle, halign: 'center' as const } },
-        { content: hr > 0 ? String(hr) : '', styles: { ...cellStyle, halign: 'center' as const } }
+        { content: lugarDisplay, styles: { ...cellStyle, halign: 'center' as const, fontSize: 5.5 } },
+        { content: 'CUBICULO', styles: { ...cellStyle, halign: 'center' as const, fontSize: 6 } },
+        { content: String(hr), styles: { ...cellStyle, halign: 'center' as const } }
       ]);
     }
 
@@ -829,7 +938,7 @@ export default function CargaHorariaPage() {
       theme: 'grid',
       styles: { cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.5 },
       margin: { left: ml, right: ml },
-      columnStyles: { 0: { cellWidth: 28 }, 2: { cellWidth: 15 }, 3: { cellWidth: 18 }, 4: { cellWidth: 12 } },
+      columnStyles: { 0: { cellWidth: 28 }, 2: { cellWidth: 22 }, 3: { cellWidth: 18 }, 4: { cellWidth: 12 } },
       tableLineWidth: 0.5,
       tableLineColor: [0, 0, 0]
     });
@@ -1043,6 +1152,22 @@ export default function CargaHorariaPage() {
             }}
           >
             Carga Horaria
+          </button>
+          <button
+            onClick={() => setActiveTab('carga-aula')}
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: activeTab === 'carga-aula' ? '600' : '500',
+              color: activeTab === 'carga-aula' ? 'var(--text-primary)' : 'var(--text-secondary)',
+              borderBottom: activeTab === 'carga-aula' ? '2px solid #3b82f6' : '2px solid transparent',
+              marginBottom: '-1px'
+            }}
+          >
+            Carga por Aula
           </button>
           <button
             onClick={() => setActiveTab('reportes')}
@@ -1474,6 +1599,95 @@ export default function CargaHorariaPage() {
                   <button className="btn-secondary" onClick={cerrarModal}>Cerrar</button>
                 </div>
               </div>
+            </div>
+          )}
+        </>
+      ) : activeTab === 'carga-aula' ? (
+        // Pestaña Carga por Aula
+        <>
+          {!cicloAcademicoSeleccionado ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '200px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              Selecciona un ciclo académico para ver la carga por aula
+            </div>
+          ) : (
+            <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 4px' }}>Horario por Aula</h3>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+                  Distribución de cursos, docentes y horarios asignados por cada ambiente
+                </p>
+              </div>
+              {loadingAula ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>Cargando horario...</div>
+              ) : aulaData.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                  No hay horarios publicados para este ciclo académico
+                </div>
+              ) : (
+                <div className="table-container">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Aula</th>
+                        <th>Tipo</th>
+                        <th>Curso</th>
+                        <th>Grupo</th>
+                        <th>Docente</th>
+                        <th>Día</th>
+                        <th>Horario</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const agrupado = new Map<string, any[]>();
+                        for (const row of aulaData) {
+                          const key = row.ambiente_nombre;
+                          if (!agrupado.has(key)) agrupado.set(key, []);
+                          agrupado.get(key)!.push(row);
+                        }
+                        const rows: any[] = [];
+                        const diaLabels: Record<string, string> = { lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue', viernes: 'Vie', sabado: 'Sáb' };
+                        const diasOrd: Record<string, number> = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 };
+                        for (const [aula, entries] of agrupado) {
+                          const tipo = entries[0].ambiente_tipo?.replace('_', ' ') || '';
+                          // Sort by day then hour
+                          entries.sort((a, b) => (diasOrd[a.dia] || 0) - (diasOrd[b.dia] || 0) || a.hora_inicio.localeCompare(b.hora_inicio));
+                          // Merge consecutive slots (same day+curso+grupo+docente where hora_fin = next hora_inicio)
+                          const merged: any[] = [];
+                          for (const e of entries) {
+                            const last = merged[merged.length - 1];
+                            if (last && last.dia === e.dia && last.curso_codigo === e.curso_codigo &&
+                                last.numero_grupo === e.numero_grupo && last.docente_nombre === e.docente_nombre &&
+                                last.hora_fin === e.hora_inicio) {
+                              last.hora_fin = e.hora_fin;
+                            } else {
+                              merged.push({ ...e });
+                            }
+                          }
+                          rows.push(
+                            <tr key={`${aula}-hdr`} style={{ background: 'var(--bg-secondary)' }}>
+                              <td style={{ fontWeight: 600, verticalAlign: 'middle' }} rowSpan={merged.length + 1}>{aula}</td>
+                            </tr>
+                          );
+                          for (const e of merged) {
+                            rows.push(
+                              <tr key={`${aula}-${e.dia}-${e.hora_inicio}-${e.curso_codigo}`}>
+                                <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{tipo === 'laboratorio' ? 'Lab' : tipo === 'aula' ? 'Aula' : tipo}</td>
+                                <td>{e.curso_codigo} - {e.curso_nombre}</td>
+                                <td style={{ textAlign: 'center' }}>{e.numero_grupo}</td>
+                                <td>{e.docente_nombre}</td>
+                                <td style={{ textAlign: 'center' }}>{diaLabels[e.dia] || e.dia}</td>
+                                <td style={{ textAlign: 'center' }}>{e.hora_inicio} - {e.hora_fin}</td>
+                              </tr>
+                            );
+                          }
+                        }
+                        return rows;
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </>
