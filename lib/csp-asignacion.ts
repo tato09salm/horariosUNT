@@ -33,6 +33,7 @@ export interface BlockGroup {
 }
 
 const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'];
+const DIAS_EXTENDIDO = [...DIAS, 'sabado'];
 
 function hashSeed(s: string): number {
   let h = 0;
@@ -41,10 +42,11 @@ function hashSeed(s: string): number {
 }
 
 /** Evita que todo el CSP caiga en lunes 07:00 (primer día + primer slot) */
-function diasRotados(meta: Record<string, any>): string[] {
-  const key = `${meta.docente_id || ''}-${meta.codigo || ''}-${meta.grupo_id || ''}`;
-  const offset = hashSeed(key) % DIAS.length;
-  return [...DIAS.slice(offset), ...DIAS.slice(0, offset)];
+function diasRotados(meta: Record<string, any>, days?: string[]): string[] {
+  const dias = days || DIAS;
+  const key = `${meta.docente_id || ''}-${meta.codigo || ''}-${meta.numero_grupo || '0'}-${meta.tipo_sesion || ''}`;
+  const offset = hashSeed(key) % dias.length;
+  return [...dias.slice(offset), ...dias.slice(0, offset)];
 }
 
 function slotsRotados(meta: Record<string, any>, util: SlotRow[]): SlotRow[] {
@@ -146,8 +148,6 @@ export type Occupancy = {
   aulaPreferidaTeoria: Map<string, string>;
   docenteCursoClase: Set<string>;
   cicloOcupado: Set<string>;
-  /** Tracks how many asesorías are in each time slot for even distribution */
-  _asesoriaSlotCount: Map<string, number>;
 };
 
 function puedeSlot(
@@ -181,15 +181,8 @@ function puedeSlot(
   }
 
   // REGLA ESTRICTA: solo Lab+Lab de cursos distintos puede ir en paralelo.
-  // Teoría, práctica y asesoría marcan la franja globalmente exclusiva.
   const franja = puedeUsarFranja(block, dia, slot.id, occ);
   if (!franja.ok) return false;
-
-  if (block.tipo_sesion === 'asesoria' && block.docente_id && block.docente_cursos) {
-    for (const cursoId of block.docente_cursos as string[]) {
-      if (occ.docenteCursoClase.has(`${block.docente_id}-${cursoId}-${timeKey}`)) return false;
-    }
-  }
 
   return true;
 }
@@ -319,7 +312,7 @@ function marcarOcupado(
   const timeKey = `${dia}-${slotId}`;
   if (block.docente_id) occ.docenteOcupado.add(`${block.docente_id}-${timeKey}`);
   if (block.grupo_id) occ.grupoOcupado.add(`${block.grupo_id}-${timeKey}`);
-  if (block.docente_id && block.curso_id && block.tipo_sesion !== 'asesoria') {
+  if (block.docente_id && block.curso_id) {
     occ.docenteCursoClase.add(`${block.docente_id}-${block.curso_id}-${timeKey}`);
   }
   if (block.ciclo_plan && block.tipo_sesion !== 'laboratorio') {
@@ -327,11 +320,7 @@ function marcarOcupado(
     occ.cicloOcupado.add(`${block.ciclo_plan}-${seccion}-${timeKey}`);
   }
 
-  // Asesoría sin ambiente físico: marca franja exclusiva igualmente
-  if (!ambienteId) {
-    if (block.tipo_sesion === 'asesoria') marcarFranjaExclusiva(block, dia, slotId, occ);
-    return;
-  }
+  if (!ambienteId) return;
 
   const key = ambienteSlotKey(ambienteId, dia, slotId);
   occ.ambienteOcupado.add(key);
@@ -383,7 +372,7 @@ export function asignarBloqueEstudiante(
   occ: Occupancy,
   priorityPass: number,
   ambAvail: AmbAvailMap = new Map(),
-  opts?: { practicaEnAula?: boolean; restrictedIds?: string[] }
+  opts?: { practicaEnAula?: boolean; restrictedIds?: string[]; incluirSabado?: boolean }
 ): { ok: boolean; asignaciones: any[]; prioridadUsada: number | null } {
   const util = slotsUtiles(slots, opts?.restrictedIds);
   const meta0 = group.units[0].meta;
@@ -404,7 +393,7 @@ export function asignarBloqueEstudiante(
   }
   const labs = ambientes.filter((a: any) => a.tipo === 'laboratorio' && (meta0.num_alumnos || 0) <= a.capacidad);
 
-  const dias = diasRotados(meta0);
+  const dias = diasRotados(meta0, opts?.incluirSabado ? DIAS_EXTENDIDO : undefined);
   const slotsOrden = slotsRotados(meta0, util);
 
   for (const dia of dias) {
@@ -491,14 +480,14 @@ export function asignarGrupoContinuo(
   occ: Occupancy,
   priorityPass: number,
   ambAvail: AmbAvailMap = new Map(),
-  opts?: { practicaEnAula?: boolean; restrictedIds?: string[] }
+  opts?: { practicaEnAula?: boolean; restrictedIds?: string[]; incluirSabado?: boolean }
 ): { ok: boolean; asignaciones: any[]; prioridadUsada: number | null } {
   const block = group.units[0].meta;
   const duracion = group.units.length;
   const util = slotsUtiles(slots, opts?.restrictedIds);
   const validAmbientes = ambientesValidosPara(block, ambientes, opts);
 
-  const dias = diasRotados(block);
+  const dias = diasRotados(block, opts?.incluirSabado ? DIAS_EXTENDIDO : undefined);
   const slotsOrden = slotsRotados(block, util);
 
   for (const dia of dias) {
@@ -542,58 +531,7 @@ export function asignarGrupoContinuo(
   return { ok: false, asignaciones: [], prioridadUsada: null };
 }
 
-/** Asesorías en horarios de baja demanda (sábado mañana, viernes tarde).
- *  Distribuye asesorías: slots con menos asesorías ya asignadas se prefieren. */
-export function asignarAsesoria(
-  unit: BlockUnit,
-  slots: SlotRow[],
-  docAvail: Map<string, Map<string, number>>,
-  occ: Occupancy,
-  priorityPass: number,
-  opts?: { restrictedIds?: string[] }
-): { ok: boolean; asignacion?: any; prioridadUsada: number | null } {
-  const block = unit.meta;
-  const amb = { id: null, codigo: 'VIRT/CUB', nombre: 'Virtual / Cubículo', tipo: 'asesoria' };
-  const util = slotsUtiles(slots, opts?.restrictedIds);
 
-  const horaNum = (s: SlotRow) => parseInt(String(s.hora_inicio).slice(0, 2), 10);
-
-  // Ensure _asesoriaSlotCount is initialized (safety for retry passes)
-  if (!occ._asesoriaSlotCount) occ._asesoriaSlotCount = new Map<string, number>();
-
-  const candidatos: { dia: string; slot: SlotRow; prio: number }[] = [];
-  for (const dia of DIAS) {
-    for (const slot of util) {
-      const h = horaNum(slot);
-      let basePrio = 100;
-      if (dia === 'sabado' && h >= 7 && h < 12) basePrio = 0;
-      else if (dia === 'viernes' && h >= 18) basePrio = 1;
-      else if (dia === 'jueves' && h >= 17) basePrio = 2;
-      else if (dia === 'miercoles' && h >= 18) basePrio = 3;
-      else if (dia === 'sabado' && h >= 12) basePrio = 4;
-      else if (h >= 7 && h < 9 && (dia === 'lunes' || dia === 'martes')) basePrio = 90;
-      // Add existing asesoria load to spread them out (each existing adds +10 priority)
-      const slotKey = `${dia}-${slot.id}`;
-      const existing = occ._asesoriaSlotCount.get(slotKey) || 0;
-      candidatos.push({ dia, slot, prio: basePrio + existing * 10 });
-    }
-  }
-  candidatos.sort((a, b) => a.prio - b.prio);
-
-  for (const { dia, slot } of candidatos) {
-    if (!puedeSlot(block, dia, slot, priorityPass, docAvail, occ)) continue;
-    marcarOcupado(block, dia, slot.id, null, occ);
-    // Track asesoria distribution
-    const slotKey = `${dia}-${slot.id}`;
-    occ._asesoriaSlotCount.set(slotKey, (occ._asesoriaSlotCount.get(slotKey) || 0) + 1);
-    return {
-      ok: true,
-      asignacion: crearAsignacion(block, dia, slot, amb, priorityPass),
-      prioridadUsada: priorityPass,
-    };
-  }
-  return { ok: false, prioridadUsada: null };
-}
 
 /** Detecta violaciones Lab+Teoría u otras mezclas prohibidas en el resultado. */
 export function auditarViolacionesParalelismo(asignaciones: any[]): string[] {
@@ -627,17 +565,14 @@ export function asignarUnidad(
   priorityPass: number,
   bloqueContinuoId?: string,
   ambAvail: AmbAvailMap = new Map(),
-  opts?: { practicaEnAula?: boolean; restrictedIds?: string[] }
+  opts?: { practicaEnAula?: boolean; restrictedIds?: string[]; incluirSabado?: boolean }
 ): { ok: boolean; asignacion?: any; prioridadUsada: number | null } {
   const block = unit.meta;
-  if (block.tipo_sesion === 'asesoria') {
-    return asignarAsesoria(unit, slots, docAvail, occ, priorityPass, opts);
-  }
 
   const validAmbientes = ambientesValidosPara(block, ambientes, opts);
 
   const util = slotsUtiles(slots, opts?.restrictedIds);
-  const dias = diasRotados(block);
+  const dias = diasRotados(block, opts?.incluirSabado ? DIAS_EXTENDIDO : undefined);
   const slotsOrden = slotsRotados(block, util);
 
   const cicloPlanKey = block.ciclo_plan ? `${block.ciclo_plan}-${block.seccion || 'A'}` : undefined;

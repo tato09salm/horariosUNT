@@ -249,7 +249,7 @@ export function diagnosticarFalloUnidad(
 export function interpretarEstadoPreValidacion(estado: string): string {
   switch (estado) {
     case 'horas_insuficientes':
-      return 'Horas disponibles menores que carga + asesoría';
+      return 'Horas disponibles menores que la carga';
     case 'sin_bloque_continuo':
       return 'No tiene bloque continuo suficiente para teoría';
     case 'pocos_dias':

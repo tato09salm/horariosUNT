@@ -314,7 +314,6 @@ export default function CargaHorariaPage() {
           const gruposPra = (curso as any).practica_grupos ?? 1;
           const hrsLab = curso.hrs_lab || 0;
           const gruposLab = curso.laboratorio_grupos ?? 1;
-
           const totalHrs = (hrsTeo * gruposTeo) + (hrsPra * gruposPra) + (hrsLab * gruposLab);
           
           const cursoData = {
@@ -1225,27 +1224,41 @@ export default function CargaHorariaPage() {
                           ) : (
                             <div className="table-container">
                               <table className="data-table" style={{ border: 'none', margin: 0 }}>
-                                <thead>
-                                  <tr>
-                                    <th>Ciclo</th>
-                                    <th>Curso</th>
-                                    <th>Docente</th>
-                                    <th>HoraTotales</th>
-                                    <th>Acciones</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {/* Render docentes with courses first */}
-                                  {(cursoCicloMap[ciclo] || []).map(({ curso, cargaHoraria: ch }) => (
-                                    <tr key={`${ch.id}-${curso.id || curso.curso_id}`}>
-                                      <td style={{ verticalAlign: 'middle' }}>
-                                        {getRomanNumeral(ciclo)}
-                                      </td>
-                                      <td>{curso.curso_nombre || curso.nombre} ({curso.seccion})</td>
-                                      <td style={{ verticalAlign: 'middle' }}>
-                                        {ch.docente_apellidos}, {ch.docente_nombre}
-                                      </td>
-                                      <td>{ch.horas_asignadas}h</td>
+                                  <thead>
+                                    <tr>
+                                      <th>Ciclo</th>
+                                      <th>Curso</th>
+                                      <th>Docente</th>
+                                      <th>H.T</th>
+                                      <th>H.P</th>
+                                      <th>H.L</th>
+                                      <th>Total</th>
+                                      <th>Acciones</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {/* Render docentes with courses first */}
+                                    {(cursoCicloMap[ciclo] || []).map(({ curso, cargaHoraria: ch }) => {
+                                      const ht = curso.hrs_teo || 0;
+                                      const hp = curso.hrs_pra || 0;
+                                      const hl = curso.hrs_lab || 0;
+                                      const tG = (curso as any).teoria_grupos ?? 1;
+                                      const pG = (curso as any).practica_grupos ?? 1;
+                                      const lG = (curso as any).laboratorio_grupos ?? 1;
+                                      const total = (ht * tG) + (hp * pG) + (hl * lG);
+                                      return (
+                                      <tr key={`${ch.id}-${curso.id || curso.curso_id}`}>
+                                        <td style={{ verticalAlign: 'middle' }}>
+                                          {getRomanNumeral(ciclo)}
+                                        </td>
+                                        <td>{curso.curso_nombre || curso.nombre} ({curso.seccion})</td>
+                                        <td style={{ verticalAlign: 'middle' }}>
+                                          {ch.docente_apellidos}, {ch.docente_nombre}
+                                        </td>
+                                        <td style={{ textAlign: 'center' }}>{ht > 0 ? `${ht}×${tG}` : '—'}</td>
+                                        <td style={{ textAlign: 'center' }}>{hp > 0 ? `${hp}×${pG}` : '—'}</td>
+                                        <td style={{ textAlign: 'center' }}>{hl > 0 ? `${hl}×${lG}` : '—'}</td>
+                                        <td style={{ textAlign: 'center', fontWeight: 600 }}>{total}h</td>
                                       <td style={{ verticalAlign: 'middle' }}>
                                         {canWrite && (
                                           <div style={{ display: 'flex', gap: '8px' }}>
@@ -1282,24 +1295,28 @@ export default function CargaHorariaPage() {
                                         )}
                                       </td>
                                     </tr>
-                                  ))}
+                                  );
+                                })}
                                   {/* Now render docentes with no courses */}
                                   {cargasEnCiclo.map((ch) => {
                                     // Skip if this docente already has courses shown
-                                    if ((cursoCicloMap[ciclo] || []).some(c => c.cargaHoraria.id === ch.id)) {
-                                      return null;
-                                    }
-                                    return (
-                                      <tr key={`${ch.id}-no-course`}>
-                                        <td style={{ verticalAlign: 'middle' }}>
-                                          {getRomanNumeral(ciclo)}
-                                        </td>
-                                        <td style={{ color: '#94a3b8' }}>Sin cursos asignados</td>
-                                        <td style={{ verticalAlign: 'middle' }}>
-                                          {ch.docente_apellidos}, {ch.docente_nombre}
-                                        </td>
-                                        <td>{ch.horas_asignadas}h</td>
-                                        <td style={{ verticalAlign: 'middle' }}>
+                                     if ((cursoCicloMap[ciclo] || []).some(c => c.cargaHoraria.id === ch.id)) {
+                                       return null;
+                                     }
+                                     return (
+                                       <tr key={`${ch.id}-no-course`}>
+                                         <td style={{ verticalAlign: 'middle' }}>
+                                           {getRomanNumeral(ciclo)}
+                                         </td>
+                                         <td style={{ color: '#94a3b8' }}>Sin cursos asignados</td>
+                                         <td style={{ verticalAlign: 'middle' }}>
+                                           {ch.docente_apellidos}, {ch.docente_nombre}
+                                         </td>
+                                         <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
+                                         <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
+                                         <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
+                                         <td style={{ textAlign: 'center', fontWeight: 600 }}>{ch.horas_asignadas}h</td>
+                                         <td style={{ verticalAlign: 'middle' }}>
                                           {canWrite && (
                                             <div style={{ display: 'flex', gap: '8px' }}>
                                               <button

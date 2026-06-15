@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
           v.docente_nombre,
           v.horas_cursos,
           v.horas_requeridas,
+          GREATEST(v.horas_requeridas - 1, 0) AS horas_requeridas_sin_asesoria,
           v.horas_disponibles,
           GREATEST(v.horas_requeridas - v.horas_disponibles, 0)::int AS horas_faltantes,
           v.max_bloque_continuo,
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
           SUM(pc.horas_teoria + pc.horas_practica
               + pc.horas_laboratorio * GREATEST(COALESCE(cu.cantidad_labs,1),1)) AS horas_cursos,
           SUM(pc.horas_teoria + pc.horas_practica
-              + pc.horas_laboratorio * GREATEST(COALESCE(cu.cantidad_labs,1),1)) + 1 AS horas_requeridas
+              + pc.horas_laboratorio * GREATEST(COALESCE(cu.cantidad_labs,1),1)) AS horas_requeridas
         FROM programacion_cursos pc
         JOIN docentes d ON d.id = pc.docente_id
         JOIN cursos cu ON cu.id = pc.curso_id
@@ -138,10 +139,9 @@ export async function GET(req: NextRequest) {
         condicion:           f.condicion,
         horas_max_semana:    f.horas_max_semana,
         horas_cursos:        Number(f.horas_cursos),
-        horas_consejeria:    1,
-        horas_requeridas:    Number(f.horas_requeridas),
+        horas_requeridas:    Number(f.horas_requeridas_sin_asesoria ?? f.horas_requeridas),
         horas_disponibles:   Number(f.horas_disponibles),
-        horas_faltantes:     Number(f.horas_faltantes),
+        horas_faltantes:     Math.max(Number(f.horas_requeridas_sin_asesoria ?? f.horas_requeridas) - Number(f.horas_disponibles), 0),
         max_bloque_continuo: f.max_bloque_continuo != null ? Number(f.max_bloque_continuo) : null,
         dias_disponibles:    f.dias_disponibles != null ? Number(f.dias_disponibles) : Number(dias.dias_marcados ?? 0),
         dias_marcados:       Number(dias.dias_marcados ?? 0),
