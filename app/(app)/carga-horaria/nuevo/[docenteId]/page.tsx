@@ -18,6 +18,8 @@ interface Curso {
   codigo: string;
   nombre: string;
   ciclo_plan: number;
+  horas_teoria?: number;
+  horas_practica?: number;
 }
 
 interface CargaHorariaCurso {

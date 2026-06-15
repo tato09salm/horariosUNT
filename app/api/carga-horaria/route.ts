@@ -90,15 +90,15 @@ export async function GET(req: NextRequest) {
         cargaHoraria[i].cursos = [];
       }
       
-      // Add sections (or null if table doesn't exist)
+      // Add sections - return all rows for multi-item support
       const sections = ['preparacion', 'consejeria', 'investigacion', 'capacitacion', 'gobierno', 'administracion', 'asesoria', 'rsu', 'comites'] as const;
       for (const section of sections) {
         const table = `carga_horaria_${section}`;
         try {
-          const result = await query(`
-            SELECT * FROM ${table} WHERE carga_horaria_id = $1
+          const rows = await query(`
+            SELECT * FROM ${table} WHERE carga_horaria_id = $1 ORDER BY orden ASC, id ASC
           `, [ch.id]);
-          cargaHoraria[i][section] = result[0] || null;
+          cargaHoraria[i][section] = rows.length > 0 ? rows : null;
         } catch (err) {
           cargaHoraria[i][section] = null;
         }
@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
     if (!d || d.id !== body.docente_id) {
       return NextResponse.json({ error: 'Solo puedes guardar tu propia carga horaria' }, { status: 403 });
     }
-  } else if (!['admin', 'director_escuela'].includes(session.rol)) {
+  } else if (!['admin', 'director_escuela', 'docente', 'secretaria'].includes(session.rol)) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
   }
 
@@ -221,6 +221,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'docente_id y ciclo_academico_id son requeridos' }, { status: 400 });
     }
 
+    // Si es docente, verificar que sea su propia carga horaria (por email)
+    if (session.rol === 'docente') {
+      const docente = await queryOne(`SELECT id FROM docentes WHERE email = $1`, [session.email]);
+      if (!docente || docente.id !== docente_id) {
+        return NextResponse.json({ error: 'No puedes crear la carga horaria de otro docente' }, { status: 403 });
+      }
+    }
+
     // Helper function to ensure non-negative number
     const ensureNonNegative = (val: any) => {
       const num = Number(val);
@@ -234,131 +242,137 @@ export async function POST(req: NextRequest) {
         [docente_id, ciclo_academico_id]
       );
 
-      // 1. Group cursos by their ciclo_plan (parse curso.ciclo_plan from string to number, default 1)
-      const cursosByCiclo: Record<number, typeof cursos> = {};
-      if (cursos && cursos.length > 0) {
-        for (const curso of cursos) {
-          const cp = parseInt(curso.ciclo_plan || curso.curso) || 1;
-          if (!cursosByCiclo[cp]) {
-            cursosByCiclo[cp] = [];
-          }
-          // Validate and sanitize curso numeric fields
-          const sanitizedCurso = {
-            ...curso,
-            numeroAlumnos: ensureNonNegative(curso.numeroAlumnos),
-            teoriaHoras: ensureNonNegative(curso.teoriaHoras),
-            teoriaGrupos: ensureNonNegative(curso.teoriaGrupos),
-            practicaHoras: ensureNonNegative(curso.practicaHoras),
-            practicaGrupos: ensureNonNegative(curso.practicaGrupos),
-            laboratorioHoras: ensureNonNegative(curso.laboratorioHoras),
-            laboratorioGrupos: ensureNonNegative(curso.laboratorioGrupos),
-            totalHoras: ensureNonNegative(curso.totalHoras),
-          };
-          cursosByCiclo[cp].push(sanitizedCurso);
-        }
-      } else {
-        // If no cursos, create one entry for ciclo_plan 1
-        cursosByCiclo[1] = [];
+      // 1. Validate and sanitize all courses
+      const sanitizedCursos = (cursos || []).map((curso: any) => ({
+        ...curso,
+        numeroAlumnos: ensureNonNegative(curso.numeroAlumnos),
+        teoriaHoras: ensureNonNegative(curso.teoriaHoras),
+        teoriaGrupos: ensureNonNegative(curso.teoriaGrupos),
+        practicaHoras: ensureNonNegative(curso.practicaHoras),
+        practicaGrupos: ensureNonNegative(curso.practicaGrupos),
+        laboratorioHoras: ensureNonNegative(curso.laboratorioHoras),
+        laboratorioGrupos: ensureNonNegative(curso.laboratorioGrupos),
+        totalHoras: ensureNonNegative(curso.totalHoras),
+      }));
+
+      // Sanitize all section fields (including per-item horas)
+      const sanitizeSeccion = (s: any) => ({
+        ...s,
+        horas: ensureNonNegative(s?.horas),
+        items: (s?.items || []).map((item: any) => ({
+          ...item,
+          horas: ensureNonNegative(item.horas || s?.horas || 0),
+        })),
+      });
+      const sanitizedPreparacion = sanitizeSeccion(preparacion);
+      const sanitizedConsejeria = sanitizeSeccion(consejeria);
+      const sanitizedInvestigacion = sanitizeSeccion(investigacion);
+      const sanitizedCapacitacion = sanitizeSeccion(capacitacion);
+      const sanitizedGobierno = sanitizeSeccion(gobierno);
+      const sanitizedAdministracion = sanitizeSeccion(administracion);
+      const sanitizedAsesoria = sanitizeSeccion(asesoria);
+      const sanitizedRsu = sanitizeSeccion(rsu);
+      const sanitizedComites = sanitizeSeccion(comites);
+
+      // Calculate total horas for all cursos
+      const horasCursos = sanitizedCursos.reduce((sum: number, curso: any) => 
+        sum + parseInt(curso.totalHoras || '0'), 0
+      );
+
+      // 2. Insert exactly ONE carga_horaria entry
+      const result = await client.query(
+        `INSERT INTO carga_horaria (docente_id, ciclo_academico_id, ciclo_plan, modalidad, facultad, dpto_academico, horas_asignadas, activo)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+         RETURNING *`,
+        [docente_id, ciclo_academico_id, ciclo_plan || 1, modalidad, facultad, dpto_academico, horasCursos || 0]
+      );
+      const ch = result.rows[0];
+      const cargaHorariaId = ch.id;
+
+      // Insert all courses for this carga_horaria
+      await client.query('DELETE FROM carga_horaria_cursos WHERE carga_horaria_id = $1', [cargaHorariaId]);
+      
+      for (const curso of sanitizedCursos) {
+        console.log('Inserting curso with curso_id:', curso.curso_id);
+        await client.query(
+          `INSERT INTO carga_horaria_cursos (
+            carga_horaria_id, curso_id, seccion, escuela, num_alumnos, 
+            hrs_teo, hrs_pra, hrs_lab, total_hrs,
+            teoria_grupos, practica_grupos, laboratorio_grupos
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [
+            cargaHorariaId,
+            curso.curso_id,
+            curso.seccion,
+            curso.escuela,
+            curso.numeroAlumnos,
+            curso.teoriaHoras,
+            curso.practicaHoras,
+            curso.laboratorioHoras,
+            curso.totalHoras,
+            curso.teoriaGrupos,
+            curso.practicaGrupos,
+            curso.laboratorioGrupos
+          ]
+        );
       }
 
-      // Sanitize all section horas fields
-      const sanitizedPreparacion = { ...preparacion, horas: ensureNonNegative(preparacion?.horas) };
-      const sanitizedConsejeria = { ...consejeria, horas: ensureNonNegative(consejeria?.horas) };
-      const sanitizedInvestigacion = { ...investigacion, horas: ensureNonNegative(investigacion?.horas) };
-      const sanitizedCapacitacion = { ...capacitacion, horas: ensureNonNegative(capacitacion?.horas) };
-      const sanitizedGobierno = { ...gobierno, horas: ensureNonNegative(gobierno?.horas) };
-      const sanitizedAdministracion = { ...administracion, horas: ensureNonNegative(administracion?.horas) };
-      const sanitizedAsesoria = { ...asesoria, horas: ensureNonNegative(asesoria?.horas) };
-      const sanitizedRsu = { ...rsu, horas: ensureNonNegative(rsu?.horas) };
-      const sanitizedComites = { ...comites, horas: ensureNonNegative(comites?.horas) };
+      // Helper function to upsert section data (delete + insert each item)
+      const upsertSection = async (tableName: string, data: any) => {
+        if (!data) return;
 
-      // 2. For each ciclo_plan group, create a carga_horaria entry and insert the cursos
-      const allCh = [];
-      for (const [cpStr, cursosForCiclo] of Object.entries(cursosByCiclo)) {
-        const cp = parseInt(cpStr);
-        // Calculate total horas for this ciclo_plan's cursos
-        const horasForCiclo = (cursosForCiclo || []).reduce((sum, curso) => 
-          sum + parseInt(curso.totalHoras || '0'), 0
-        );
-
-        // Insert carga_horaria for this ciclo_plan
-        // Note: previous DELETE already removed existing rows, so plain INSERT is safe
-        const result = await client.query(
-          `INSERT INTO carga_horaria (docente_id, ciclo_academico_id, ciclo_plan, modalidad, facultad, dpto_academico, horas_asignadas, activo)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, true)
-           RETURNING *`,
-          [docente_id, ciclo_academico_id, cp, modalidad, facultad, dpto_academico, horasForCiclo || 0]
-        );
-        const ch = result.rows[0];
-        const cargaHorariaId = ch.id;
-        allCh.push(ch);
-
-        // Insert the cursos for this carga_horaria
-        // First delete existing cursos for this carga_horaria_id
-        await client.query('DELETE FROM carga_horaria_cursos WHERE carga_horaria_id = $1', [cargaHorariaId]);
+        const descField = 
+          tableName === 'carga_horaria_preparacion' ? 'descripcion' :
+          tableName === 'carga_horaria_investigacion' ? 'proyecto' :
+          tableName === 'carga_horaria_rsu' ? 'plan' :
+          'detalles';
         
-        if (cursosForCiclo && cursosForCiclo.length > 0) {
-          for (const curso of cursosForCiclo) {
-            console.log('Inserting curso with curso_id:', curso.curso_id);
-            console.log('Full curso data:', curso);
+        await client.query('DELETE FROM ' + tableName + ' WHERE carga_horaria_id = $1', [cargaHorariaId]);
+
+        const items = data.items || [];
+        if (items.length > 0) {
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const horas = ensureNonNegative(item.horas || data.horas || 0);
+            const descripcion = item.descripcion || '';
+            const dia = item.dia || null;
+            const hora_inicio = item.hora_inicio || null;
+            const hora_fin = item.hora_fin || null;
+
+            if (horas > 0 || descripcion) {
+              await client.query(
+                `INSERT INTO ${tableName} (carga_horaria_id, horas, ${descField}, dia, hora_inicio, hora_fin, orden)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                [cargaHorariaId, horas, descripcion, dia, hora_inicio, hora_fin, i]
+              );
+            }
+          }
+        } else {
+          // Legacy fallback: single row
+          const horas = ensureNonNegative(data.horas || 0);
+          const descripcion = data.descripcion || data.detalles || data.proyecto || data.plan || '';
+          if (horas > 0) {
             await client.query(
-              `INSERT INTO carga_horaria_cursos (
-                carga_horaria_id, curso_id, seccion, escuela, num_alumnos, 
-                hrs_teo, hrs_pra, hrs_lab, total_hrs,
-                teoria_grupos, practica_grupos, laboratorio_grupos
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-              [
-                cargaHorariaId,
-                curso.curso_id,
-                curso.seccion,
-                curso.escuela,
-                ensureNonNegative(curso.numeroAlumnos),
-                ensureNonNegative(curso.teoriaHoras),
-                ensureNonNegative(curso.practicaHoras),
-                ensureNonNegative(curso.laboratorioHoras),
-                ensureNonNegative(curso.totalHoras),
-                ensureNonNegative(curso.teoriaGrupos),
-                ensureNonNegative(curso.practicaGrupos),
-                ensureNonNegative(curso.laboratorioGrupos)
-              ]
+              `INSERT INTO ${tableName} (carga_horaria_id, horas, ${descField})
+               VALUES ($1, $2, $3)`,
+              [cargaHorariaId, horas, descripcion]
             );
           }
         }
+      };
 
-        // Helper function to upsert section data (delete + insert to avoid needing unique constraint)
-        const upsertSection = async (tableName: string, data: any) => {
-          if (!data) return;
-          
-          const horas = ensureNonNegative(data.horas);
-          const descripcion = data.items?.[0]?.descripcion || data.descripcion || data.detalles || data.proyecto || data.plan || '';
-          const descField = 
-            tableName === 'carga_horaria_preparacion' ? 'descripcion' :
-            tableName === 'carga_horaria_investigacion' ? 'proyecto' :
-            tableName === 'carga_horaria_rsu' ? 'plan' :
-            'detalles';
-          
-          await client.query('DELETE FROM ' + tableName + ' WHERE carga_horaria_id = $1', [cargaHorariaId]);
-          
-          await client.query(
-            `INSERT INTO ${tableName} (carga_horaria_id, horas, ${descField})
-             VALUES ($1, $2, $3)`,
-            [cargaHorariaId, horas, descripcion]
-          );
-        };
+      // 3. Upsert all sections for this carga_horaria
+      await upsertSection('carga_horaria_preparacion', sanitizedPreparacion);
+      await upsertSection('carga_horaria_consejeria', sanitizedConsejeria);
+      await upsertSection('carga_horaria_investigacion', sanitizedInvestigacion);
+      await upsertSection('carga_horaria_capacitacion', sanitizedCapacitacion);
+      await upsertSection('carga_horaria_gobierno', sanitizedGobierno);
+      await upsertSection('carga_horaria_administracion', sanitizedAdministracion);
+      await upsertSection('carga_horaria_asesoria', sanitizedAsesoria);
+      await upsertSection('carga_horaria_rsu', sanitizedRsu);
+      await upsertSection('carga_horaria_comites', sanitizedComites);
 
-        // 3. Upsert all sections for this carga_horaria
-        await upsertSection('carga_horaria_preparacion', sanitizedPreparacion);
-        await upsertSection('carga_horaria_consejeria', sanitizedConsejeria);
-        await upsertSection('carga_horaria_investigacion', sanitizedInvestigacion);
-        await upsertSection('carga_horaria_capacitacion', sanitizedCapacitacion);
-        await upsertSection('carga_horaria_gobierno', sanitizedGobierno);
-        await upsertSection('carga_horaria_administracion', sanitizedAdministracion);
-        await upsertSection('carga_horaria_asesoria', sanitizedAsesoria);
-        await upsertSection('carga_horaria_rsu', sanitizedRsu);
-        await upsertSection('carga_horaria_comites', sanitizedComites);
-      }
-
-      return allCh;
+      return [ch];
     });
 
     await registrarAuditoria({
@@ -373,7 +387,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ data: cargaHorariaResults }, { status: 201 });
   } catch (error: any) {
     console.error('Error in POST /api/carga-horaria:', error);
-    console.error('Error stack:', error.stack);
-    return NextResponse.json({ error: error.message, stack: error.stack }, { status: 400 });
+    console.error('Error stack:', error?.stack);
+    return NextResponse.json({ 
+      error: error?.message || String(error), 
+      stack: error?.stack 
+    }, { status: 400 });
   }
 }

@@ -337,7 +337,7 @@ export default function CargaHorariaPage() {
     }
     
     // Combinar todos los cursos de todas las cargas horarias del docente
-    const cursosDocente = [];
+    const cursosDocente: any[] = [];
     let totalHorasLectivas = 0;
     cargasDocente.forEach(ch => {
       if (ch.cursos && ch.cursos.length > 0) {
@@ -347,12 +347,12 @@ export default function CargaHorariaPage() {
           const hrsPra = curso.hrs_pra || 0;
           const gruposPra = (curso as any).practica_grupos ?? 1;
           const hrsLab = curso.hrs_lab || 0;
-          const gruposLab = curso.laboratorio_grupos ?? 1;
+          const gruposLab = (curso as any).laboratorio_grupos ?? 1;
           const totalHrs = (hrsTeo * gruposTeo) + (hrsPra * gruposPra) + (hrsLab * gruposLab);
           
           const cursoData = {
             codigo: curso.curso_codigo || '',
-            nombre: curso.curso_nombre || curso.nombre,
+            nombre: curso.curso_nombre || (curso as any).nombre || '',
             seccion: curso.seccion,
             cicloPlan: getRomanNumeral(curso.ciclo_plan || ch.ciclo_plan || 1),
             escuela: curso.escuela || 'Ingeniería de Sistemas',
@@ -742,25 +742,58 @@ export default function CargaHorariaPage() {
     const diaLabels: Record<string, string> = { lunes: 'LU', martes: 'MA', miercoles: 'MI', jueves: 'JU', viernes: 'VI', sabado: 'SA' };
     const tipoLabels: Record<string, string> = { teoria: 'T', practica: 'P', laboratorio: 'L' };
     let horarioLookup: Map<string, { tipo: string; dia: string; hora_inicio: string; hora_fin: string; lugar: string; aula: string }[]> = new Map();
+    let noLectivaLookup: Map<string, { dia: string; hora_inicio: string; hora_fin: string; aula: string }[]> = new Map();
     try {
       const res = await fetch(`/api/docentes/${docenteId}/horario?ciclo_id=${cicloAcademicoSeleccionado}`);
       if (res.ok) {
         const json = await res.json();
         const asignaciones: any[] = json.data || [];
         for (const a of asignaciones) {
-          const key = a.curso_codigo || a.curso_nombre || '';
-          if (!horarioLookup.has(key)) horarioLookup.set(key, []);
-          horarioLookup.get(key)!.push({
-            tipo: a.tipo || 'teoria',
-            dia: a.dia,
-            hora_inicio: (a.hora_inicio || '').slice(0, 5),
-            hora_fin: (a.hora_fin || '').slice(0, 5),
-            lugar: 'F11',
-            aula: a.ambiente_codigo || a.ambiente_nombre || '—',
-          });
+          if (a.tipo === 'no_lectiva') {
+            const key = a.seccion_key || '';
+            if (!noLectivaLookup.has(key)) noLectivaLookup.set(key, []);
+            noLectivaLookup.get(key)!.push({
+              dia: a.dia,
+              hora_inicio: (a.hora_inicio || '').slice(0, 5),
+              hora_fin: (a.hora_fin || '').slice(0, 5),
+              aula: a.ambiente_codigo || 'CUBICULO',
+            });
+          } else {
+            const key = a.curso_codigo || a.curso_nombre || '';
+            if (!horarioLookup.has(key)) horarioLookup.set(key, []);
+            horarioLookup.get(key)!.push({
+              tipo: a.tipo || 'teoria',
+              dia: a.dia,
+              hora_inicio: (a.hora_inicio || '').slice(0, 5),
+              hora_fin: (a.hora_fin || '').slice(0, 5),
+              lugar: 'F11',
+              aula: a.ambiente_codigo || a.ambiente_nombre || '—',
+            });
+          }
         }
       }
     } catch { /* si no hay horario, queda vacío -> NO DEFINIDO */ }
+
+    const formatHorarioNoLectiva = (entries: { dia: string; hora_inicio: string; hora_fin: string }[]): string => {
+      if (entries.length === 0) return 'NO DEFINIDO';
+      const porDia: Record<string, { hora_inicio: string; hora_fin: string }[]> = {};
+      for (const e of entries) {
+        if (!porDia[e.dia]) porDia[e.dia] = [];
+        porDia[e.dia].push({ hora_inicio: e.hora_inicio, hora_fin: e.hora_fin });
+      }
+      const bloques: string[] = [];
+      for (const [dia, hrs] of Object.entries(porDia)) {
+        hrs.sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
+        let merged: { inicio: string; fin: string }[] = [];
+        for (const h of hrs) {
+          const last = merged[merged.length - 1];
+          if (last && last.fin === h.hora_inicio) last.fin = h.hora_fin;
+          else merged.push({ inicio: h.hora_inicio, fin: h.hora_fin });
+        }
+        for (const m of merged) bloques.push(`${diaLabels[dia] || dia}(${m.inicio}-${m.fin})`);
+      }
+      return bloques.join(', ');
+    };
 
     const formatHorarioF03 = (entries: { tipo: string; dia: string; hora_inicio: string; hora_fin: string }[]): string => {
       if (entries.length === 0) return 'NO DEFINIDO';
@@ -923,11 +956,16 @@ export default function CargaHorariaPage() {
     for (const s of secMapping) {
       const hr = s.field ? (secciones[s.field]?.horas || 0) : 0;
       totalNoLectiva += hr;
+      const horarioEntradas = s.field ? (noLectivaLookup.get(s.field) || []) : [];
+      const horarioStr = formatHorarioNoLectiva(horarioEntradas);
+      const aulasSet = new Set(horarioEntradas.map(e => e.aula));
+      const aulaStr = aulasSet.size > 0 ? [...aulasSet].join(', ') : 'CUBICULO';
+      const lugarStr = horarioEntradas.length > 0 ? 'OA' : lugarDisplay;
       chnlRows.push([
-        { content: '', styles: { ...cellStyle, halign: 'center' as const } },
+        { content: horarioStr, styles: { ...cellStyle, halign: 'center' as const, fontSize: 6 } },
         { content: s.label, styles: cellStyle },
-        { content: lugarDisplay, styles: { ...cellStyle, halign: 'center' as const, fontSize: 5.5 } },
-        { content: 'CUBICULO', styles: { ...cellStyle, halign: 'center' as const, fontSize: 6 } },
+        { content: lugarStr, styles: { ...cellStyle, halign: 'center' as const, fontSize: 5.5 } },
+        { content: aulaStr, styles: { ...cellStyle, halign: 'center' as const, fontSize: 6 } },
         { content: String(hr), styles: { ...cellStyle, halign: 'center' as const } }
       ]);
     }
@@ -1220,30 +1258,32 @@ export default function CargaHorariaPage() {
               {/* Filtros */}
               <div className="card" style={{ marginBottom: '16px', padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Buscar ciclo</label>
-                      <input
-                        className="form-input"
-                        style={{ width: '200px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
-                        placeholder="I, II, III..."
-                        value={buscarCiclo}
-                        onChange={e => setBuscarCiclo(e.target.value)}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Filtros</label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px' }}>
+                  {!isDocente ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Buscar ciclo</label>
                         <input
-                          type="checkbox"
-                          checked={filtroSinAsignacion}
-                          onChange={e => setFiltroSinAsignacion(e.target.checked)}
-                          style={{ cursor: 'pointer' }}
+                          className="form-input"
+                          style={{ width: '200px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
+                          placeholder="I, II, III..."
+                          value={buscarCiclo}
+                          onChange={e => setBuscarCiclo(e.target.value)}
                         />
-                        Solo sin asignación
-                      </label>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Filtros</label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px' }}>
+                          <input
+                            type="checkbox"
+                            checked={filtroSinAsignacion}
+                            onChange={e => setFiltroSinAsignacion(e.target.checked)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                          Solo sin asignación
+                        </label>
+                      </div>
                     </div>
-                  </div>
+                  ) : <div />}
                   <div>
                     {(canWrite || isDocente) && (
                       <button
@@ -1262,7 +1302,7 @@ export default function CargaHorariaPage() {
                         <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
                         </svg>
-                        {isDocente ? 'Agregar cursos' : 'Asignar'}
+                        {isDocente ? 'Agregar Carga' : 'Asignar'}
                       </button>
                     )}
                   </div>

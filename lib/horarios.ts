@@ -272,9 +272,179 @@ export async function generarHorarioAutomatico(params: {
   };
 }
 
+// Obtener todas las actividades no lectivas programadas para un docente
+export async function getHorarioNoLectivaDocente(docente_id: string, ciclo_id: string) {
+  const chRow = await queryOne(`
+    SELECT id, ciclo_plan FROM carga_horaria 
+    WHERE docente_id = $1 AND ciclo_academico_id = $2 AND activo = true
+  `, [docente_id, ciclo_id]);
+
+  if (!chRow) return [];
+
+  const carga_horaria_id = chRow.id;
+  const ciclo_plan = chRow.ciclo_plan;
+
+  const slots = await query(`SELECT * FROM slots_tiempo ORDER BY orden`);
+
+  const noLectivaRows = await query(`
+    SELECT 'preparacion' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, descripcion as detalles FROM carga_horaria_preparacion WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'consejeria' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_consejeria WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'investigacion' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, proyecto FROM carga_horaria_investigacion WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'capacitacion' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_capacitacion WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'gobierno' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_gobierno WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'administracion' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_administracion WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'asesoria' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_asesoria WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'rsu' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, plan FROM carga_horaria_rsu WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'comites' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_comites WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+  `, [carga_horaria_id]);
+
+  const titles: Record<string, string> = {
+    preparacion: 'Preparación y Evaluación',
+    consejeria: 'Consejería y Tutoría',
+    investigacion: 'Investigación',
+    capacitacion: 'Capacitación',
+    gobierno: 'Gobierno',
+    administracion: 'Administración',
+    asesoria: 'Asesoría de Tesis',
+    rsu: 'Responsabilidad Social',
+    comites: 'Comités Técnicos'
+  };
+
+  const virtualAsignaciones: any[] = [];
+
+  for (const row of noLectivaRows) {
+    const startHourStr = row.hora_inicio;
+    const endHourStr = row.hora_fin;
+    if (!startHourStr || !endHourStr) continue;
+
+    const matchedSlots = slots.filter((s: any) => {
+      return s.hora_inicio >= startHourStr && s.hora_inicio < endHourStr;
+    });
+
+    for (const slot of matchedSlots) {
+      virtualAsignaciones.push({
+        id: `nl_${row.seccion_key}_${row.id}_${slot.id}`,
+        dia: row.dia,
+        slot_id: slot.id,
+        hora_inicio: slot.hora_inicio,
+        hora_fin: slot.hora_fin,
+        curso_nombre: titles[row.seccion_key] || 'No Lectiva',
+        curso_codigo: 'NO LECTIVA',
+        ambiente_nombre: 'CUBÍCULO',
+        ambiente_codigo: 'CUBICULO',
+        ambiente_tipo: 'aula',
+        docente_id: docente_id,
+        numero_grupo: 1,
+        tipo: 'no_lectiva',
+        seccion_key: row.seccion_key,
+        ciclo_plan: ciclo_plan
+      });
+    }
+  }
+
+  return virtualAsignaciones;
+}
+
+// Obtener todas las actividades no lectivas programadas para todo el ciclo
+export async function getHorarioNoLectivaCiclo(ciclo_id: string) {
+  const chRows = await query(`
+    SELECT ch.id, ch.docente_id, ch.ciclo_plan,
+           d.nombre || ' ' || d.apellidos as docente_nombre
+    FROM carga_horaria ch
+    JOIN docentes d ON ch.docente_id = d.id
+    WHERE ch.ciclo_academico_id = $1 AND ch.activo = true
+  `, [ciclo_id]);
+
+  if (chRows.length === 0) return [];
+
+  const chMap = new Map(chRows.map((ch: any) => [ch.id, ch]));
+  const chIds = chRows.map((ch: any) => ch.id);
+
+  const slots = await query(`SELECT * FROM slots_tiempo ORDER BY orden`);
+
+  const placeholders = chIds.map((_, i) => `$${i + 1}`).join(',');
+  const noLectivaRows = await query(`
+    SELECT 'preparacion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, descripcion as detalles FROM carga_horaria_preparacion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'consejeria' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_consejeria WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'investigacion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, proyecto FROM carga_horaria_investigacion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'capacitacion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_capacitacion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'gobierno' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_gobierno WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'administracion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_administracion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'asesoria' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_asesoria WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'rsu' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, plan FROM carga_horaria_rsu WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+    UNION ALL
+    SELECT 'comites' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_comites WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+  `, chIds);
+
+  const titles: Record<string, string> = {
+    preparacion: 'Preparación y Evaluación',
+    consejeria: 'Consejería y Tutoría',
+    investigacion: 'Investigación',
+    capacitacion: 'Capacitación',
+    gobierno: 'Gobierno',
+    administracion: 'Administración',
+    asesoria: 'Asesoría de Tesis',
+    rsu: 'Responsabilidad Social',
+    comites: 'Comités Técnicos'
+  };
+
+  const virtualAsignaciones: any[] = [];
+
+  for (const row of noLectivaRows) {
+    const chInfo = chMap.get(row.carga_horaria_id);
+    if (!chInfo) continue;
+
+    const startHourStr = row.hora_inicio;
+    const endHourStr = row.hora_fin;
+    if (!startHourStr || !endHourStr) continue;
+
+    const matchedSlots = slots.filter((s: any) => {
+      return s.hora_inicio >= startHourStr && s.hora_inicio < endHourStr;
+    });
+
+    for (const slot of matchedSlots) {
+      virtualAsignaciones.push({
+        id: `nl_${row.seccion_key}_${row.id}_${slot.id}`,
+        dia: row.dia,
+        slot_id: slot.id,
+        hora_inicio: slot.hora_inicio,
+        hora_fin: slot.hora_fin,
+        curso_nombre: titles[row.seccion_key] || 'No Lectiva',
+        curso_codigo: 'NO LECTIVA',
+        ambiente_nombre: 'CUBÍCULO',
+        ambiente_codigo: 'CUBICULO',
+        ambiente_tipo: 'aula',
+        docente_nombre: chInfo.docente_nombre,
+        docente_id: chInfo.docente_id,
+        numero_grupo: 1,
+        tipo: 'no_lectiva',
+        seccion_key: row.seccion_key,
+        ciclo_plan: chInfo.ciclo_plan
+      });
+    }
+  }
+
+  return virtualAsignaciones;
+}
+
 // Obtener horario completo de un docente
 export async function getHorarioDocente(docente_id: string, ciclo_id: string) {
-  return query(`
+  const lectivas = await query(`
     SELECT 
       a.*,
       c.nombre as curso_nombre, c.codigo as curso_codigo,
@@ -294,6 +464,10 @@ export async function getHorarioDocente(docente_id: string, ciclo_id: string) {
                  WHEN 'jueves' THEN 4 WHEN 'viernes' THEN 5 WHEN 'sabado' THEN 6 END,
       st.orden
   `, [docente_id, ciclo_id]);
+
+  const noLectivas = await getHorarioNoLectivaDocente(docente_id, ciclo_id);
+
+  return [...lectivas, ...noLectivas];
 }
 
 // Obtener horario de aula/ambiente

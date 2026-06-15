@@ -35,8 +35,35 @@ export async function registrarAuditoria(params: AuditoriaParams): Promise<void>
         params.descripcion || null,
       ]
     );
-  } catch (error) {
-    console.error('Error registrando auditoría:', error);
+  } catch (error: any) {
+    if (error.code === '23503' && error.constraint === 'auditoria_usuario_id_fkey') {
+      // El usuario_id del token JWT ya no existe en la base de datos (ej. por re-seed).
+      // Intentamos registrar la auditoría con usuario_id = NULL para no perder el registro.
+      try {
+        await query(
+          `INSERT INTO auditoria 
+           (usuario_id, usuario_nombre, usuario_email, accion, tabla_afectada, registro_id, 
+            datos_anteriores, datos_nuevos, ip_address, user_agent, descripcion)
+           VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [
+            params.usuario_nombre || null,
+            params.usuario_email || null,
+            params.accion,
+            params.tabla_afectada || null,
+            params.registro_id || null,
+            params.datos_anteriores ? JSON.stringify(params.datos_anteriores) : null,
+            params.datos_nuevos ? JSON.stringify(params.datos_nuevos) : null,
+            params.ip_address || null,
+            params.user_agent || null,
+            params.descripcion || null,
+          ]
+        );
+      } catch (retryError) {
+        console.error('Error registrando auditoría (reintento fallido):', retryError);
+      }
+    } else {
+      console.error('Error registrando auditoría:', error);
+    }
   }
 }
 
