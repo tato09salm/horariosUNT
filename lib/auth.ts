@@ -13,6 +13,7 @@ export interface UserRoleProfile {
 
 export interface UserProfile extends Omit<UserSession, 'rol'> {
   rol: UserRoleProfile;
+  docente_id?: string;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -41,12 +42,22 @@ export async function getSessionProfile(): Promise<UserProfile | null> {
     director_escuela: 'Director de Escuela',
   };
 
+  let docente_id: string | undefined;
+  if (session.rol === 'docente' && session.email) {
+    const d = await queryOne<{ id: string }>(
+      'SELECT id FROM docentes WHERE email = $1 AND activo = true',
+      [session.email]
+    );
+    if (d) docente_id = d.id;
+  }
+
   return {
     ...session,
     rol: {
       codigo: session.rol,
       nombre: nombresRoles[session.rol] || session.rol,
     },
+    docente_id,
   };
 }
 

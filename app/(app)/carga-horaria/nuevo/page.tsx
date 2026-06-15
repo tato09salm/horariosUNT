@@ -71,9 +71,10 @@ export default function NuevaCargaHorariaPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { darkMode } = useTheme();
-  const { user } = useUser();
+  const user = useUser();
   const isAdmin = user?.rol.codigo === 'admin';
   const isDirector = user?.rol.codigo === 'director_escuela';
+  const isDocente = user?.rol.codigo === 'docente';
   const canWrite = isAdmin || isDirector;
 
   const initialCicloAcademico = searchParams.get('cicloAcademico');
@@ -104,6 +105,7 @@ export default function NuevaCargaHorariaPage() {
   const [secciones, setSecciones] = useState<Secciones>(initialSecciones);
   const [guardando, setGuardando] = useState(false);
   const [mostrarExito, setMostrarExito] = useState(false);
+  const [cargaHorariaId, setCargaHorariaId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -186,6 +188,7 @@ export default function NuevaCargaHorariaPage() {
     let newModalidad = '';
     let newCursosAsignados: CursoAsignado[] = [];
     let newSecciones = initialSecciones;
+    let loadedChId: string | null = null;
     
     // Check server first for existing carga horaria
     if (cicloAcademicoSeleccionado) {
@@ -206,6 +209,7 @@ export default function NuevaCargaHorariaPage() {
             for (const ch of data.data) {
               if (!combinedCh) {
                 combinedCh = ch;
+                loadedChId = ch.id;
               }
               if (ch.cursos) {
                 allCursos.push(...ch.cursos);
@@ -305,6 +309,7 @@ export default function NuevaCargaHorariaPage() {
     setModalidad(newModalidad);
     setCursosAsignados(newCursosAsignados);
     setSecciones(newSecciones);
+    setCargaHorariaId(loadedChId);
     
     setSearchQuery(`${docente.apellidos || ''}, ${docente.nombre || ''}`);
     setIsSearching(false);
@@ -313,6 +318,11 @@ export default function NuevaCargaHorariaPage() {
   const handleGuardar = async () => {
     if (!docenteSeleccionado || !cicloAcademicoSeleccionado) {
       setAlertMessage('Por favor seleccione un docente y ciclo académico');
+      return;
+    }
+
+    if (isDocente && user?.docente_id && docenteSeleccionado.id !== user.docente_id) {
+      setAlertMessage('Solo puedes guardar tu propia carga horaria');
       return;
     }
 
@@ -794,13 +804,15 @@ export default function NuevaCargaHorariaPage() {
                 <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                   1. TRABAJO LECTIVO.- Datos completos y con claridad
                 </h3>
-                <button
-                  className="btn-primary"
-                  onClick={() => setShowAgregarCursoModal(true)}
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
-                >
-                  + Agregar Curso
-                </button>
+                {(canWrite || isDocente) && (
+                  <button
+                    className="btn-primary"
+                    onClick={() => setShowAgregarCursoModal(true)}
+                    style={{ padding: '6px 12px', fontSize: '12px' }}
+                  >
+                    + Agregar Curso
+                  </button>
+                )}
               </div>
 
               {/* Tabla de cursos */}
@@ -832,7 +844,7 @@ export default function NuevaCargaHorariaPage() {
                   <tbody>
                     {cursosAsignados.length === 0 ? (
                       <tr>
-                        <td colSpan={16} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', border: '1px solid var(--border-color)' }}>
+                        <td colSpan={15} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', border: '1px solid var(--border-color)' }}>
                           No hay cursos agregados
                         </td>
                       </tr>
@@ -846,6 +858,7 @@ export default function NuevaCargaHorariaPage() {
                               className="form-input"
                               value={curso.seccion}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'seccion', e.target.value)}
+                              disabled={false}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '60px' }}
                             />
                           </td>
@@ -854,6 +867,7 @@ export default function NuevaCargaHorariaPage() {
                               className="form-input"
                               value={curso.condicionCurso}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'condicionCurso', e.target.value as 'OB' | 'EL')}
+                              disabled={false}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '70px' }}
                             >
                               <option value="OB">OB</option>
@@ -865,6 +879,7 @@ export default function NuevaCargaHorariaPage() {
                               className="form-input"
                               value={curso.escuela}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'escuela', e.target.value)}
+                              disabled={false}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '180px' }}
                             />
                           </td>
@@ -877,6 +892,7 @@ export default function NuevaCargaHorariaPage() {
                               value={curso.numeroAlumnos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'numeroAlumnos', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
+                              disabled={false}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '70px' }}
                             />
                           </td>
@@ -889,6 +905,7 @@ export default function NuevaCargaHorariaPage() {
                               value={curso.teoriaHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'teoriaHoras', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
+                              disabled={false}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -900,6 +917,7 @@ export default function NuevaCargaHorariaPage() {
                               value={curso.teoriaGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'teoriaGrupos', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
+                              disabled={false}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -912,6 +930,7 @@ export default function NuevaCargaHorariaPage() {
                               value={curso.practicaHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'practicaHoras', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
+                              disabled={false}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -923,6 +942,7 @@ export default function NuevaCargaHorariaPage() {
                               value={curso.practicaGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'practicaGrupos', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
+                              disabled={false}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -935,6 +955,7 @@ export default function NuevaCargaHorariaPage() {
                               value={curso.laboratorioHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'laboratorioHoras', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
+                              disabled={false}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -946,6 +967,7 @@ export default function NuevaCargaHorariaPage() {
                               value={curso.laboratorioGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'laboratorioGrupos', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
+                              disabled={false}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -1383,7 +1405,7 @@ export default function NuevaCargaHorariaPage() {
               </div>
 
               {/* GUARDAR BUTTON */}
-              {canWrite && (
+              {(canWrite || isDocente) && (
                 <div style={{ marginTop: '32px', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                   <button 
                     className="btn-secondary"
@@ -1705,7 +1727,7 @@ export default function NuevaCargaHorariaPage() {
       )}
 
       {/* Botones de Guardar y Cancelar */}
-      {docenteSeleccionado && (
+      {docenteSeleccionado && (canWrite || isDocente) && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
           <button
             className="btn-secondary"

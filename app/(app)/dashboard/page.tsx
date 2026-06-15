@@ -100,6 +100,8 @@ export default function DashboardPage() {
   const [exporting, setExporting] = useState(false);
   const [cicloId, setCicloId] = useState('');
   const [programaciones, setProgramaciones] = useState<DashboardProgramacion[]>([]);
+  const [ciclosList, setCiclosList] = useState<DashboardCiclo[]>([]);
+  const [miCargaDocente, setMiCargaDocente] = useState<{horas_asignadas: number; horas_max_semana: number} | null>(null);
 
   const user = useUser();
   const isDocente = user?.rol.codigo === 'docente';
@@ -209,12 +211,18 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    const loadDashboard = async () => {
+    const loadInitial = async () => {
       setLoading(true);
       try {
-        const finalPayload = await fetchDashboard();
-        setData(finalPayload);
-        setCicloId(finalPayload?.ciclo?.id || '');
+        const [dashboardPayload, progsRes, ciclosRes] = await Promise.all([
+          fetchDashboard(),
+          fetch('/api/horarios/programaciones').then(r => r.json()).catch(() => ({ data: [] })),
+          fetch('/api/ciclos?reporte=true').then(r => r.json()).catch(() => ({ data: [] })),
+        ]);
+        setData(dashboardPayload);
+        setCicloId(dashboardPayload?.ciclo?.id || '');
+        setProgramaciones(progsRes.data || []);
+        setCiclosList(ciclosRes.data || []);
       } catch (err) {
         console.error(err);
         alert('No se pudo cargar el dashboard. Revisa tu sesion e intenta nuevamente.');
@@ -222,36 +230,19 @@ export default function DashboardPage() {
         setLoading(false);
       }
     };
-
-    const loadProgramaciones = async () => {
-      try {
-        const res = await fetch('/api/horarios/programaciones');
-        const text = await res.text();
-        if (!text) return;
-        let payload: ProgramacionesApiResponse | null = null;
-        try {
-          payload = JSON.parse(text) as ProgramacionesApiResponse;
-        } catch {
-          return;
-        }
-        if (res.ok) {
-          setProgramaciones(payload.data || []);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    loadDashboard();
-    loadProgramaciones();
+    loadInitial();
   }, []);
 
   async function recargar(id: string) {
     setCicloId(id);
     setLoading(true);
     try {
-      const finalPayload = await fetchDashboard(id);
+      const [finalPayload, progsRes] = await Promise.all([
+        fetchDashboard(id),
+        fetch(`/api/horarios/programaciones${id ? `?ciclo_id=${id}` : ''}`).then(r => r.json()).catch(() => ({ data: [] })),
+      ]);
       setData(finalPayload);
+      setProgramaciones(progsRes.data || []);
     } catch (err) {
       console.error(err);
       alert('No se pudo cargar el dashboard. Revisa tu sesion e intenta nuevamente.');
@@ -259,6 +250,22 @@ export default function DashboardPage() {
       setLoading(false);
     }
   }
+
+  // Docente: cargar datos propios de carga horaria
+  useEffect(() => {
+    if (!isDocente || !user?.docente_id || !cicloId) return;
+    setMiCargaDocente(null);
+    fetch(`/api/docentes/${user.docente_id}/horario?ciclo_id=${cicloId}`)
+      .then(r => r.json())
+      .then(d => {
+        const asignaciones = d?.asignaciones || d?.data || [];
+        setMiCargaDocente({
+          horas_asignadas: asignaciones.length,
+          horas_max_semana: 20,
+        });
+      })
+      .catch(() => {});
+  }, [isDocente, user?.docente_id, cicloId]);
 
   async function generarReporteGestion() {
     setExporting(true);
@@ -565,104 +572,189 @@ export default function DashboardPage() {
   };
 
   if (isDocente) {
-    const miCarga = data?.cargaDocentes?.find((d) => d.nombre?.toLowerCase().includes(user?.nombre?.toLowerCase() || '') || d.nombre?.toLowerCase().includes(user?.apellidos?.toLowerCase() || ''));
-    const programacionesActivas = programaciones.filter((p) => p.estado !== 'publicado' && p.estado !== 'cancelado');
+    const programacionesActivas = programaciones.filter((p) => p.estado !== 'cancelado');
+    const publicadas = programaciones.filter((p) => p.estado === 'publicado');
+    const enFase = programaciones.filter((p) => p.estado !== 'publicado' && p.estado !== 'cancelado');
+    const estadoHorario = publicadas.length > 0 ? 'publicado' : enFase.length > 0 ? 'en_proceso' : 'sin_programacion';
 
     return (
       <div className="dashboard-page" style={{padding:'32px'}}>
-        <div style={{marginBottom:'28px'}}>
-          <h1 style={{fontSize:'24px',fontWeight:'700',margin:'0 0 4px', color: 'var(--text-primary)'}}>Bienvenido, {user?.nombre}</h1>
-          <p style={{color:'var(--text-secondary)',fontSize:'14px',margin:0}}>Panel de control — Perfil docente</p>
-        </div>
-
-        {/* Stats Row */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3, 1fr)',gap:'16px',marginBottom:'24px'}}>
-          <div className="stat-card" style={{background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius:'14px', padding:'20px', display:'flex', alignItems:'center', gap:'16px'}}>
-            <div className="stat-icon" style={{background: darkMode ? 'rgba(148,163,184,0.1)' : '#f1f5f9', padding:'12px', borderRadius:'12px'}}>
-              <Clock size={22} strokeWidth={1.5} color="var(--text-secondary)" />
-            </div>
-            <div>
-              <p style={{fontSize:'28px',fontWeight:'700',color: 'var(--text-primary)',margin:'0 0 2px'}}>{miCarga ? `${miCarga.horas_asignadas}h` : '0h'}</p>
-              <p style={{fontSize:'13px',color: 'var(--text-muted)',margin:0}}>Horas asignadas ({data?.ciclo?.nombre || 'Ciclo actual'})</p>
-            </div>
+        {/* Header con selector de ciclo */}
+        <div style={{
+          background: darkMode ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+          borderRadius: '16px',
+          padding: '28px 32px',
+          marginBottom: '28px',
+          border: '1px solid var(--border-color)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px'
+        }}>
+          <div>
+            <h1 style={{fontSize:'26px',fontWeight:'800',margin:'0 0 6px', color: 'var(--text-primary)', letterSpacing:'-0.5px'}}>Bienvenido, {user?.nombre}</h1>
+            <p style={{color:'var(--text-secondary)',fontSize:'14px',margin:0}}>Panel de control — Perfil docente</p>
           </div>
-          <div className="stat-card" style={{background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius:'14px', padding:'20px', display:'flex', alignItems:'center', gap:'16px'}}>
-            <div className="stat-icon" style={{background: darkMode ? 'rgba(148,163,184,0.1)' : '#f1f5f9', padding:'12px', borderRadius:'12px'}}>
-              <CheckCircle2 size={22} strokeWidth={1.5} color="var(--text-secondary)" />
-            </div>
-            <div>
-              <p style={{fontSize:'28px',fontWeight:'700',color: 'var(--text-primary)',margin:'0 0 2px'}}>{miCarga ? `${miCarga.horas_max_semana}h` : '—'}</p>
-              <p style={{fontSize:'13px',color: 'var(--text-muted)',margin:0}}>Límite de horas semanales</p>
-            </div>
-          </div>
-          <div className="stat-card" style={{background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius:'14px', padding:'20px', display:'flex', alignItems:'center', gap:'16px'}}>
-            <div className="stat-icon" style={{background: darkMode ? 'rgba(148,163,184,0.1)' : '#f1f5f9', padding:'12px', borderRadius:'12px'}}>
-              <BookOpen size={22} strokeWidth={1.5} color="var(--text-secondary)" />
-            </div>
-            <div>
-              <p style={{fontSize:'28px',fontWeight:'700',color: 'var(--text-primary)',margin:'0 0 2px'}}>{programacionesActivas.length}</p>
-              <p style={{fontSize:'13px',color: 'var(--text-muted)',margin:0}}>Programaciones activas</p>
-            </div>
-          </div>
-        </div>
-
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'24px'}}>
-          <div className="card" style={{padding:'32px',textAlign:'center', background: 'var(--bg-card)', border: '1px solid var(--border-color)'}}>
-            <div style={{fontSize:'48px',marginBottom:'16px'}}>🎓</div>
-            <h2 style={{fontSize:'20px',fontWeight:'600',color: 'var(--text-primary)',margin:'0 0 8px'}}>Tu portal académico</h2>
-            <p style={{color: 'var(--text-secondary)',fontSize:'14px',margin:'0 auto 24px'}}>Desde aquí podrás ver tu horario publicado final y consultar tus asignaciones de clase.</p>
-            <div style={{display:'flex',justifyContent:'center',gap:'16px'}}>
-              <a href="/horarios" className="btn-primary" style={{textDecoration:'none',padding:'8px 24px'}}>Ver mi horario general</a>
-            </div>
-          </div>
-
-          <div className="card" style={{padding:'24px', background: 'var(--bg-card)', border: '1px solid var(--border-color)'}}>
-            <h3 style={{fontSize:'16px',fontWeight:'600',color: 'var(--text-primary)',margin:'0 0 16px',display:'flex',alignItems:'center',gap:'8px'}}>
-              <Clock size={18} strokeWidth={2} /> Disponibilidad Pendiente
-            </h3>
-            {programacionesActivas.length > 0 ? (
-              <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
-                {programacionesActivas.map((p) => (
-                  <div key={p.id} style={{padding:'12px',background: 'var(--bg-card-hover)',borderRadius:'8px',border:'1px solid var(--border-color)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                    <div>
-                      <h4 style={{margin:'0 0 4px',fontSize:'14px',fontWeight:'600',color: 'var(--text-primary)'}}>{p.nombre}</h4>
-                      <p style={{margin:0,fontSize:'12px',color: 'var(--text-muted)'}}>Fase actual: {p.fase}</p>
-                    </div>
-                    <a href={`/horarios/${p.id}/disponibilidad`} style={{textDecoration:'none'}}>
-                      <button className="btn-primary" style={{padding:'6px 12px',fontSize:'12px'}}>Marcar disponibilidad</button>
-                    </a>
-                  </div>
+          <div style={{display:'flex',alignItems:'center',gap:'12px', flexWrap:'wrap'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+              <span style={{fontSize:'13px',fontWeight:'600',color:'var(--text-muted)',whiteSpace:'nowrap'}}>Filtrar por ciclo:</span>
+              <select
+                className="form-input"
+                style={{width:'auto',minWidth:'220px',padding:'9px 14px',fontWeight:'500',border:'2px solid var(--color-primary)',borderRadius:'10px',background:'var(--bg-card)',cursor:'pointer'}}
+                value={cicloId}
+                onChange={e => recargar(e.target.value)}
+              >
+                <option value="">— Selecciona un ciclo —</option>
+                {ciclosList.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nombre} {c.activo ? '(Activo)' : ''}</option>
                 ))}
-              </div>
-            ) : (
-              <div style={{padding:'24px',textAlign:'center',background: 'var(--bg-card-hover)',borderRadius:'8px',border:'1px dashed var(--border-color)'}}>
-                <p style={{margin:0,fontSize:'13px',color: 'var(--text-muted)'}}>No hay programaciones activas en este momento.</p>
-              </div>
-            )}
+              </select>
+            </div>
+            <div style={{
+              background: darkMode ? 'rgba(16,185,129,0.12)' : '#dcfce7',
+              color: darkMode ? '#34d399' : '#166534',
+              padding:'8px 16px', borderRadius:'10px', fontSize:'13px', fontWeight:'700',
+              border: '1px solid ' + (darkMode ? 'rgba(16,185,129,0.25)' : '#bbf7d0'),
+              whiteSpace:'nowrap'
+            }}>
+              {data?.ciclo?.nombre || 'Sin ciclo'}
+            </div>
           </div>
         </div>
+
+        {estadoHorario === 'publicado' && (
+          <div style={{marginBottom:'24px',background: darkMode ? 'rgba(16,185,129,0.12)' : '#d1fae5',color: darkMode ? '#34d399' : '#065f46',padding:'14px 20px',borderRadius:'12px',fontSize:'14px',fontWeight:'600',border:'1px solid ' + (darkMode ? 'rgba(16,185,129,0.25)' : '#bbf7d0')}}>
+            ✅ Horario publicado — Ya puedes consultar tu horario final
+          </div>
+        )}
+        {estadoHorario === 'en_proceso' && (
+          <div style={{marginBottom:'24px',background: darkMode ? 'rgba(251,191,36,0.12)' : '#fef3c7',color: darkMode ? '#fbbf24' : '#92400e',padding:'14px 20px',borderRadius:'12px',fontSize:'14px',fontWeight:'600',border:'1px solid ' + (darkMode ? 'rgba(251,191,36,0.25)' : '#fde68a')}}>
+            ⏳ Horario en fase de programación — Marca tu disponibilidad
+          </div>
+        )}
+        {estadoHorario === 'sin_programacion' && (
+          <div style={{marginBottom:'24px',background: darkMode ? 'rgba(148,163,184,0.12)' : '#f1f5f9',color: 'var(--text-muted)',padding:'14px 20px',borderRadius:'12px',fontSize:'14px',fontWeight:'600',border:'1px solid var(--border-color)'}}>
+            📋 Aún no hay programaciones para este ciclo
+          </div>
+        )}
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'24px',marginBottom:'24px'}}>
+          <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
+            <div style={{background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius:'14px', padding:'20px', display:'flex', alignItems:'center', gap:'16px'}}>
+              <div style={{background: darkMode ? 'rgba(148,163,184,0.1)' : '#f1f5f9', padding:'12px', borderRadius:'12px'}}>
+                <Clock size={22} strokeWidth={1.5} color="var(--text-secondary)" />
+              </div>
+              <div>
+                <p style={{fontSize:'28px',fontWeight:'700',color: 'var(--text-primary)',margin:'0 0 2px'}}>{miCargaDocente ? `${miCargaDocente.horas_asignadas}h` : '0h'}</p>
+                <p style={{fontSize:'13px',color: 'var(--text-muted)',margin:0}}>Horas asignadas ({data?.ciclo?.nombre || 'Ciclo actual'})</p>
+              </div>
+            </div>
+            <div style={{background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius:'14px', padding:'20px', display:'flex', alignItems:'center', gap:'16px'}}>
+              <div style={{background: darkMode ? 'rgba(148,163,184,0.1)' : '#f1f5f9', padding:'12px', borderRadius:'12px'}}>
+                <CheckCircle2 size={22} strokeWidth={1.5} color="var(--text-secondary)" />
+              </div>
+              <div>
+                <p style={{fontSize:'28px',fontWeight:'700',color: 'var(--text-primary)',margin:'0 0 2px'}}>{miCargaDocente ? `${miCargaDocente.horas_max_semana}h` : '—'}</p>
+                <p style={{fontSize:'13px',color: 'var(--text-muted)',margin:0}}>Límite de horas semanales</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={{padding:'28px',textAlign:'center', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius:'16px', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center'}}>
+            <div style={{fontSize:'40px',marginBottom:'12px'}}>🎓</div>
+            <p style={{color: 'var(--text-secondary)',fontSize:'14px',margin:'0 0 20px',maxWidth:'260px'}}>
+              {estadoHorario === 'publicado' ? 'Tu horario ya está disponible. Consulta tus clases y gestiona tu carga académica.' :
+               estadoHorario === 'en_proceso' ? 'Revisa y marca tu disponibilidad para la programación en curso.' :
+               'Aún no hay horarios publicados para este ciclo.'}
+            </p>
+            <div style={{display:'flex',gap:'12px',flexWrap:'wrap',justifyContent:'center'}}>
+              <a href="/horarios?vista=mi-horario" className="btn-primary" style={{textDecoration:'none',padding:'10px 24px',borderRadius:'10px',fontWeight:'600'}}>Ver mi horario</a>
+              <a href="/carga-horaria" className="btn-secondary" style={{textDecoration:'none',padding:'10px 24px',borderRadius:'10px',fontWeight:'600'}}>Mi carga académica</a>
+            </div>
+          </div>
+        </div>
+
+        {enFase.length > 0 && (
+          <div className="card" style={{padding:'24px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius:'16px'}}>
+            <h3 style={{fontSize:'16px',fontWeight:'600',color: 'var(--text-primary)',margin:'0 0 16px',display:'flex',alignItems:'center',gap:'8px'}}>
+              ⏳ Programaciones en curso
+            </h3>
+            <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
+              {enFase.map((p) => (
+                <div key={p.id} style={{padding:'12px 16px',background: 'var(--bg-card-hover)',borderRadius:'8px',border:'1px solid var(--border-color)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <div>
+                    <h4 style={{margin:'0 0 4px',fontSize:'14px',fontWeight:'600',color: 'var(--text-primary)'}}>{p.nombre}</h4>
+                    <span style={{fontSize:'11px',padding:'2px 8px',borderRadius:'4px',background: darkMode ? 'rgba(251,191,36,0.15)' : '#fef3c7',color: darkMode ? '#fbbf24' : '#92400e',fontWeight:'600'}}>Fase {p.fase}</span>
+                  </div>
+                  <a href={`/horarios/${p.id}/disponibilidad`} style={{textDecoration:'none'}}>
+                    <button className="btn-primary" style={{padding:'6px 14px',fontSize:'12px'}}>Marcar disponibilidad</button>
+                  </a>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <div className="dashboard-page" style={{padding:'32px'}}>
-      {/* Header */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'28px', flexWrap:'wrap', gap:'16px'}}>
+      {/* Header con selector de ciclo */}
+      <div style={{
+        background: darkMode ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+        borderRadius: '16px',
+        padding: '28px 32px',
+        marginBottom: '28px',
+        border: '1px solid var(--border-color)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '16px'
+      }}>
         <div>
-          <h1 style={{fontSize:'24px',fontWeight:'700',margin:'0 0 4px', color: 'var(--text-primary)'}}>Dashboard</h1>
+          <h1 style={{fontSize:'26px',fontWeight:'800',margin:'0 0 6px', color: 'var(--text-primary)', letterSpacing:'-0.5px'}}>Dashboard</h1>
           <p style={{color:'var(--text-secondary)',fontSize:'14px',margin:0}}>Panel de control — Gestión de horarios académicos</p>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:'12px', flexWrap:'wrap'}}>
-          <select className="form-input" style={{width:'auto',minWidth:'180px'}} value={cicloId} onChange={e => recargar(e.target.value)}>
-            {ciclos.map((c) => (
-              <option key={c.id} value={c.id}>{c.nombre} {c.activo ? '(Activo)' : ''}</option>
-            ))}
-          </select>
-          <div style={{background: darkMode ? 'rgba(16,185,129,0.1)' : '#dcfce7', color: darkMode ? '#34d399' : '#166534', padding:'6px 12px', borderRadius:'8px', fontSize:'13px', fontWeight:'600', border: '1px solid ' + (darkMode ? 'rgba(16,185,129,0.2)' : '#bbf7d0')}}>
+          <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+            <span style={{fontSize:'13px',fontWeight:'600',color:'var(--text-muted)',whiteSpace:'nowrap'}}>Filtrar por ciclo:</span>
+            <select
+              className="form-input"
+              style={{width:'auto',minWidth:'220px',padding:'9px 14px',fontWeight:'500',border:'2px solid var(--color-primary)',borderRadius:'10px',background:'var(--bg-card)',cursor:'pointer'}}
+              value={cicloId}
+              onChange={e => recargar(e.target.value)}
+            >
+              <option value="">— Selecciona un ciclo —</option>
+              {ciclosList.map((c) => (
+                <option key={c.id} value={c.id}>{c.nombre} {c.activo ? '(Activo)' : ''}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{
+            background: darkMode ? 'rgba(16,185,129,0.12)' : '#dcfce7',
+            color: darkMode ? '#34d399' : '#166534',
+            padding:'8px 16px',
+            borderRadius:'10px',
+            fontSize:'13px',
+            fontWeight:'700',
+            border: '1px solid ' + (darkMode ? 'rgba(16,185,129,0.25)' : '#bbf7d0'),
+            whiteSpace:'nowrap'
+          }}>
             {data?.ciclo?.nombre || 'Sin ciclo'}
           </div>
-          <button className="btn-primary" onClick={generarReporteGestion} disabled={exporting} style={{display:'flex',alignItems:'center',gap:'8px', padding:'8px 16px', border:'none', cursor: exporting ? 'not-allowed' : 'pointer'}}>
+          <button
+            className="btn-primary"
+            onClick={generarReporteGestion}
+            disabled={exporting}
+            style={{
+              display:'flex',alignItems:'center',gap:'8px',padding:'8px 20px',
+              border:'none',cursor: exporting ? 'not-allowed' : 'pointer',
+              borderRadius:'10px',fontWeight:'600',fontSize:'13px'
+            }}
+          >
             {exporting ? 'Generando...' : (
               <>
                 <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -672,6 +764,29 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {!cicloId && (
+        <div style={{
+          textAlign:'center',padding:'80px 32px',
+          background: darkMode ? '#1e293b' : '#f8fafc',
+          borderRadius:'16px',border:'2px dashed var(--border-color)'
+        }}>
+          <div style={{fontSize:'56px',marginBottom:'20px',opacity:0.5}}>📊</div>
+          <h2 style={{fontSize:'22px',fontWeight:'700',color:'var(--text-primary)',margin:'0 0 10px'}}>Selecciona un ciclo académico</h2>
+          <p style={{color:'var(--text-muted)',fontSize:'15px',margin:'0 0 24px',maxWidth:'440px',marginLeft:'auto',marginRight:'auto'}}>
+            Elige un ciclo del selector superior para visualizar las estadísticas y reportes del dashboard.
+          </p>
+          <div style={{
+            display:'inline-flex',alignItems:'center',gap:'8px',
+            background: darkMode ? 'rgba(59,130,246,0.1)' : '#dbeafe',
+            color: darkMode ? '#93c5fd' : '#1e40af',
+            padding:'10px 20px',borderRadius:'10px',fontSize:'14px',fontWeight:'600'
+          }}>
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+            Usa el filtro de ciclo para comenzar
+          </div>
+        </div>
+      )}
 
       {/* Stat Cards */}
       <motion.div 

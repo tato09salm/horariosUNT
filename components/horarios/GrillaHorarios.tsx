@@ -18,6 +18,7 @@ interface GrillaHorariosProps {
   bloquesMovidos?: Set<string>;
   activeBlockIds?: Set<string>;
   restringidosConfig?: Record<string, string>;
+  hideDocenteFilter?: boolean;
 }
 
 function normalizarAsignacion(a: any) {
@@ -45,6 +46,7 @@ export default function GrillaHorarios({
   bloquesMovidos = new Set(),
   activeBlockIds = new Set(),
   restringidosConfig,
+  hideDocenteFilter = false,
 }: GrillaHorariosProps) {
   const [vista, setVista] = useState<'aula' | 'general' | 'ciclo' | 'docente'>('general');
   const [aulaFiltro, setAulaFiltro] = useState<string>('');
@@ -414,7 +416,9 @@ export default function GrillaHorarios({
           <button className={vista === 'general' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('general')}>General</button>
           <button className={vista === 'aula' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('aula')}>Por aula</button>
           <button className={vista === 'ciclo' ? 'btn-primary' : 'btn-secondary'} onClick={() => setVista('ciclo')}>Por ciclo</button>
-          <button className={vista === 'docente' ? 'btn-primary' : 'btn-secondary'} onClick={() => { setVista('docente'); if (docentesUnicos[0]) setDocenteFiltro(docentesUnicos[0].id); }}>Por docente</button>
+          {!hideDocenteFilter && (
+            <button className={vista === 'docente' ? 'btn-primary' : 'btn-secondary'} onClick={() => { setVista('docente'); if (docentesUnicos[0]) setDocenteFiltro(docentesUnicos[0].id); }}>Por docente</button>
+          )}
 
           {vista === 'aula' && ambientesEnUso.length > 0 && (
             <select className="form-input" style={{ maxWidth: 280 }} value={aulaFiltro} onChange={e => setAulaFiltro(e.target.value)}>

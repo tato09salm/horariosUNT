@@ -153,7 +153,16 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session || !['admin', 'director_escuela'].includes(session.rol)) {
+  if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+
+  const body = await req.json();
+
+  if (session.rol === 'docente') {
+    const d = await queryOne<{ id: string }>('SELECT id FROM docentes WHERE email = $1 AND activo = true', [session.email]);
+    if (!d || d.id !== body.docente_id) {
+      return NextResponse.json({ error: 'Solo puedes guardar tu propia carga horaria' }, { status: 403 });
+    }
+  } else if (!['admin', 'director_escuela'].includes(session.rol)) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
   }
 
@@ -188,7 +197,6 @@ export async function POST(req: NextRequest) {
       END $$;
     `, []);
 
-    const body = await req.json();
     const {
       docente_id,
       ciclo_academico_id,

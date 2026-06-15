@@ -8,9 +8,12 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const ciclo_id = searchParams.get('ciclo_id');
+  const docente_id = searchParams.get('docente_id');
   if (!ciclo_id) return NextResponse.json({ error: 'ciclo_id requerido' }, { status: 400 });
 
   try {
+    const desdeTablaParams = docente_id ? [ciclo_id, docente_id] : [ciclo_id];
+
     // 1. Intentar desde tabla asignaciones (publicado)
     const desdeTabla = await query(`
       SELECT a.*, st.hora_inicio, st.hora_fin, st.nombre as slot_nombre,
@@ -25,9 +28,9 @@ export async function GET(req: NextRequest) {
       LEFT JOIN docentes d ON d.id = a.docente_id
       LEFT JOIN ambientes amb ON amb.id = a.ambiente_id
       WHERE a.ciclo_id = $1 AND a.estado = 'activo'
+      ${docente_id ? `AND a.docente_id = $2` : ''}
       ORDER BY amb.codigo, a.dia, st.orden
-    `, [ciclo_id]);
-
+    `, desdeTablaParams);
     if (desdeTabla.length > 0) {
       return NextResponse.json({ data: desdeTabla });
     }
@@ -48,7 +51,10 @@ export async function GET(req: NextRequest) {
     const ambMap = new Map(ambientes.map((a: any) => [a.id, a]));
 
     const enriched = [];
-    for (const a of prog.config.asignaciones) {
+    const asignacionesFiltradas = docente_id
+      ? prog.config.asignaciones.filter((a: any) => a.docente_id === docente_id)
+      : prog.config.asignaciones;
+    for (const a of asignacionesFiltradas) {
       const slot = slotsMap.get(a.slot_id);
       const amb = ambMap.get(a.ambiente_id);
 

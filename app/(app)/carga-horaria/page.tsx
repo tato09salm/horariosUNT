@@ -62,6 +62,7 @@ export default function CargaHorariaPage() {
   const user = useUser();
   const isAdmin = user?.rol.codigo === 'admin';
   const isDirector = user?.rol.codigo === 'director_escuela';
+  const isDocente = user?.rol.codigo === 'docente';
   const canWrite = isAdmin || isDirector;
 
   const [ciclosAcademicos, setCiclosAcademicos] = useState<CicloAcademico[]>([]);
@@ -156,6 +157,9 @@ export default function CargaHorariaPage() {
     setLoadingCiclos(true);
     const params = new URLSearchParams();
     params.set('ciclo_academico_id', cicloAcademicoSeleccionado);
+    if (isDocente && user?.docente_id) {
+      params.set('docente_id', user.docente_id);
+    }
     console.log('⏳ Fetching carga horaria for ciclo:', params.toString());
 
     fetch(`/api/carga-horaria?${params}`)
@@ -200,7 +204,10 @@ export default function CargaHorariaPage() {
   useEffect(() => {
     if (activeTab !== 'carga-aula' || !cicloAcademicoSeleccionado) return;
     setLoadingAula(true);
-    fetch(`/api/horarios/por-aula?ciclo_id=${cicloAcademicoSeleccionado}`)
+    const aulaUrl = isDocente && user?.docente_id
+      ? `/api/horarios/por-aula?ciclo_id=${cicloAcademicoSeleccionado}&docente_id=${user.docente_id}`
+      : `/api/horarios/por-aula?ciclo_id=${cicloAcademicoSeleccionado}`;
+    fetch(aulaUrl)
       .then(r => r.json())
       .then(json => {
         const rows = (json.data || []).map((a: any) => ({
@@ -1238,12 +1245,13 @@ export default function CargaHorariaPage() {
                     </div>
                   </div>
                   <div>
-                    {canWrite && (
+                    {(canWrite || isDocente) && (
                       <button
                         className="btn-primary"
                         onClick={() => {
                           if (cicloAcademicoSeleccionado) {
-                            router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&reset=true`);
+                            const docenteParam = isDocente && user?.docente_id ? `&docenteId=${user.docente_id}` : '';
+                            router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&reset=true${docenteParam}`);
                           } else {
                             setToast({ type: 'error', text: 'Primero selecciona un ciclo académico' });
                           }
@@ -1254,7 +1262,7 @@ export default function CargaHorariaPage() {
                         <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
                         </svg>
-                        Asignar
+                        {isDocente ? 'Agregar cursos' : 'Asignar'}
                       </button>
                     )}
                   </div>
@@ -1385,44 +1393,64 @@ export default function CargaHorariaPage() {
                                         <td style={{ textAlign: 'center' }}>{hl > 0 ? `${hl}×${lG}` : '—'}</td>
                                         <td style={{ textAlign: 'center', fontWeight: 600 }}>{total}h</td>
                                       <td style={{ verticalAlign: 'middle' }}>
-                                        {canWrite && (
+                                        {(canWrite || (isDocente && user?.docente_id === ch.docente_id)) && (
                                           <div style={{ display: 'flex', gap: '8px' }}>
-                                            <button
-                                              className="btn-secondary"
-                                              style={{ 
-                                                padding: '6px 8px', 
-                                                fontSize: '11px',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '6px'
-                                              }}
-                                              onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
-                                            >
-                                              <Edit2 size={14} />
-                                              Editar
-                                            </button>
-                                            <button
-                                              className="btn-secondary btn-crud-deactivate"
-                                              style={{ 
-                                                padding: '6px 8px', 
-                                                fontSize: '11px',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '6px'
-                                              }}
-                                              onClick={() => eliminarCurso(curso.id)}
-                                              disabled={saving}
-                                            >
-                                              <Trash2 size={14} />
-                                              Eliminar
-                                            </button>
+                                            {canWrite && (
+                                              <button
+                                                className="btn-secondary"
+                                                style={{ 
+                                                  padding: '6px 8px', 
+                                                  fontSize: '11px',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '6px'
+                                                }}
+                                                onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
+                                              >
+                                                <Edit2 size={14} />
+                                                Editar
+                                              </button>
+                                            )}
+                                            {isDocente && user?.docente_id === ch.docente_id && (
+                                              <button
+                                                className="btn-secondary"
+                                                style={{ 
+                                                  padding: '6px 8px', 
+                                                  fontSize: '11px',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '6px'
+                                                }}
+                                                onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
+                                              >
+                                                <Edit2 size={14} />
+                                                Editar
+                                              </button>
+                                            )}
+                                            {canWrite && (
+                                              <button
+                                                className="btn-secondary btn-crud-deactivate"
+                                                style={{ 
+                                                  padding: '6px 8px', 
+                                                  fontSize: '11px',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '6px'
+                                                }}
+                                                onClick={() => eliminarCurso(curso.id)}
+                                                disabled={saving}
+                                              >
+                                                <Trash2 size={14} />
+                                                Eliminar
+                                              </button>
+                                            )}
                                           </div>
                                         )}
                                       </td>
                                     </tr>
                                   );
                                 })}
-                                  {/* Now render docentes with no courses */}
+                                {/* Now render docentes with no courses */}
                                   {cargasEnCiclo.map((ch) => {
                                     // Skip if this docente already has courses shown
                                      if ((cursoCicloMap[ciclo] || []).some(c => c.cargaHoraria.id === ch.id)) {
@@ -1442,37 +1470,57 @@ export default function CargaHorariaPage() {
                                          <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
                                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{ch.horas_asignadas}h</td>
                                          <td style={{ verticalAlign: 'middle' }}>
-                                          {canWrite && (
+                                          {(canWrite || (isDocente && user?.docente_id === ch.docente_id)) && (
                                             <div style={{ display: 'flex', gap: '8px' }}>
-                                              <button
-                                                className="btn-secondary"
-                                                style={{ 
-                                                  padding: '6px 8px', 
-                                                  fontSize: '11px',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  gap: '6px'
-                                                }}
-                                                onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
-                                              >
-                                                <Edit2 size={14} />
-                                                Editar
-                                              </button>
-                                              <button
-                                                className="btn-secondary btn-crud-deactivate"
-                                                style={{ 
-                                                  padding: '6px 8px', 
-                                                  fontSize: '11px',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  gap: '6px'
-                                                }}
-                                                onClick={() => eliminarCargaHoraria(ch.id)}
-                                                disabled={saving}
-                                              >
-                                                <Trash2 size={14} />
-                                                Eliminar
-                                              </button>
+                                              {canWrite && (
+                                                <button
+                                                  className="btn-secondary"
+                                                  style={{ 
+                                                    padding: '6px 8px', 
+                                                    fontSize: '11px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                  }}
+                                                  onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
+                                                >
+                                                  <Edit2 size={14} />
+                                                  Editar
+                                                </button>
+                                              )}
+                                              {isDocente && user?.docente_id === ch.docente_id && (
+                                                <button
+                                                  className="btn-secondary"
+                                                  style={{ 
+                                                    padding: '6px 8px', 
+                                                    fontSize: '11px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                  }}
+                                                  onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
+                                                >
+                                                  <Edit2 size={14} />
+                                                  Editar
+                                                </button>
+                                              )}
+                                              {canWrite && (
+                                                <button
+                                                  className="btn-secondary btn-crud-deactivate"
+                                                  style={{ 
+                                                    padding: '6px 8px', 
+                                                    fontSize: '11px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                  }}
+                                                  onClick={() => eliminarCargaHoraria(ch.id)}
+                                                  disabled={saving}
+                                                >
+                                                  <Trash2 size={14} />
+                                                  Eliminar
+                                                </button>
+                                              )}
                                             </div>
                                           )}
                                         </td>
@@ -1707,7 +1755,7 @@ export default function CargaHorariaPage() {
             </div>
           ) : (
             <>
-              {/* Buscador de docentes */}
+              {!isDocente && (
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>
                   Buscar docente por nombre
@@ -1720,6 +1768,7 @@ export default function CargaHorariaPage() {
                   onChange={e => setBuscarDocenteReporte(e.target.value)}
                 />
               </div>
+              )}
 
               {/* Tabla de reportes */}
               <div className="table-container">
@@ -1741,7 +1790,10 @@ export default function CargaHorariaPage() {
                       (() => {
                         // Obtener docentes únicos con carga horaria en el ciclo seleccionado
                         const docentesUnicosMap = new Map();
-                        cargaHoraria.forEach(ch => {
+                        const cargaFiltered = isDocente && user?.docente_id
+                          ? cargaHoraria.filter(ch => ch.docente_id === user.docente_id)
+                          : cargaHoraria;
+                        cargaFiltered.forEach(ch => {
                           if (!docentesUnicosMap.has(ch.docente_id)) {
                             docentesUnicosMap.set(ch.docente_id, ch);
                           }
