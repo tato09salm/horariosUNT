@@ -1,4 +1,4 @@
--- Seeder 2026-I para Carga Horaria
+﻿-- Seeder 2026-I para Carga Horaria
 -- ====================================
 
 DO $$
