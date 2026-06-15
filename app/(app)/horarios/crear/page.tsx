@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { fetchProgramacionCursos, programacionCursosApiUrl } from '@/lib/fetch-programacion-cursos';
 import { useTheme } from '@/lib/theme';
 import { getCurriculaDisplayName } from '@/lib/curriculas';
@@ -45,6 +45,9 @@ export default function CrearHorarioPage() {
   const [alertasOpen, setAlertasOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   // =================== CARGA INICIAL ===================
   const cargarConfiguracion = useCallback(async () => {
@@ -127,6 +130,16 @@ export default function CrearHorarioPage() {
   useEffect(() => {
     cargarConfiguracion().then(() => cargarProgramacion());
   }, [cargarConfiguracion, cargarProgramacion]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // =================== LÓGICA DE SELECCIÓN ===================
   const ciclosDisponibles = useMemo(() => {
@@ -662,12 +675,17 @@ export default function CrearHorarioPage() {
     <div className="horarios-crear-page" style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-        <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 4px' }}>{prog.nombre}</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
-            Fase 1: Carga de Información — {prog.ciclo_nombre}
-            {lastSaved && <span style={{ marginLeft: '12px', color: '#10b981' }}>✔ Guardado</span>}
-          </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button onClick={() => router.push('/horarios')} title="Volver a programaciones" style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '22px', padding: '4px', display: 'flex', alignItems: 'center' }}>
+            ←
+          </button>
+          <div>
+            <h1 style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 4px' }}>{prog.nombre}</h1>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+              Fase 1: Carga de Información — {prog.ciclo_nombre}
+              {lastSaved && <span style={{ marginLeft: '12px', color: '#10b981' }}>✔ Guardado</span>}
+            </p>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -684,15 +702,24 @@ export default function CrearHorarioPage() {
             </select>
           </div>
           <input type="file" accept=".csv" ref={fileInputRef} style={{ display: 'none' }} onChange={importarCSV} />
-          <button className="btn-secondary horarios-crear-import-btn" onClick={() => fileInputRef.current?.click()} disabled={saving || loading}>
-            📥 IMPORTAR CSV
-          </button>
-          <button className="btn-secondary horarios-crear-import-btn" onClick={exportarCSV} disabled={saving || loading}>
-            📤 EXPORTAR CSV
-          </button>
-          <button className="btn-secondary" onClick={limpiarCampos} disabled={saving || loading}>
-            🧹 LIMPIAR CAMPOS
-          </button>
+          <div ref={menuRef} style={{ position: 'relative' }}>
+            <button className="btn-secondary" onClick={() => setShowMenu(!showMenu)} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              ⚙️ MÁS ACCIONES {showMenu ? '▲' : '▼'}
+            </button>
+            {showMenu && (
+              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 100, minWidth: '200px', overflow: 'hidden' }}>
+                <button className="btn-secondary horarios-crear-import-btn" onClick={() => { fileInputRef.current?.click(); setShowMenu(false); }} disabled={saving || loading} style={{ width: '100%', justifyContent: 'flex-start', borderRadius: 0, border: 'none', borderBottom: '1px solid var(--border-color)' }}>
+                  📥 IMPORTAR CSV
+                </button>
+                <button className="btn-secondary horarios-crear-import-btn" onClick={() => { exportarCSV(); setShowMenu(false); }} disabled={saving || loading} style={{ width: '100%', justifyContent: 'flex-start', borderRadius: 0, border: 'none', borderBottom: '1px solid var(--border-color)' }}>
+                  📤 EXPORTAR CSV
+                </button>
+                <button className="btn-secondary" onClick={() => { limpiarCampos(); setShowMenu(false); }} disabled={saving || loading} style={{ width: '100%', justifyContent: 'flex-start', borderRadius: 0, border: 'none' }}>
+                  🧹 LIMPIAR CAMPOS
+                </button>
+              </div>
+            )}
+          </div>
           <button className="btn-primary" onClick={avanzarFase} disabled={saving || alerts.length > 0 || cursosFiltrados.length === 0} title={alerts.length > 0 ? "Existen errores por corregir" : ""}>
             {saving ? 'AVANZANDO...' : 'AVANZAR A FASE 2 →'}
           </button>

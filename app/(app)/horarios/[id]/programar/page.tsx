@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { usePathname } from 'next/navigation';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core';
+import type { JSX } from 'react';
 import GrillaHorarios from '@/components/horarios/GrillaHorarios';
 import BloqueHorario from '@/components/horarios/BloqueHorario';
 import { fetchProgramacionCursos } from '@/lib/fetch-programacion-cursos';
@@ -113,6 +114,7 @@ export default function ProgramarPage() {
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [advertencias, setAdvertencias] = useState<string[]>([]);
   const [conflictosAbiertos, setConflictosAbiertos] = useState(true);
+  const [filtroTipoConflictos, setFiltroTipoConflictos] = useState<string>('todos');
 
   // --- Lógica Drag & Drop ---
   const [sugerenciasRecolocacion, setSugerenciasRecolocacion] = useState<any[]>([]);
@@ -578,8 +580,6 @@ export default function ProgramarPage() {
                     <tr style={{ background: 'var(--bg-card-hover)' }}>
                       <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Docente</th>
                       <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Horas de cursos</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>+ Asesoría</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: '#93c5fd', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Total requerido</th>
                       <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Horas disponibles</th>
                       <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '700', color: '#f87171', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Horas a agregar</th>
                       <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>Bloque máx.</th>
@@ -676,7 +676,7 @@ export default function ProgramarPage() {
                           {/* Expandable course breakdown */}
                           {isExpanded && (
                             <tr key={`${doc.docente_id}-detail`}>
-                              <td colSpan={10} className="diagnostico-detail-cell" style={{ padding: '0 16px 16px 48px', background: 'var(--bg-card-hover)', borderBottom: '1px solid var(--border-color)' }}>
+                              <td colSpan={9} className="diagnostico-detail-cell" style={{ padding: '0 16px 16px 48px', background: 'var(--bg-card-hover)', borderBottom: '1px solid var(--border-color)' }}>
                                 <div style={{ paddingTop: '12px' }}>
                                   <p style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                     Detalle de carga curricular asignada
@@ -747,192 +747,171 @@ export default function ProgramarPage() {
               {conflictosAbiertos ? '▲ Colapsar' : '▼ Expandir'}
             </button>
           </div>
-          
-          {conflictosAbiertos && (
-            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
-                El motor de asignación CSP ha detectado incompatibilidades o restricciones insatisfechas al procesar el horario. Revise el detalle de cada bloque no asignado para ver el motivo exacto (ej. docente sin disponibilidad o cruce de aulas/grupos).
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '350px', overflowY: 'auto', paddingRight: '8px' }}>
-                {conflictos.map((conf, index) => {
-                  const esCritico = conf.severidad === 'error' || conf.tipo === 'UNASSIGNED';
-                  return (
-                    <div 
-                      key={conf.id || index} 
-                      style={{ 
-                        background: 'var(--bg-card)', 
-                        borderRadius: '8px', 
-                        padding: '14px', 
-                        border: `1px solid var(--border-color)`,
-                        borderLeft: `4px solid ${esCritico ? '#f87171' : '#fbbf24'}`,
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+
+          {conflictosAbiertos && (() => {
+            const tipos: Record<string, number> = {};
+            for (const c of conflictos) {
+              tipos[c.tipo] = (tipos[c.tipo] || 0) + 1;
+            }
+            const criticos = conflictos.filter(c => c.severidad === 'error' || c.tipo === 'UNASSIGNED');
+            const advertencias = conflictos.filter(c => !(c.severidad === 'error' || c.tipo === 'UNASSIGNED'));
+            const TIPO_ICON: Record<string, string> = {
+              UNASSIGNED: '❌', CRUCE_DOCENTE: '👤', CRUCE_AMBIENTE: '🏛️', CRUCE_GRUPO: '👥', SOBRECARGA: '⚡',
+            };
+            const filtrados = filtroTipoConflictos === 'todos' ? conflictos
+              : filtroTipoConflictos === 'criticos' ? criticos
+              : filtroTipoConflictos === 'advertencias' ? advertencias
+              : conflictos.filter(c => c.tipo === filtroTipoConflictos);
+
+            return (
+              <div style={{ marginTop: '16px' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)', fontWeight: '700' }}>
+                    ❌ Sin asignar: {tipos['UNASSIGNED'] || 0}
+                  </span>
+                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(245,158,11,0.12)', color: '#fde68a', border: '1px solid rgba(245,158,11,0.3)', fontWeight: '700' }}>
+                    👤 Cruce docente: {tipos['CRUCE_DOCENTE'] || 0}
+                  </span>
+                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(139,92,246,0.12)', color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.3)', fontWeight: '700' }}>
+                    🏛️ Cruce ambiente: {tipos['CRUCE_AMBIENTE'] || 0}
+                  </span>
+                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(6,182,212,0.12)', color: '#a5f3fc', border: '1px solid rgba(6,182,212,0.3)', fontWeight: '700' }}>
+                    👥 Cruce grupo: {tipos['CRUCE_GRUPO'] || 0}
+                  </span>
+                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(236,72,153,0.12)', color: '#fbcfe8', border: '1px solid rgba(236,72,153,0.3)', fontWeight: '700' }}>
+                    ⚡ Sobrecarga: {tipos['SOBRECARGA'] || 0}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '5px 8px' }}>
+                    {criticos.length} críticos · {advertencias.length} advertencias
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                  {[
+                    { key: 'todos', label: `Todos (${conflictos.length})` },
+                    { key: 'criticos', label: `⚠ Críticos (${criticos.length})` },
+                    { key: 'UNASSIGNED', label: `❌ Sin asignar (${tipos['UNASSIGNED'] || 0})` },
+                    { key: 'CRUCE_DOCENTE', label: `👤 Cruce docente (${tipos['CRUCE_DOCENTE'] || 0})` },
+                  ].map(f => (
+                    <button key={f.key} onClick={() => setFiltroTipoConflictos(f.key)}
+                      style={{
+                        fontSize: '11px', fontWeight: '600', padding: '5px 12px', borderRadius: '20px', cursor: 'pointer',
+                        border: `1px solid ${filtroTipoConflictos === f.key ? 'var(--primary-color)' : 'var(--border-color)'}`,
+                        background: filtroTipoConflictos === f.key ? 'rgba(99,102,241,0.12)' : 'var(--bg-card-hover)',
+                        color: filtroTipoConflictos === f.key ? '#a5b4fc' : 'var(--text-secondary)',
                       }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ 
-                          fontSize: '10px', 
-                          fontWeight: 'bold', 
-                          textTransform: 'uppercase',
-                          color: esCritico ? '#fca5a5' : '#fde68a',
-                          background: esCritico ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)',
-                          padding: '3px 8px',
-                          borderRadius: '4px',
-                          letterSpacing: '0.05em'
-                        }}>
-                          {translateTipo(conf.tipo)}
-                        </span>
-                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                          Prioridad: <b style={{ color: esCritico ? '#dc2626' : '#d97706' }}>{translateSeveridad(conf.severidad)}</b>
-                        </span>
-                      </div>
-                      <div style={{ 
-                        fontSize: '13px', 
-                        color: 'var(--text-primary)', 
-                        whiteSpace: 'pre-wrap', 
-                        background: 'var(--bg-card-hover)', 
-                        padding: '10px 14px', 
-                        borderRadius: '6px', 
-                        border: '1px solid var(--border-color)', 
-                        margin: '6px 0 10px', 
-                        lineHeight: '1.5' 
-                      }}>
-                        {formatearDescripcion(conf.descripcion)}
-                      </div>
-                      {conf.sugerencia && (
-                        <div style={{ 
-                          fontSize: '12px', 
-                          color: '#bfdbfe', 
-                          display: 'flex', 
-                          alignItems: 'flex-start', 
-                          gap: '8px', 
-                          background: 'rgba(59,130,246,0.12)', 
-                          padding: '8px 12px', 
-                          borderRadius: '6px', 
-                          border: '1px solid rgba(59,130,246,0.25)',
-                          lineHeight: '1.4'
-                        }}>
-                          <span style={{ color: '#93c5fd', fontWeight: '700', flexShrink: 0 }}>💡 Acción sugerida:</span>
-                          <span>{formatearSugerencia(conf.sugerencia)}</span>
+                    >{f.label}</button>
+                  ))}
+                </div>
+
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: '1.4' }}>
+                  {criticos.length > 0
+                    ? `El motor no pudo ubicar ${criticos.length} bloque(s) en los horarios disponibles (lun–vie). Estos cursos requieren ajustar disponibilidad docente o habilitar sábados.`
+                    : `Todos los bloques fueron asignados, pero hay ${advertencias.length} advertencia(s) de posibles cruces. Revise los casos señalados.`}
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '450px', overflowY: 'auto', paddingRight: '8px' }}>
+                  {filtrados.map((conf, index) => {
+                    const esCritico = conf.severidad === 'error' || conf.tipo === 'UNASSIGNED';
+                    const cursoStr = conf.datos?.codigo || (conf.descripcion?.match(/[A-Z]{2}-\d{3}/)?.[0]) || '';
+                    return (
+                      <div key={conf.id || index}
+                        style={{
+                          background: esCritico ? 'rgba(239,68,68,0.04)' : 'var(--bg-card)',
+                          borderRadius: '8px', padding: '0',
+                          border: `1px solid ${esCritico ? 'rgba(239,68,68,0.25)' : 'var(--border-color)'}`,
+                          borderLeft: `4px solid ${esCritico ? '#ef4444' : '#f59e0b'}`,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px' }}>
+                          <span style={{ fontSize: '14px' }}>{TIPO_ICON[conf.tipo] || '⚠️'}</span>
+                          {cursoStr && <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-primary)', fontFamily: 'monospace' }}>{cursoStr}</span>}
+                          <span style={{
+                            fontSize: '10px', fontWeight: '700', textTransform: 'uppercase',
+                            color: esCritico ? '#fca5a5' : '#fde68a',
+                            background: esCritico ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)',
+                            padding: '2px 8px', borderRadius: '4px', letterSpacing: '0.03em',
+                          }}>
+                            {translateTipo(conf.tipo)}
+                          </span>
+                          <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-secondary)' }}>
+                            {translateSeveridad(conf.severidad)}
+                          </span>
                         </div>
-                      )}
 
-                      {/* ── Diagnóstico de horas del docente afectado ── */}
-                      {(() => {
-                        const docenteNombreConf = conf.datos?.docente_nombre as string | undefined;
-                        const docDiag = diagnostico ? matchDocenteEnDiag(docenteNombreConf || '', diagnostico.docentes) : null;
-                        if (!docDiag) return null;
+                        <div style={{
+                          fontSize: '12px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap',
+                          padding: '0 14px 4px', lineHeight: '1.5',
+                        }}>
+                          {formatearDescripcion(conf.descripcion)}
+                        </div>
 
-                        // Hours needed for THIS specific course block (e.g. 2h continuous for EE-402)
-                        const bloqueSesion: number = conf.datos?.horas_requeridas ?? 1;
-                        // Slots already blocked on the days the engine tried
-                        const conflsDetectados: string[] = conf.datos?.conflictos_detectados ?? [];
-                        const slotsBloqueados = conflsDetectados.length;
-
-                        const hFaltantes = docDiag.horas_faltantes;   // global shortage
-                        const hReq      = docDiag.horas_requeridas;
-                        const hDisp     = docDiag.horas_disponibles;
-
-                        // True cause: even if total hours look OK, if the engine found that all
-                        // tried slots are occupied, the teacher needs a fresh continuous block.
-                        // We recommend adding at least `bloqueSesion` consecutive hours on a new day.
-                        const horasAAgregar = hFaltantes > 0 ? hFaltantes : bloqueSesion;
-                        const causaCruce    = hFaltantes === 0 && slotsBloqueados > 0;
-
-                        // Coverage bar: show used/available ratio (capped at 100%)
-                        const pct = hDisp > 0 ? Math.min(100, Math.round((hReq / hDisp) * 100)) : 100;
-
-                        return (
-                          <div style={{ marginTop: '10px', borderRadius: '8px', border: '1px solid #fde68a', background: '#fffbeb', padding: '12px 14px' }}>
-                            {/* Header */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ fontSize: '14px' }}>👨‍🏫</span>
-                                <span style={{ fontSize: '12px', fontWeight: '700', color: '#92400e' }}>Disponibilidad de {docDiag.docente_nombre}</span>
-                              </div>
-                              <span style={{ fontSize: '11px', fontWeight: '800', background: '#dc2626', color: 'white', padding: '3px 10px', borderRadius: '20px' }}>
-                                Agregar +{horasAAgregar}h
-                              </span>
+                        <div style={{ padding: '0 14px 10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {conf.sugerencia && (
+                            <div style={{
+                              fontSize: '11px', color: '#93c5fd',
+                              display: 'flex', alignItems: 'flex-start', gap: '6px',
+                              background: 'rgba(59,130,246,0.08)', padding: '7px 10px', borderRadius: '6px',
+                              lineHeight: '1.4',
+                            }}>
+                              <span style={{ fontWeight: '700', flexShrink: 0 }}>💡</span>
+                              <span>{formatearSugerencia(conf.sugerencia)}</span>
                             </div>
+                          )}
 
-                            {/* Mini stats row */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '10px' }}>
-                              {[
-                                { label: 'Horas de cursos', value: `${docDiag.horas_cursos}h`, sub: '', color: '#1a3a5c', bg: '#eff6ff' },
-                                { label: 'Requerido total', value: `${hReq}h`, sub: 'motor CSP global', color: '#0f172a', bg: '#f1f5f9', bold: true },
-                                { label: 'Bloque para este curso', value: `${bloqueSesion}h`, sub: 'continuas / consecutivas', color: '#7c3aed', bg: '#ede9fe', bold: true },
-                                { label: 'Disponibles ahora', value: `${hDisp}h`, sub: `${docDiag.dias_marcados} días marcados`, color: hFaltantes > 0 ? '#dc2626' : '#059669', bg: hFaltantes > 0 ? '#fef2f2' : '#f0fdf4' },
-                              ].map((s, si) => (
-                                <div key={si} style={{ background: s.bg, borderRadius: '6px', padding: '8px 10px', textAlign: 'center' }}>
-                                  <div style={{ fontSize: s.bold ? '15px' : '14px', fontWeight: '800', color: s.color }}>{s.value}</div>
-                                  <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', lineHeight: '1.2' }}>{s.label}</div>
-                                  <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '1px' }}>{s.sub}</div>
+                          {(() => {
+                            const docenteNombreConf = conf.datos?.docente_nombre as string | undefined;
+                            const docDiag = diagnostico ? matchDocenteEnDiag(docenteNombreConf || '', diagnostico.docentes) : null;
+                            if (!docDiag) return null;
+                            const bloqueSesion: number = conf.datos?.horas_requeridas ?? 1;
+                            const conflsDetectados: string[] = conf.datos?.conflictos_detectados ?? [];
+                            const slotsBloqueados = conflsDetectados.length;
+                            const hFaltantes = docDiag.horas_faltantes;
+                            const hReq = docDiag.horas_requeridas;
+                            const hDisp = docDiag.horas_disponibles;
+                            const horasAAgregar = hFaltantes > 0 ? hFaltantes : bloqueSesion;
+                            const causaCruce = hFaltantes === 0 && slotsBloqueados > 0;
+                            const pct = hDisp > 0 ? Math.min(100, Math.round((hReq / hDisp) * 100)) : 100;
+                            return (
+                              <div style={{ borderRadius: '6px', border: '1px solid rgba(253,230,138,0.3)', background: 'rgba(253,230,138,0.06)', padding: '8px 10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                  <span style={{ fontSize: '11px', fontWeight: '600', color: '#fde68a' }}>
+                                    👨‍🏫 {docDiag.docente_nombre}
+                                  </span>
+                                  <span style={{ fontSize: '10px', fontWeight: '700', background: '#dc2626', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>
+                                    +{horasAAgregar}h
+                                  </span>
                                 </div>
-                              ))}
-                            </div>
-
-                            {/* Progress bar */}
-                            <div style={{ marginBottom: '10px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#92400e', marginBottom: '4px' }}>
-                                <span>Cobertura de disponibilidad global</span>
-                                <span style={{ fontWeight: '700' }}>{hDisp}h disponibles / {hReq}h necesarias</span>
-                              </div>
-                              <div style={{ height: '6px', borderRadius: '3px', background: '#fde68a', overflow: 'hidden' }}>
-                                <div style={{ height: '100%', borderRadius: '3px', width: `${Math.min(pct, 100)}%`, background: hFaltantes > 0 ? '#ef4444' : '#f59e0b', transition: 'width 0.4s ease' }} />
-                              </div>
-                            </div>
-
-                            {/* Cause diagnosis + action */}
-                            {causaCruce ? (
-                              // Teacher has enough total hours, but all tried slots are occupied by other assignments
-                              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#92400e', marginBottom: '4px' }}>
-                                    ⚡ Cruce de horarios — todas las franjas revisadas están ocupadas
-                                  </div>
-                                  <div style={{ fontSize: '12px', color: '#78350f', lineHeight: '1.5' }}>
-                                    El docente tiene {hDisp}h marcadas, pero las {slotsBloqueados} franjas probadas ya están tomadas por otras asignaciones.
-                                    Para garantizar que el motor pueda colocar este bloque de <strong>{bloqueSesion}h continuas</strong>, se recomienda
-                                    agregar al menos <strong style={{ color: '#dc2626' }}>+{bloqueSesion}h adicionales consecutivas</strong> en
-                                    un día donde el docente no tenga otras clases (ej: martes o jueves por la tarde).
-                                  </div>
+                                <div style={{ display: 'flex', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>Cursos: {docDiag.horas_cursos}h</span>
+                                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>Req: {hReq}h</span>
+                                  <span style={{ fontSize: '10px', color: hFaltantes > 0 ? '#fca5a5' : '#6ee7b7' }}>Disp: {hDisp}h</span>
                                 </div>
-                                <a
-                                  href={`/horarios/${progId}/disponibilidad`}
-                                  style={{ flexShrink: 0, background: '#d97706', color: 'white', padding: '7px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', textDecoration: 'none', whiteSpace: 'nowrap', alignSelf: 'center' }}
-                                >
-                                  Ampliar disponibilidad →
-                                </a>
-                              </div>
-                            ) : (
-                              // Classic global hours shortage
-                              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#991b1b', marginBottom: '4px' }}>
-                                    ✕ Disponibilidad insuficiente para cubrir la carga total
-                                  </div>
-                                  <div style={{ fontSize: '12px', color: '#7f1d1d', lineHeight: '1.5' }}>
-                                    Para resolver este conflicto se deben agregar
-                                    {' '}<strong style={{ color: '#dc2626' }}>al menos {horasAAgregar}h continuas</strong>{' '}
-                                    de disponibilidad a este docente en franjas sin asignaciones previas.
-                                  </div>
+                                <div style={{ height: '4px', borderRadius: '2px', background: '#334155', marginBottom: '6px' }}>
+                                  <div style={{ height: '4px', borderRadius: '2px', width: `${Math.min(pct, 100)}%`, background: hFaltantes > 0 ? '#ef4444' : '#f59e0b' }} />
                                 </div>
-                                <a
-                                  href={`/horarios/${progId}/disponibilidad`}
-                                  style={{ flexShrink: 0, background: '#dc2626', color: 'white', padding: '7px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', textDecoration: 'none', whiteSpace: 'nowrap', alignSelf: 'center' }}
-                                >
-                                  Ajustar disponibilidad →
-                                </a>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                                  <span style={{ fontSize: '10px', color: causaCruce ? '#fb923c' : '#fca5a5', lineHeight: '1.3' }}>
+                                    {causaCruce
+                                      ? `⚡ ${slotsBloqueados} franjas probadas ocupadas — necesita +${bloqueSesion}h continuas`
+                                      : `✕ Faltan +${horasAAgregar}h de disponibilidad`}
+                                  </span>
+                                  <a href={`/horarios/${progId}/disponibilidad`}
+                                    style={{ flexShrink: 0, fontSize: '10px', color: '#93c5fd', fontWeight: '600', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                                    Ajustar →
+                                  </a>
+                                </div>
                               </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  );
-                })}
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 

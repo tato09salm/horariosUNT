@@ -8,7 +8,7 @@ import { DIAS_SEMANA, DIAS_LABEL } from '@/lib/horario-utils';
 import { generarMapaColores } from '@/lib/colores-curso';
 import { SelectorDocente } from '@/components/horarios/SelectorDocente';
 
-const DIAS = [...DIAS_SEMANA];
+const DIAS = [...DIAS_SEMANA, 'sabado'];
 
 interface GrillaHorariosProps {
   asignaciones: any[];
@@ -206,19 +206,27 @@ export default function GrillaHorarios({
     ).sort((a, b) => String(a.codigo).localeCompare(String(b.codigo)));
   }, [asigFiltradas]);
 
-  const asesoriasAsig = useMemo(() => {
-    return asigFiltradas.filter(a => a.tipo === 'asesoria');
-  }, [asigFiltradas]);
+  const asesoriasAsig: any[] = []; // asesoría removed from CSP
 
-  const diasGrilla = isMobile ? [diaMobile] : [...DIAS];
+  const diasVisibles = [...DIAS]; // always show Mon–Sat (Sáb 7–13 emergencia)
+  useEffect(() => {
+    if (!diasVisibles.includes(diaMobile)) setDiaMobile('lunes');
+  }, [diasVisibles, diaMobile]);
+  const diasGrilla = isMobile ? [diaMobile] : diasVisibles;
   const compactBlocks = isMobile || (typeof window !== 'undefined' && window.innerWidth < 1200);
 
   function getCell(dia: string, slotId: string, asigArr: any[]) {
     return asigArr
       .filter(a => a.dia === dia && a.slot_id === slotId)
       .sort((a, b) => {
-        if (a.condicion_orden !== b.condicion_orden) return (a.condicion_orden || 0) - (b.condicion_orden || 0);
-        return (a.categoria_orden || 0) - (b.categoria_orden || 0);
+        // Nombrados (0) first, then contratados (1)
+        if ((a.condicion_orden ?? 1) !== (b.condicion_orden ?? 1))
+          return (a.condicion_orden ?? 1) - (b.condicion_orden ?? 1);
+        // Within same condicion: principal→asociado→auxiliar→jefe_practica
+        if ((a.categoria_orden ?? 4) !== (b.categoria_orden ?? 4))
+          return (a.categoria_orden ?? 4) - (b.categoria_orden ?? 4);
+        // Within same level: seniority (fecha_ingreso)
+        return (a.fecha_ingreso || '') < (b.fecha_ingreso || '') ? -1 : 1;
       });
   }
 
@@ -305,10 +313,10 @@ export default function GrillaHorarios({
         </h4>
         <div
           className={`horario-grid horario-grid--responsive${isMobile ? ' horario-grid--mobile-one-day' : ''}`}
-          style={{ gridTemplateColumns: `90px repeat(${DIAS.length}, 1fr)` }}
+          style={{ gridTemplateColumns: `90px repeat(${diasVisibles.length}, 1fr)` }}
         >
           <div className="horario-header horario-header--show">Hora</div>
-          {DIAS.map(d => (
+          {diasVisibles.map(d => (
             <div key={d} className={`horario-header${diasGrilla.includes(d) ? ' horario-header--show' : ''}`}>
               {DIAS_LABEL[d]}
             </div>
@@ -327,12 +335,12 @@ export default function GrillaHorarios({
                 {isLunch ? (
                   <div
                     className="horario-cell horario-cell--show horario-cell--lunch"
-                    style={{ gridColumn: isMobile ? '2' : `2 / span ${DIAS.length}` }}
+                    style={{ gridColumn: isMobile ? '2' : `2 / span ${diasVisibles.length}` }}
                   >
                     {lunchMsg}
                   </div>
                 ) : (
-                  DIAS.map(dia => {
+                  diasVisibles.map(dia => {
                     const cellKey = `${dia}_${slot.id}`;
                     if (hiddenCellsSet.has(cellKey)) {
                       return null; // Omitir renderizado
@@ -357,7 +365,7 @@ export default function GrillaHorarios({
                       cellStyle.gridRow = `span ${duration}`;
                     }
                     if (!isMobile) {
-                      const dayIndex = DIAS.indexOf(dia);
+                      const dayIndex = diasVisibles.indexOf(dia);
                       cellStyle.gridColumn = dayIndex + 2;
                     } else {
                       cellStyle.gridColumn = 2;
@@ -428,7 +436,7 @@ export default function GrillaHorarios({
 
       <div className="card" style={{ overflowX: 'auto', padding: '24px', background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
         <div className="programar-dia-tabs">
-          {DIAS.map(d => (
+          {diasVisibles.map(d => (
             <button key={d} type="button" className={diaMobile === d ? 'active' : ''} onClick={() => setDiaMobile(d)}>
               {DIAS_LABEL[d]}
             </button>

@@ -183,19 +183,19 @@ BEGIN
   -- EE-902 (Ciclo IX)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-902';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 2, 4, 11, 1, 1, 2
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 2, 2, 7, 1, 1, 2
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EE-701 (Ciclo VII)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-701';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 2, 4, 11, 1, 1, 2
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 2, 2, 7, 1, 1, 2
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EE-101 (Ciclo I)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-101';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 2, 0, 3, 1, 1, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 2, 0, 3, 1, 1, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -216,13 +216,13 @@ BEGIN
   -- EE-102 (Ciclo I)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-102';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 0, 4, 10, 1, 0, 2
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 0, 2, 6, 1, 0, 2
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EE-905 (Ciclo IX)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-905';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 1, 9, 29, 1, 1, 3
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 1, 3, 11, 1, 1, 3
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -243,19 +243,19 @@ BEGIN
   -- EI-701 (Ciclo VII)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EI-701';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 2, 0, 4, 1, 1, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 2, 0, 4, 1, 1, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EL-702 (Ciclo VII)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EL-702';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 0, 0, 4, 8, 0, 0, 2
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 0, 0, 2, 4, 0, 0, 2
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EE-102 (Ciclo I)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-102';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 0, 0, 4, 8, 0, 0, 2
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 0, 0, 2, 4, 0, 0, 2
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -276,7 +276,7 @@ BEGIN
   -- EG-101 (Ciclo I)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EG-101';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 4, 0, 5, 1, 1, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 4, 0, 5, 1, 1, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -297,7 +297,7 @@ BEGIN
   -- EG-102 (Ciclo I)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EG-102';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 2, 0, 4, 1, 1, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 2, 0, 4, 1, 1, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -318,7 +318,7 @@ BEGIN
   -- EG-103 (Ciclo I)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EG-103';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 2, 0, 4, 1, 1, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 2, 0, 4, 1, 1, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -339,7 +339,7 @@ BEGIN
   -- EG-104 (Ciclo I)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EG-104';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 4, 0, 6, 1, 1, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 4, 0, 6, 1, 1, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -360,7 +360,7 @@ BEGIN
   -- EG-105 (Ciclo I)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EG-105';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 2, 0, 4, 1, 1, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 2, 0, 4, 1, 1, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -381,7 +381,7 @@ BEGIN
   -- EG-105 (Ciclo I) — Solo práctica, sin teoría
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EG-105';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 0, 2, 0, 2, 0, 1, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 0, 2, 0, 2, 0, 1, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -402,7 +402,7 @@ BEGIN
   -- EL-101 (Ciclo I)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EL-101';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 0, 2, 0, 2, 0, 1, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 0, 2, 0, 2, 0, 1, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -423,7 +423,7 @@ BEGIN
   -- EL-102 (Ciclo I)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EL-102';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 0, 2, 0, 2, 0, 1, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 0, 2, 0, 2, 0, 1, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -444,7 +444,7 @@ BEGIN
   -- EL-103 (Ciclo I)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EL-103';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 0, 2, 0, 2, 0, 1, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 0, 2, 0, 2, 0, 1, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -465,19 +465,19 @@ BEGIN
   -- EL-702 (Ciclo VII)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EL-702';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 0, 0, 2, 1, 0, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 0, 0, 2, 1, 0, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EE-301 (Ciclo III)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-301';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 2, 6, 21, 1, 1, 3
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 1, 2, 9, 1, 1, 3
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EL-502 (Ciclo V)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EL-502';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 0, 4, 10, 1, 0, 2
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 0, 2, 6, 1, 0, 2
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -498,7 +498,7 @@ BEGIN
   -- EE-302 (Ciclo III)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-302';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 0, 12, 38, 1, 0, 3
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 0, 4, 14, 1, 0, 3
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -519,13 +519,13 @@ BEGIN
   -- EE-504 (Ciclo V)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-504';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 2, 6, 22, 1, 1, 3
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 2, 2, 10, 1, 1, 3
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EL-301 (Ciclo III)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EL-301';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 1, 6, 14, 1, 1, 2
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 1, 3, 8, 1, 1, 2
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -546,7 +546,7 @@ BEGIN
   -- EL-302 (Ciclo III)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EL-302';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 2, 0, 4, 1, 1, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 2, 0, 4, 1, 1, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -567,7 +567,7 @@ BEGIN
   -- EP-301 (Ciclo III)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EP-301';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 2, 0, 4, 1, 1, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 2, 0, 4, 1, 1, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -588,7 +588,7 @@ BEGIN
   -- EP-302 (Ciclo III)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EP-302';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 2, 6, 21, 1, 1, 3
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 2, 2, 9, 1, 1, 3
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -609,7 +609,7 @@ BEGIN
   -- EP-303 (Ciclo III)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EP-303';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 2, 2, 5, 1, 1, 1
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 2, 2, 5, 1, 1, 1
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -630,7 +630,7 @@ BEGIN
   -- EP-304 (Ciclo III)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EP-304';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 4, 8, 37, 1, 1, 4
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 4, 2, 13, 1, 1, 4
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -651,13 +651,13 @@ BEGIN
   -- EE-704 (Ciclo VII)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-704';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 0, 0, 6, 12, 0, 0, 2
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 0, 0, 3, 6, 0, 0, 2
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EE-501 (Ciclo V)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-501';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 1, 9, 29, 1, 1, 3
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 1, 3, 11, 1, 1, 3
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -678,7 +678,7 @@ BEGIN
   -- EE-502 (Ciclo V)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-502';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 1, 9, 30, 1, 1, 3
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 1, 3, 12, 1, 1, 3
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -699,13 +699,13 @@ BEGIN
   -- EE-503 (Ciclo V)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-503';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 2, 6, 21, 1, 1, 3
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 2, 2, 9, 1, 1, 3
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EE-703 (Ciclo VII)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-703';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 1, 9, 29, 1, 1, 3
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 1, 3, 11, 1, 1, 3
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -726,13 +726,13 @@ BEGIN
   -- EL-501 (Ciclo V)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EL-501';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 2, 4, 11, 1, 1, 2
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 2, 2, 7, 1, 1, 2
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EL-902 (Ciclo IX)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EL-902';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 0, 4, 10, 1, 0, 2
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 0, 2, 6, 1, 0, 2
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -753,7 +753,7 @@ BEGIN
   -- EP-501 (Ciclo V)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EP-501';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 2, 2, 5, 1, 1, 1
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 2, 2, 5, 1, 1, 1
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -774,7 +774,7 @@ BEGIN
   -- EP-502 (Ciclo V)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EP-502';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 2, 6, 21, 1, 1, 3
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 2, 2, 9, 1, 1, 3
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -795,13 +795,13 @@ BEGIN
   -- EL-901 (Ciclo IX)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EL-901';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 0, 4, 10, 1, 0, 2
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 0, 2, 6, 1, 0, 2
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EE-702 (Ciclo VII)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-702';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 2, 8, 35, 1, 1, 4
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 2, 2, 11, 1, 1, 4
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -822,13 +822,13 @@ BEGIN
   -- EI-901 (Ciclo IX)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EI-901';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 2, 2, 6, 1, 1, 1
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 2, 2, 6, 1, 1, 1
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EE-704 (Ciclo VII)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-704';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 1, 3, 6, 1, 1, 1
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 1, 3, 6, 1, 1, 1
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -849,19 +849,19 @@ BEGIN
   -- EL-701 (Ciclo VII)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EL-701';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 1, 6, 14, 1, 1, 2
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 1, 3, 8, 1, 1, 2
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EI-901 (Ciclo IX)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EI-901';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 2, 2, 6, 1, 1, 1
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 2, 2, 6, 1, 1, 1
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EE-903 (Ciclo IX)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-903';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 2, 2, 5, 1, 1, 1
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 2, 2, 5, 1, 1, 1
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -882,7 +882,7 @@ BEGIN
   -- EP-701 (Ciclo VII)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EP-701';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 2, 2, 0, 4, 1, 1, 0
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 2, 2, 0, 4, 1, 1, 0
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (
@@ -903,13 +903,13 @@ BEGIN
   -- EE-901 (Ciclo IX)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-901';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 2, 6, 21, 1, 1, 3
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 2, 2, 9, 1, 1, 3
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   -- EE-904 (Ciclo IX)
   SELECT c.id INTO v_curso_id FROM cursos c WHERE c.codigo = 'EE-904';
   INSERT INTO carga_horaria_cursos (carga_horaria_id, curso_id, seccion, escuela, num_alumnos, hrs_teo, hrs_pra, hrs_lab, total_hrs, teoria_grupos, practica_grupos, laboratorio_grupos)
-  SELECT v_ch_id, v_curso_id, '1-A', 'Ing. Sistemas', 40, 1, 1, 9, 29, 1, 1, 3
+  SELECT v_ch_id, v_curso_id, 'A', 'Ing. Sistemas', 40, 1, 1, 3, 11, 1, 1, 3
   WHERE NOT EXISTS (SELECT 1 FROM carga_horaria_cursos chc WHERE chc.carga_horaria_id = v_ch_id AND chc.curso_id = v_curso_id);
 
   UPDATE carga_horaria SET horas_asignadas = (

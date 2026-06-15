@@ -85,23 +85,23 @@ export async function POST(req: NextRequest) {
           const pG = !isNaN(pG_raw) ? pG_raw : (hrs_pra > 0 ? 1 : 0);
           const lG = !isNaN(lG_raw) ? lG_raw : (hrs_lab > 0 ? 1 : 0);
 
-          // ── DEBUG: mostrar valores crudos vs. corregidos ──
-          const hrs_teo_per = tG > 0 ? hrs_teo / tG : hrs_teo;
-          const hrs_pra_per = pG > 0 ? hrs_pra / pG : hrs_pra;
-          const hrs_lab_per = lG > 0 ? hrs_lab / lG : hrs_lab;
+          // Usar la referencia del curso (cursos.horas_teoria/practica/laboratorio) como valor por grupo.
+          // En este sistema, cursos.horas_* ya son valores semanales por grupo,
+          // validados por programacion_cursos (ver crear/page.tsx:566).
+          const perTeo = parseInt(curso.curso_hrs_teoria) || 0;
+          const perPra = parseInt(curso.curso_hrs_practica) || 0;
+          const perLab = parseInt(curso.curso_hrs_laboratorio) || 0;
 
+          // ── DEBUG: mostrar valores ──
+          const cargaTeo = parseInt(curso.hrs_teo) || 0;
+          const cargaPra = parseInt(curso.hrs_pra) || 0;
+          const cargaLab = parseInt(curso.hrs_lab) || 0;
           console.log(`\n━━━ ${ch.docente_nombre} ${ch.docente_apellidos} | ${curso.curso_codigo} - ${curso.curso_nombre} ━━━`);
           console.log(`  SECCIÓN: ${seccion} (baseGrupo=${baseGrupo})`);
-          console.log(`  DB raw → T=${curso.hrs_teo}(${hrs_teo})  P=${curso.hrs_pra}(${hrs_pra})  L=${curso.hrs_lab}(${hrs_lab})`);
-          console.log(`  Grupos → tG=${tG}  pG=${pG}  lG=${lG}`);
-          console.log(`  Per-group correct → T=${hrs_teo_per}  P=${hrs_pra_per}  L=${hrs_lab_per}`);
-          if (tG > 0 && !isNaN(tG_raw)) console.log(`  → Teoria: ${tG} grupo(s) × ${(hrs_teo/tG).toFixed(1)}h = ${hrs_teo}h total`);
-          if (lG > 0 && !isNaN(lG_raw)) console.log(`  → Lab: ${lG} grupo(s) × ${(hrs_lab/lG).toFixed(1)}h = ${hrs_lab}h total`);
-
-          // Usar valores PER-GRUPO (divididos por cantidad de grupos)
-          const perTeo = tG > 0 ? Math.round(hrs_teo / tG) : hrs_teo;
-          const perPra = pG > 0 ? Math.round(hrs_pra / pG) : hrs_pra;
-          const perLab = lG > 0 ? Math.round(hrs_lab / lG) : hrs_lab;
+          console.log(`  Carga horas → T=${cargaTeo}h  P=${cargaPra}h  L=${cargaLab}h`);
+          console.log(`  Curso ref   → T=${perTeo}h  P=${perPra}h  L=${perLab}h`);
+          console.log(`  Grupos      → tG=${tG}  pG=${pG}  lG=${lG}`);
+          if (cargaTeo !== perTeo) console.log(`  ⚠️ hrs_teo difiere de curso.horas_teoria (${cargaTeo} vs ${perTeo}) — se usó la referencia del curso`);
 
           // --- TEORIA ---
           for (let g = 0; g < tG; g++) {
