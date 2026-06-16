@@ -11,7 +11,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const ciclo = await queryOne('SELECT * FROM ciclos WHERE id = $1', [id]);
   if (!ciclo) return NextResponse.json({ error: 'Ciclo no encontrado' }, { status: 404 });
 
-  return NextResponse.json({ data: ciclo });
+  const mappedCiclo = { ...ciclo, estado: ciclo.activo ? 'activo' : 'inactivo' };
+  return NextResponse.json({ data: mappedCiclo });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -38,17 +39,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       [body.nombre, body.año, body.semestre, body.fecha_inicio || null, body.fecha_fin || null, id]
     );
 
+    const mappedCiclo = ciclo ? { ...ciclo, estado: ciclo.activo ? 'activo' : 'inactivo' } : null;
+
     await registrarAuditoria({
       usuario_id: session.id,
       accion: 'UPDATE',
       tabla_afectada: 'ciclos',
       registro_id: id,
-      datos_anteriores: anterior,
-      datos_nuevos: ciclo,
+      datos_anteriores: anterior ? { ...anterior, estado: anterior.activo ? 'activo' : 'inactivo' } : null,
+      datos_nuevos: mappedCiclo,
       descripcion: `Ciclo actualizado: ${ciclo?.nombre}`,
     });
 
-    return NextResponse.json({ data: ciclo });
+    return NextResponse.json({ data: mappedCiclo });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
@@ -69,15 +72,17 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     [id]
   );
 
+  const mappedCiclo = ciclo ? { ...ciclo, estado: ciclo.activo ? 'activo' : 'inactivo' } : null;
+
   await registrarAuditoria({
     usuario_id: session.id,
     accion: 'DELETE',
     tabla_afectada: 'ciclos',
     registro_id: id,
-    datos_anteriores: anterior,
-    datos_nuevos: ciclo,
+    datos_anteriores: anterior ? { ...anterior, estado: anterior.activo ? 'activo' : 'inactivo' } : null,
+    datos_nuevos: mappedCiclo,
     descripcion: `Ciclo desactivado: ${anterior.nombre}`,
   });
 
-  return NextResponse.json({ data: ciclo });
+  return NextResponse.json({ data: mappedCiclo });
 }
