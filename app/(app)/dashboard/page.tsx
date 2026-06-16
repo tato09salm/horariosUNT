@@ -159,7 +159,7 @@ export default function DashboardPage() {
 
               asignaciones.forEach((a: { docente_id?: string; docente_nombre?: string; curso_codigo?: string; aula?: string; dia?: string; tipo_sesion?: string; tipo?: string; hora_inicio?: string; hora_fin?: string; }) => {
                 if (a.docente_id) {
-                  const docenteData = docentesMap.get(a.docente_id);
+                  const docenteData = docentesMap.get(a.docente_id) as any;
                   const current: DashboardCargaDocente = docenteMap.get(a.docente_id) || {
                     docente_id: a.docente_id,
                     nombre: a.docente_nombre || docenteData?.nombre || 'Docente',

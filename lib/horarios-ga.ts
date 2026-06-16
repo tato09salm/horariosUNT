@@ -1,4 +1,5 @@
 import { query, queryOne } from './db';
+import { filtrarDisponibilidadPorCargaAdicional } from './horarios';
 
 interface Bloque {
   pc_id: string;
@@ -300,7 +301,7 @@ export async function ejecutarAlgoritmoGenetico(
   const allSlots = await query(`SELECT * FROM slots_tiempo ORDER BY orden`);
 
   let restrictedIds: string[] | null = null;
-  const progRow = await queryOne(`SELECT config FROM programaciones WHERE id = $1`, [programacion_id]);
+  const progRow = await queryOne(`SELECT config, ciclo_academico_id FROM programaciones WHERE id = $1`, [programacion_id]);
   if (progRow && progRow.config) {
     try {
       const parsedConfig = typeof progRow.config === 'string' ? JSON.parse(progRow.config) : progRow.config;
@@ -334,7 +335,9 @@ export async function ejecutarAlgoritmoGenetico(
 
   const slots = allSlots.filter((s: any) => !restrictedIds!.includes(s.id));
   const ambientes = await query(`SELECT * FROM ambientes WHERE disponible = true ORDER BY codigo`);
-  const disponibilidad = await query(`SELECT * FROM disponibilidad_docente WHERE programacion_id = $1 AND disponible = true AND prioridad IN (1, 2)`, [programacion_id]);
+  
+  const rawDisponibilidad = await query(`SELECT * FROM disponibilidad_docente WHERE programacion_id = $1 AND disponible = true AND prioridad IN (1, 2)`, [programacion_id]);
+  const disponibilidad = await filtrarDisponibilidadPorCargaAdicional(rawDisponibilidad, progRow?.ciclo_academico_id);
 
   let dispAmbiente: any[] = [];
   try { dispAmbiente = await query(`SELECT ambiente_id, slot_id, dia, estado FROM disponibilidad_ambiente`); } catch { /* ignore */ }

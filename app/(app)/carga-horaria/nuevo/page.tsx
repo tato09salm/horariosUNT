@@ -73,6 +73,32 @@ interface Secciones {
   comitesTecnicos: Actividad;
 }
 
+interface AdicionalCurso {
+  id: string;
+  curso: string;
+  dependencia: string;
+  fecha_inicio: string;
+  fecha_termino: string;
+  horario_semanal: string;
+  total_horas: string;
+}
+
+interface AdicionalData {
+  facultad: string;
+  dpto_academico: string;
+  nombre_docente: string;
+  codigo_docente: string;
+  dni_docente: string;
+  condicion: string;
+  categoria: string;
+  regimen_dedicacion: 'DE' | 'TC' | 'TP' | '';
+  periodo_academico: string;
+  fecha_inicio_periodo: string;
+  fecha_termino_periodo: string;
+  cursos: AdicionalCurso[];
+  total_horas_adicional: string;
+}
+
 export default function NuevaCargaHorariaPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -82,6 +108,37 @@ export default function NuevaCargaHorariaPage() {
   const isDirector = user?.rol.codigo === 'director_escuela';
   const isDocente = user?.rol.codigo === 'docente';
   const canWrite = isAdmin || isDirector;
+
+  const formatDate = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '';
+      return d.toISOString().split('T')[0];
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const mapModalidad = (mod: string): 'DE' | 'TC' | 'TP' | '' => {
+    if (!mod) return 'DE';
+    const normalized = mod.toUpperCase();
+    if (normalized.includes('COMPLETO') || normalized.includes('TC') || normalized.includes('40')) return 'TC';
+    if (normalized.includes('PARCIAL') || normalized.includes('TP')) return 'TP';
+    return 'DE';
+  };
+
+  const getTPHours = (mod: string): string => {
+    if (!mod) return '';
+    const normalized = mod.toUpperCase();
+    if (normalized.includes('PARCIAL') || normalized.includes('TP')) {
+      const match = mod.match(/(\d+\s*H[RS]?|\d+\s*horas?|\d+\s*hr?s?)/i);
+      if (match) {
+        return match[0].toUpperCase();
+      }
+    }
+    return '';
+  };
 
   const initialCicloAcademico = searchParams.get('cicloAcademico');
   const initialDocenteId = searchParams.get('docenteId');
@@ -102,6 +159,23 @@ export default function NuevaCargaHorariaPage() {
   };
   
   // State
+  const [step, setStep] = useState<1 | 2>(1);
+  const [adicionalData, setAdicionalData] = useState<AdicionalData>({
+    facultad: '',
+    dpto_academico: '',
+    nombre_docente: '',
+    codigo_docente: '',
+    dni_docente: '',
+    condicion: '',
+    categoria: '',
+    regimen_dedicacion: '',
+    periodo_academico: '',
+    fecha_inicio_periodo: '',
+    fecha_termino_periodo: '',
+    cursos: [],
+    total_horas_adicional: '0'
+  });
+
   const [docentes, setDocentes] = useState<Docente[]>([]);
   const [docenteSeleccionado, setDocenteSeleccionado] = useState<Docente | null>(null);
   const [facultad, setFacultad] = useState('');
@@ -193,6 +267,7 @@ export default function NuevaCargaHorariaPage() {
     let newCursosAsignados: CursoAsignado[] = [];
     let newSecciones = initialSecciones;
     let loadedChId: string | null = null;
+    let parsedAdicional: any = null;
     
     // Check server first for existing carga horaria
     if (cicloAcademicoSeleccionado) {
@@ -221,6 +296,16 @@ export default function NuevaCargaHorariaPage() {
           newFacultad = combinedCh.facultad || docente.facultad || '';
           newDptoAcademico = combinedCh.dpto_academico || docente.dpto_academico || '';
           newModalidad = combinedCh.modalidad || '';
+          
+          if (combinedCh.adicional) {
+            try {
+              parsedAdicional = typeof combinedCh.adicional === 'string'
+                ? JSON.parse(combinedCh.adicional)
+                : combinedCh.adicional;
+            } catch (err) {
+              console.error('Error parsing adicional from DB:', err);
+            }
+          }
           
           // Convert cursos
           const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
@@ -305,10 +390,198 @@ export default function NuevaCargaHorariaPage() {
     setSecciones(newSecciones);
     setCargaHorariaId(loadedChId);
     
+    // Set up or load adicionalData
+    let initialAdicional: AdicionalData = {
+      facultad: newFacultad,
+      dpto_academico: newDptoAcademico,
+      nombre_docente: `${docente.apellidos || ''}, ${docente.nombre || ''}`,
+      codigo_docente: docente.codigo || '',
+      dni_docente: docente.dni || '',
+      condicion: (docente.condicion || '').toUpperCase(),
+      categoria: (docente.categoria || '').toUpperCase(),
+      regimen_dedicacion: mapModalidad(newModalidad),
+      periodo_academico: '',
+      fecha_inicio_periodo: '',
+      fecha_termino_periodo: '',
+      cursos: [],
+      total_horas_adicional: '0'
+    };
+
+    if (cicloAcademicoSeleccionado || initialCicloAcademico) {
+      const cycle = ciclosAcademicos.find(c => c.id === (cicloAcademicoSeleccionado || initialCicloAcademico));
+      if (cycle) {
+        initialAdicional.periodo_academico = cycle.nombre || '';
+        initialAdicional.fecha_inicio_periodo = formatDate(cycle.fecha_inicio);
+        initialAdicional.fecha_termino_periodo = formatDate(cycle.fecha_fin);
+      }
+    }
+
+    if (parsedAdicional) {
+      initialAdicional = {
+        ...initialAdicional,
+        ...parsedAdicional,
+        condicion: (parsedAdicional.condicion || initialAdicional.condicion || '').toUpperCase(),
+        categoria: (parsedAdicional.categoria || initialAdicional.categoria || '').toUpperCase(),
+        cursos: parsedAdicional.cursos || []
+      };
+    }
+    setAdicionalData(initialAdicional);
+    setStep(1); // Always reset to step 1 when selecting a new docente
+    
     setSearchQuery(`${docente.apellidos || ''}, ${docente.nombre || ''}`);
     setIsSearching(false);
   };
   
+  const handleContinuar = () => {
+    if (!docenteSeleccionado || !cicloAcademicoSeleccionado) {
+      setAlertMessage('Por favor seleccione un docente y ciclo académico');
+      return;
+    }
+
+    if (isDocente && user?.docente_id && docenteSeleccionado.id !== user.docente_id) {
+      setAlertMessage('Solo puedes continuar con tu propia carga horaria');
+      return;
+    }
+
+    if (!modalidad) {
+      setAlertMessage('Por favor seleccione una modalidad');
+      return;
+    }
+    
+    const validCursos = cursosAsignados.filter(curso => curso.curso_id && curso.curso_id.length > 0);
+    
+    if (parseFloat(totalHoras) <= 0) {
+      setAlertMessage('El total de horas debe ser mayor a 0');
+      return;
+    }
+    
+    const cursosSinAlumnos = validCursos.filter(c => parseFloat(c.numeroAlumnos) <= 0);
+    if (cursosSinAlumnos.length > 0) {
+      setAlertMessage('Todos los cursos deben tener al menos 1 alumno');
+      return;
+    }
+
+    // Auto-fill or sync the general fields from Form 1 into Form 2
+    const cycle = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
+    const cycleFi = formatDate(cycle?.fecha_inicio);
+    const cycleFt = formatDate(cycle?.fecha_fin);
+
+    setAdicionalData(prev => {
+      const finalFi = prev.fecha_inicio_periodo || cycleFi || '';
+      const finalFt = prev.fecha_termino_periodo || cycleFt || '';
+
+      return {
+        ...prev,
+        facultad: prev.facultad || facultad,
+        dpto_academico: prev.dpto_academico || dptoAcademico,
+        regimen_dedicacion: mapModalidad(modalidad),
+        nombre_docente: prev.nombre_docente || `${docenteSeleccionado.apellidos || ''}, ${docenteSeleccionado.nombre || ''}`,
+        codigo_docente: prev.codigo_docente || docenteSeleccionado.codigo || '',
+        dni_docente: prev.dni_docente || docenteSeleccionado.dni || '',
+        condicion: (prev.condicion || docenteSeleccionado.condicion || '').toUpperCase(),
+        categoria: (prev.categoria || docenteSeleccionado.categoria || '').toUpperCase(),
+        periodo_academico: prev.periodo_academico || cycle?.nombre || '',
+        fecha_inicio_periodo: finalFi,
+        fecha_termino_periodo: finalFt,
+      };
+    });
+
+    setStep(2);
+  };
+
+  const handlePeriodoInicioChange = (newDate: string) => {
+    setAdicionalData(prev => {
+      const oldDate = prev.fecha_inicio_periodo;
+      const updatedCursos = (prev.cursos || []).map(c => {
+        if (!c.fecha_inicio || c.fecha_inicio === oldDate) {
+          return { ...c, fecha_inicio: newDate };
+        }
+        return c;
+      });
+      return {
+        ...prev,
+        fecha_inicio_periodo: newDate,
+        cursos: updatedCursos
+      };
+    });
+  };
+
+  const handlePeriodoTerminoChange = (newDate: string) => {
+    setAdicionalData(prev => {
+      const oldDate = prev.fecha_termino_periodo;
+      const updatedCursos = (prev.cursos || []).map(c => {
+        if (!c.fecha_termino || c.fecha_termino === oldDate) {
+          return { ...c, fecha_termino: newDate };
+        }
+        return c;
+      });
+      return {
+        ...prev,
+        fecha_termino_periodo: newDate,
+        cursos: updatedCursos
+      };
+    });
+  };
+
+  const handleAddAdicionalCurso = () => {
+    const defaultFi = adicionalData.fecha_inicio_periodo || '';
+    const defaultFt = adicionalData.fecha_termino_periodo || '';
+    setAdicionalData(prev => {
+      const updatedCursos = [
+        ...(prev.cursos || []),
+        {
+          id: Date.now().toString(),
+          curso: '',
+          dependencia: '',
+          fecha_inicio: defaultFi,
+          fecha_termino: defaultFt,
+          horario_semanal: '',
+          total_horas: '0'
+        }
+      ];
+      const newTotal = updatedCursos.reduce((sum, c) => sum + parseFloat(c.total_horas || '0'), 0);
+      return {
+        ...prev,
+        cursos: updatedCursos,
+        total_horas_adicional: String(newTotal)
+      };
+    });
+  };
+
+  const handleRemoveAdicionalCurso = (id: string) => {
+    setAdicionalData(prev => {
+      const updatedCursos = (prev.cursos || []).filter(c => c.id !== id);
+      const newTotal = updatedCursos.reduce((sum, c) => sum + parseFloat(c.total_horas || '0'), 0);
+      return {
+        ...prev,
+        cursos: updatedCursos,
+        total_horas_adicional: String(newTotal)
+      };
+    });
+  };
+
+  const handleUpdateAdicionalCursoField = (id: string, field: keyof AdicionalCurso, value: string) => {
+    setAdicionalData(prev => {
+      const updatedCursos = (prev.cursos || []).map(c => {
+        if (c.id !== id) return c;
+        let processedValue = value;
+        if (field === 'total_horas') {
+          const numValue = parseFloat(value);
+          if (isNaN(numValue) || numValue < 0) {
+            processedValue = '0';
+          }
+        }
+        return { ...c, [field]: processedValue };
+      });
+      const newTotal = updatedCursos.reduce((sum, c) => sum + parseFloat(c.total_horas || '0'), 0);
+      return {
+        ...prev,
+        cursos: updatedCursos,
+        total_horas_adicional: String(newTotal)
+      };
+    });
+  };
+
   const handleGuardar = async () => {
     if (!docenteSeleccionado || !cicloAcademicoSeleccionado) {
       setAlertMessage('Por favor seleccione un docente y ciclo académico');
@@ -340,6 +613,13 @@ export default function NuevaCargaHorariaPage() {
       return;
     }
     
+    // Sanitize adicionalData cursos
+    const validAdicionalCursos = (adicionalData.cursos || []).filter(c => c.curso && c.curso.trim().length > 0);
+    const updatedAdicionalData = {
+      ...adicionalData,
+      cursos: validAdicionalCursos,
+      total_horas_adicional: String(validAdicionalCursos.reduce((sum, c) => sum + parseFloat(c.total_horas || '0'), 0))
+    };
     
     const bodyToSend = {
           docente_id: docenteSeleccionado.id,
@@ -358,7 +638,8 @@ export default function NuevaCargaHorariaPage() {
           asesoria: secciones.asesoriaTesis,
           rsu: secciones.responsabilidadSocial,
           comites: secciones.comitesTecnicos,
-          total_horas: totalHoras
+          total_horas: totalHoras,
+          adicional: updatedAdicionalData
         };
         
     setGuardando(true);
@@ -646,8 +927,14 @@ export default function NuevaCargaHorariaPage() {
       
       <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', margin: '0 0 4px' }}>Nueva Carga Horaria</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>Selecciona un docente para continuar</p>
+          <h1 style={{ fontSize: '24px', fontWeight: '700', margin: '0 0 4px' }}>
+            {step === 1 ? 'Nueva Carga Horaria' : 'Carga Horaria Adicional'}
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+            {step === 1 
+              ? 'Paso 1 de 2: Rellene la carga horaria general' 
+              : 'Paso 2 de 2: Rellene la declaración de carga horaria lectiva adicional'}
+          </p>
         </div>
         <button 
           onClick={() => router.push('/carga-horaria')}
@@ -673,53 +960,55 @@ export default function NuevaCargaHorariaPage() {
       <div className="card" style={{ padding: '24px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {/* Search and Select Docente */}
-          <div>
-            <label style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
-              Buscar Docente
-            </label>
-            <div style={{ marginBottom: '12px' }}>
-              <input
-                className="form-input"
-                placeholder="Buscar docente por nombre, apellidos o DNI..."
-                value={searchQuery}
-                onChange={handleSearchInputChange}
-                style={{ width: '100%' }}
-              />
-            </div>
-            {(isSearching || !docenteSeleccionado) && searchQuery && (
-              <div style={{ 
-                maxHeight: '200px', 
-                overflowY: 'auto', 
-                border: '1px solid var(--border-color)', 
-                borderRadius: '8px' 
-              }}>
-                {filteredDocentes.map(docente => (
-                  <div
-                    key={docente.id}
-                    onClick={() => handleSeleccionarDocenteFromList(docente)}
-                    style={{
-                      padding: '12px',
-                      borderBottom: '1px solid var(--border-color)',
-                      cursor: 'pointer',
-                      background: docenteSeleccionado?.id === docente.id 
-                        ? 'var(--bg-secondary)' 
-                        : 'transparent'
-                    }}
-                  >
-                    <div style={{ fontWeight: '600' }}>
-                      {docente.apellidos || ''}, {docente.nombre || ''}
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                      DNI: {docente.dni || ''}
-                    </div>
-                  </div>
-                ))}
+          {step === 1 && (
+            <div>
+              <label style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
+                Buscar Docente
+              </label>
+              <div style={{ marginBottom: '12px' }}>
+                <input
+                  className="form-input"
+                  placeholder="Buscar docente por nombre, apellidos o DNI..."
+                  value={searchQuery}
+                  onChange={handleSearchInputChange}
+                  style={{ width: '100%' }}
+                />
               </div>
-            )}
-          </div>
+              {(isSearching || !docenteSeleccionado) && searchQuery && (
+                <div style={{ 
+                  maxHeight: '200px', 
+                  overflowY: 'auto', 
+                  border: '1px solid var(--border-color)', 
+                  borderRadius: '8px' 
+                }}>
+                  {filteredDocentes.map(docente => (
+                    <div
+                      key={docente.id}
+                      onClick={() => handleSeleccionarDocenteFromList(docente)}
+                      style={{
+                        padding: '12px',
+                        borderBottom: '1px solid var(--border-color)',
+                        cursor: 'pointer',
+                        background: docenteSeleccionado?.id === docente.id 
+                          ? 'var(--bg-secondary)' 
+                          : 'transparent'
+                      }}
+                    >
+                      <div style={{ fontWeight: '600' }}>
+                        {docente.apellidos || ''}, {docente.nombre || ''}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        DNI: {docente.dni || ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Docente Info */}
-          {docenteSeleccionado && (
+          {step === 1 && docenteSeleccionado && (
             <div className="card" style={{ padding: '12px', background: '#f8fafc' }}>
               <div style={{ marginBottom: '8px' }}>
                 <h3 style={{ fontSize: '13px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
@@ -807,7 +1096,7 @@ export default function NuevaCargaHorariaPage() {
 
 
           {/* TRABAJO LECTIVO */}
-          {docenteSeleccionado && (
+          {step === 1 && docenteSeleccionado && (
             <div style={{ marginTop: '32px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
@@ -1000,7 +1289,7 @@ export default function NuevaCargaHorariaPage() {
           )}
 
           {/* SECCIONES 2 A 10 */}
-          {docenteSeleccionado && (
+          {step === 1 && docenteSeleccionado && (
             <div style={{ marginTop: '32px' }}>
               {/* 2. PREPARACIÓN Y EVALUACIÓN */}
 
@@ -1567,9 +1856,339 @@ export default function NuevaCargaHorariaPage() {
                 </div>
               </div>
 
-              {/* GUARDAR BUTTON */}
+              {/* CONTINUAR BUTTON */}
               {(canWrite || isDocente) && (
                 <div style={{ marginTop: '32px', display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                  <button 
+                    className="btn-secondary"
+                    onClick={() => router.push('/carga-horaria')}
+                    style={{ padding: '10px 24px' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    className="btn-primary"
+                    onClick={handleContinuar}
+                    style={{ padding: '10px 24px' }}
+                  >
+                    Continuar
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Form 2 */}
+          {step === 2 && docenteSeleccionado && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* Header */}
+              <div style={{ borderBottom: '2px solid var(--border-color)', paddingBottom: '16px', marginBottom: '8px' }}>
+                <h2 style={{ fontSize: '15px', fontWeight: '800', textAlign: 'center', lineHeight: '1.4', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
+                  DECLARACIÓN DE CARGA HORARIA LECTIVA ADICIONAL ASIGNADA EN FILIALES, POSGRADO, SEGUNDAS ESPECIALIDADES Y CENTROS DE PRODUCCIÓN Y EXTENSIÓN UNIVERSITARIA
+                </h2>
+              </div>
+
+              {/* Section 1: Datos Generales */}
+              <div className="card" style={{ padding: '16px', background: darkMode ? '#1e293b' : '#f8fafc' }}>
+                <h3 style={{ fontSize: '13px', fontWeight: '700', marginBottom: '16px', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                  I. DATOS GENERALES DEL DOCENTE
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      FACULTAD
+                    </label>
+                    <input
+                      className="form-input"
+                      value={adicionalData.facultad}
+                      onChange={e => setAdicionalData(prev => ({ ...prev, facultad: e.target.value }))}
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      DEPARTAMENTO ACADÉMICO
+                    </label>
+                    <input
+                      className="form-input"
+                      value={adicionalData.dpto_academico}
+                      onChange={e => setAdicionalData(prev => ({ ...prev, dpto_academico: e.target.value }))}
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      APELLIDOS Y NOMBRES
+                    </label>
+                    <input
+                      className="form-input"
+                      value={adicionalData.nombre_docente}
+                      onChange={e => setAdicionalData(prev => ({ ...prev, nombre_docente: e.target.value }))}
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      CÓDIGO
+                    </label>
+                    <input
+                      className="form-input"
+                      value={adicionalData.codigo_docente}
+                      onChange={e => setAdicionalData(prev => ({ ...prev, codigo_docente: e.target.value }))}
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      D.N.I.
+                    </label>
+                    <input
+                      className="form-input"
+                      value={adicionalData.dni_docente}
+                      onChange={e => setAdicionalData(prev => ({ ...prev, dni_docente: e.target.value }))}
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      CONDICIÓN
+                    </label>
+                    <input
+                      className="form-input"
+                      value={adicionalData.condicion.toUpperCase()}
+                      onChange={e => setAdicionalData(prev => ({ ...prev, condicion: e.target.value.toUpperCase() }))}
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      CATEGORÍA
+                    </label>
+                    <input
+                      className="form-input"
+                      value={adicionalData.categoria.toUpperCase()}
+                      onChange={e => setAdicionalData(prev => ({ ...prev, categoria: e.target.value.toUpperCase() }))}
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      RÉGIMEN DE DEDICACIÓN
+                    </label>
+                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginTop: '6px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="regimen"
+                          checked={adicionalData.regimen_dedicacion === 'DE'}
+                          onChange={() => setAdicionalData(prev => ({ ...prev, regimen_dedicacion: 'DE' }))}
+                        />
+                        D.E.
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="regimen"
+                          checked={adicionalData.regimen_dedicacion === 'TC'}
+                          onChange={() => setAdicionalData(prev => ({ ...prev, regimen_dedicacion: 'TC' }))}
+                        />
+                        T.C.
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="regimen"
+                          checked={adicionalData.regimen_dedicacion === 'TP'}
+                          onChange={() => setAdicionalData(prev => ({ ...prev, regimen_dedicacion: 'TP' }))}
+                        />
+                        T.P. {getTPHours(modalidad) && `(${getTPHours(modalidad)})`}
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Datos del Periodo */}
+              <div className="card" style={{ padding: '16px', background: darkMode ? '#1e293b' : '#f8fafc' }}>
+                <h3 style={{ fontSize: '13px', fontWeight: '700', marginBottom: '16px', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                  II. DATOS DEL PERÍODO ACADÉMICO
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      SEMESTRE ACADÉMICO
+                    </label>
+                    <input
+                      className="form-input"
+                      value={adicionalData.periodo_academico}
+                      onChange={e => setAdicionalData(prev => ({ ...prev, periodo_academico: e.target.value }))}
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      FECHA DE INICIO DEL PERÍODO
+                    </label>
+                    <input
+                      className="form-input"
+                      type="date"
+                      value={adicionalData.fecha_inicio_periodo}
+                      onChange={e => handlePeriodoInicioChange(e.target.value)}
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      FECHA DE TÉRMINO DEL PERÍODO
+                    </label>
+                    <input
+                      className="form-input"
+                      type="date"
+                      value={adicionalData.fecha_termino_periodo}
+                      onChange={e => handlePeriodoTerminoChange(e.target.value)}
+                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Tabla Cursos Adicionales */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                    III. CARGA HORARIA LECTIVA ADICIONAL ASIGNADA
+                  </h3>
+                  <button
+                    className="btn-primary"
+                    onClick={handleAddAdicionalCurso}
+                    style={{ padding: '6px 12px', fontSize: '12px' }}
+                  >
+                    + Agregar
+                  </button>
+                </div>
+
+                <div className="table-container" style={{ overflowX: 'auto' }}>
+                  <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
+                    <thead>
+                      <tr style={{ background: darkMode ? '#1e293b' : '#f1f5f9' }}>
+                        <th style={{ padding: '8px', border: '1px solid var(--border-color)', width: '25%' }}>CURSO / ASIGNATURA</th>
+                        <th style={{ padding: '8px', border: '1px solid var(--border-color)', width: '20%' }}>DEPENDENCIA / FILIAL / POSGRADO</th>
+                        <th style={{ padding: '8px', border: '1px solid var(--border-color)', width: '13%' }}>FECHA INICIO</th>
+                        <th style={{ padding: '8px', border: '1px solid var(--border-color)', width: '13%' }}>FECHA TÉRMINO</th>
+                        <th style={{ padding: '8px', border: '1px solid var(--border-color)', width: '17%' }}>HORARIO SEMANAL</th>
+                        <th style={{ padding: '8px', border: '1px solid var(--border-color)', width: '8%' }}>TOTAL HORAS</th>
+                        <th style={{ padding: '8px', border: '1px solid var(--border-color)', width: '4%' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {!adicionalData.cursos || adicionalData.cursos.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', border: '1px solid var(--border-color)' }}>
+                            No se ha registrado carga lectiva adicional
+                          </td>
+                        </tr>
+                      ) : (
+                        adicionalData.cursos.map((c: AdicionalCurso) => (
+                          <tr key={c.id}>
+                            <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
+                              <input
+                                className="form-input"
+                                value={c.curso}
+                                onChange={e => handleUpdateAdicionalCursoField(c.id, 'curso', e.target.value)}
+                                placeholder="Nombre del curso"
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
+                              <input
+                                className="form-input"
+                                value={c.dependencia}
+                                onChange={e => handleUpdateAdicionalCursoField(c.id, 'dependencia', e.target.value)}
+                                placeholder="Ej. Filial Valle Jequetepeque / Posgrado"
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
+                              <input
+                                className="form-input"
+                                type="date"
+                                value={c.fecha_inicio}
+                                onChange={e => handleUpdateAdicionalCursoField(c.id, 'fecha_inicio', e.target.value)}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
+                              <input
+                                className="form-input"
+                                type="date"
+                                value={c.fecha_termino}
+                                onChange={e => handleUpdateAdicionalCursoField(c.id, 'fecha_termino', e.target.value)}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
+                              <input
+                                className="form-input"
+                                value={c.horario_semanal}
+                                onChange={e => handleUpdateAdicionalCursoField(c.id, 'horario_semanal', e.target.value)}
+                                placeholder="Ej. Sáb 8:00 - 12:00"
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
+                              <input
+                                className="form-input"
+                                type="number"
+                                min="0"
+                                value={c.total_horas}
+                                onChange={e => handleUpdateAdicionalCursoField(c.id, 'total_horas', e.target.value)}
+                                onWheel={(e) => e.preventDefault()}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                              <button
+                                className="btn-secondary btn-crud-deactivate"
+                                style={{ padding: '4px 6px', fontSize: '10px' }}
+                                onClick={() => handleRemoveAdicionalCurso(c.id)}
+                              >
+                                Eliminar
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Sum of additional hours */}
+                <div style={{ 
+                  background: darkMode ? '#1e293b' : '#f1f5f9', 
+                  padding: '12px 16px', 
+                  borderRadius: '8px',
+                  marginTop: '16px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ fontSize: '14px', fontWeight: '700' }}>TOTAL HORAS ADICIONALES SEMANALES:</span>
+                  <span style={{ fontSize: '24px', fontWeight: '700', color: '#3b82f6' }}>
+                    {adicionalData.total_horas_adicional || '0'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Buttons Inside Card */}
+              {(canWrite || isDocente) && (
+                <div style={{ marginTop: '32px', display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                  <button 
+                    className="btn-secondary"
+                    onClick={() => setStep(1)}
+                    style={{ padding: '10px 24px' }}
+                  >
+                    Atrás
+                  </button>
                   <button 
                     className="btn-secondary"
                     onClick={() => router.push('/carga-horaria')}
@@ -1899,7 +2518,7 @@ export default function NuevaCargaHorariaPage() {
       )}
 
       {/* Botones de Guardar y Cancelar */}
-      {docenteSeleccionado && (canWrite || isDocente) && (
+      {step === 1 && docenteSeleccionado && (canWrite || isDocente) && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
           <button
             className="btn-secondary"
@@ -1909,10 +2528,9 @@ export default function NuevaCargaHorariaPage() {
           </button>
           <button
             className="btn-primary"
-            onClick={handleGuardar}
-            disabled={guardando}
+            onClick={handleContinuar}
           >
-            {guardando ? 'Guardando...' : 'Guardar Carga Horaria'}
+            Continuar
           </button>
         </div>
       )}

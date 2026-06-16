@@ -20,6 +20,92 @@ export async function verificarConflicto(input: Omit<AsignacionInput, 'created_b
   tipo?: string;
   detalle?: string;
 }> {
+  // Check if the docente has "Carga Horaria Adicional" in their carga_horaria
+  const chRow = await queryOne<{ adicional: any }>(
+    `SELECT adicional FROM carga_horaria 
+     WHERE docente_id = $1 AND ciclo_academico_id = $2 AND activo = true`,
+    [input.docente_id, input.ciclo_id]
+  );
+
+  if (chRow && chRow.adicional) {
+    try {
+      const adicional = typeof chRow.adicional === 'string' 
+        ? JSON.parse(chRow.adicional) 
+        : chRow.adicional;
+      
+      const cursosAdicionales = adicional.cursos || [];
+      
+      const slot = await queryOne<{ hora_inicio: string; hora_fin: string }>(
+        `SELECT hora_inicio::text, hora_fin::text FROM slots_tiempo WHERE id = $1`,
+        [input.slot_id]
+      );
+      
+      if (slot) {
+        const parseTime = (timeStr: string): number => {
+          const p = timeStr.trim().split(':');
+          const h = parseInt(p[0], 10);
+          const m = p[1] ? parseInt(p[1], 10) : 0;
+          return h * 60 + m;
+        };
+
+        const mapDia = (dia: string): string => {
+          const d = dia.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          if (d.startsWith('lun')) return 'lunes';
+          if (d.startsWith('mar')) return 'martes';
+          if (d.startsWith('mie') || d.startsWith('mco')) return 'miercoles';
+          if (d.startsWith('jue')) return 'jueves';
+          if (d.startsWith('vie')) return 'viernes';
+          if (d.startsWith('sab')) return 'sabado';
+          return '';
+        };
+
+        const parseHorarios = (horarioStr: string) => {
+          if (!horarioStr) return [];
+          const res = [];
+          const parts = horarioStr.split(/[;,]/);
+          for (const part of parts) {
+            const regex = /([a-zA-ZáéíóúÁÉÍÓÚñÑ]+)\s*(\d{1,2}(?::\d{2})?)\s*(?:-|a)\s*(\d{1,2}(?::\d{2})?)/i;
+            const match = part.match(regex);
+            if (match) {
+              const d = mapDia(match[1]);
+              if (d) {
+                res.push({
+                  dia: d,
+                  start: parseTime(match[2]),
+                  end: parseTime(match[3])
+                });
+              }
+            }
+          }
+          return res;
+        };
+
+        const slotStart = parseTime(slot.hora_inicio);
+        const slotEnd = parseTime(slot.hora_fin);
+        
+        for (const curso of cursosAdicionales) {
+          if (curso.horario_semanal) {
+            const parsedScheds = parseHorarios(curso.horario_semanal);
+            for (const sched of parsedScheds) {
+              if (sched.dia === input.dia) {
+                // Overlap check
+                if (slotStart < sched.end && slotEnd > sched.start) {
+                  return {
+                    conflicto: true,
+                    tipo: 'docente',
+                    detalle: `El docente ya tiene asignada carga horaria adicional en este horario: ${curso.curso} (${curso.dependencia}) - ${curso.horario_semanal}`
+                  };
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error parsing adicional inside verificarConflicto:', err);
+    }
+  }
+
   const base = `AND ciclo_id = $1 AND dia = $2 AND slot_id = $3 AND estado = 'activo'`;
   const exclude = excluir_id ? `AND id != '${excluir_id}'` : '';
 
@@ -59,6 +145,114 @@ export async function verificarConflicto(input: Omit<AsignacionInput, 'created_b
 
   return { conflicto: false };
 }
+
+export async function filtrarDisponibilidadPorCargaAdicional(disponibilidad: any[], cicloAcademicoId: string): Promise<any[]> {
+  if (!cicloAcademicoId || disponibilidad.length === 0) return disponibilidad;
+
+  const additionalLoads = await query(
+    `SELECT docente_id, adicional FROM carga_horaria
+     WHERE ciclo_academico_id = $1 AND activo = true AND adicional IS NOT NULL`,
+    [cicloAcademicoId]
+  );
+
+  if (additionalLoads.length === 0) return disponibilidad;
+
+  const docAdicionalMap = new Map<string, any[]>();
+  for (const row of additionalLoads) {
+    try {
+      const adicional = typeof row.adicional === 'string'
+        ? JSON.parse(row.adicional)
+        : row.adicional;
+      if (adicional && adicional.cursos) {
+        docAdicionalMap.set(row.docente_id, adicional.cursos);
+      }
+    } catch (err) {
+      console.error('Error parsing adicional in filtrarDisponibilidadPorCargaAdicional:', err);
+    }
+  }
+
+  const slots = await query(`SELECT id, hora_inicio::text, hora_fin::text FROM slots_tiempo`);
+
+  const parseTime = (timeStr: string): number => {
+    const p = timeStr.trim().split(':');
+    const h = parseInt(p[0], 10);
+    const m = p[1] ? parseInt(p[1], 10) : 0;
+    return h * 60 + m;
+  };
+
+  const mapDia = (dia: string): string => {
+    const d = dia.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (d.startsWith('lun')) return 'lunes';
+    if (d.startsWith('mar')) return 'martes';
+    if (d.startsWith('mie') || d.startsWith('mco')) return 'miercoles';
+    if (d.startsWith('jue')) return 'jueves';
+    if (d.startsWith('vie')) return 'viernes';
+    if (d.startsWith('sab')) return 'sabado';
+    return '';
+  };
+
+  const parseHorarios = (horarioStr: string) => {
+    if (!horarioStr) return [];
+    const res = [];
+    const parts = horarioStr.split(/[;,]/);
+    for (const part of parts) {
+      const regex = /([a-zA-ZáéíóúÁÉÍÓÚñÑ]+)\s*(\d{1,2}(?::\d{2})?)\s*(?:-|a)\s*(\d{1,2}(?::\d{2})?)/i;
+      const match = part.match(regex);
+      if (match) {
+        const d = mapDia(match[1]);
+        if (d) {
+          res.push({
+            dia: d,
+            start: parseTime(match[2]),
+            end: parseTime(match[3])
+          });
+        }
+      }
+    }
+    return res;
+  };
+
+  const filteredDisponibilidad = [];
+  for (const d of disponibilidad) {
+    const additionalCourses = docAdicionalMap.get(d.docente_id);
+    if (!additionalCourses || additionalCourses.length === 0) {
+      filteredDisponibilidad.push(d);
+      continue;
+    }
+
+    const slot = slots.find((s: any) => s.id === d.slot_id);
+    if (!slot) {
+      filteredDisponibilidad.push(d);
+      continue;
+    }
+
+    const slotStart = parseTime(slot.hora_inicio);
+    const slotEnd = parseTime(slot.hora_fin);
+    let hasConflict = false;
+
+    for (const curso of additionalCourses) {
+      if (curso.horario_semanal) {
+        const parsedScheds = parseHorarios(curso.horario_semanal);
+        for (const sched of parsedScheds) {
+          if (sched.dia === d.dia) {
+            if (slotStart < sched.end && slotEnd > sched.start) {
+              hasConflict = true;
+              break;
+            }
+          }
+        }
+      }
+      if (hasConflict) break;
+    }
+
+    if (!hasConflict) {
+      filteredDisponibilidad.push(d);
+    }
+  }
+
+  return filteredDisponibilidad;
+}
+
 
 // Crear asignación
 export async function crearAsignacion(input: AsignacionInput): Promise<any> {
@@ -505,3 +699,201 @@ export async function getHorarioAmbiente(ambiente_id: string, ciclo_id: string) 
       st.orden
   `, [ambiente_id, ciclo_id]);
 }
+
+// Obtener todas las asignaciones virtuales de carga adicional de un docente
+export async function getCargaAdicionalDocente(docente_id: string, ciclo_id: string): Promise<any[]> {
+  const chRow = await queryOne<{ adicional: any; ciclo_plan: number }>(
+    `SELECT adicional, ciclo_plan FROM carga_horaria 
+     WHERE docente_id = $1 AND ciclo_academico_id = $2 AND activo = true`,
+    [docente_id, ciclo_id]
+  );
+
+  if (!chRow || !chRow.adicional) return [];
+
+  try {
+    const adicional = typeof chRow.adicional === 'string'
+      ? JSON.parse(chRow.adicional)
+      : chRow.adicional;
+    
+    if (!adicional || !adicional.cursos || adicional.cursos.length === 0) return [];
+
+    const slots = await query(`SELECT * FROM slots_tiempo ORDER BY orden`);
+    const virtualAsignaciones: any[] = [];
+
+    const parseTime = (timeStr: string): number => {
+      const p = timeStr.trim().split(':');
+      const h = parseInt(p[0], 10);
+      const m = p[1] ? parseInt(p[1], 10) : 0;
+      return h * 60 + m;
+    };
+
+    const mapDia = (dia: string): string => {
+      const d = dia.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (d.startsWith('lun')) return 'lunes';
+      if (d.startsWith('mar')) return 'martes';
+      if (d.startsWith('mie') || d.startsWith('mco')) return 'miercoles';
+      if (d.startsWith('jue')) return 'jueves';
+      if (d.startsWith('vie')) return 'viernes';
+      if (d.startsWith('sab')) return 'sabado';
+      return '';
+    };
+
+    const parseHorarios = (horarioStr: string) => {
+      if (!horarioStr) return [];
+      const res = [];
+      const parts = horarioStr.split(/[;,]/);
+      for (const part of parts) {
+        const regex = /([a-zA-ZáéíóúÁÉÍÓÚñÑ]+)\s*(\d{1,2}(?::\d{2})?)\s*(?:-|a)\s*(\d{1,2}(?::\d{2})?)/i;
+        const match = part.match(regex);
+        if (match) {
+          const d = mapDia(match[1]);
+          if (d) {
+            res.push({
+              dia: d,
+              start: parseTime(match[2]),
+              end: parseTime(match[3])
+            });
+          }
+        }
+      }
+      return res;
+    };
+
+    for (const curso of adicional.cursos) {
+      if (curso.horario_semanal) {
+        const parsedScheds = parseHorarios(curso.horario_semanal);
+        for (const sched of parsedScheds) {
+          const matchedSlots = slots.filter((s: any) => {
+            const slotStart = parseTime(s.hora_inicio);
+            const slotEnd = parseTime(s.hora_fin);
+            return slotStart < sched.end && slotEnd > sched.start;
+          });
+
+          for (const slot of matchedSlots) {
+            virtualAsignaciones.push({
+              id: `adicional_${curso.id}_${slot.id}`,
+              dia: sched.dia,
+              slot_id: slot.id,
+              hora_inicio: slot.hora_inicio,
+              hora_fin: slot.hora_fin,
+              curso_nombre: curso.curso,
+              curso_codigo: 'CARGA ADICIONAL',
+              ambiente_nombre: curso.dependencia || 'OTROS',
+              ambiente_codigo: 'OTROS',
+              ambiente_tipo: 'aula',
+              docente_id: docente_id,
+              numero_grupo: 1,
+              tipo: 'carga_adicional',
+              ciclo_plan: chRow.ciclo_plan || 1
+            });
+          }
+        }
+      }
+    }
+
+    return virtualAsignaciones;
+  } catch (err) {
+    console.error('Error generating virtual assignments for adicional:', err);
+    return [];
+  }
+}
+
+// Obtener todas las asignaciones virtuales de carga adicional de todos los docentes en un ciclo
+export async function getCargaAdicionalCiclo(ciclo_id: string): Promise<any[]> {
+  const chRows = await query<{ docente_id: string; adicional: any; ciclo_plan: number }>(
+    `SELECT docente_id, adicional, ciclo_plan FROM carga_horaria 
+     WHERE ciclo_academico_id = $1 AND activo = true AND adicional IS NOT NULL`,
+    [ciclo_id]
+  );
+
+  if (chRows.length === 0) return [];
+
+  const slots = await query(`SELECT * FROM slots_tiempo ORDER BY orden`);
+  const virtualAsignaciones: any[] = [];
+
+  const parseTime = (timeStr: string): number => {
+    const p = timeStr.trim().split(':');
+    const h = parseInt(p[0], 10);
+    const m = p[1] ? parseInt(p[1], 10) : 0;
+    return h * 60 + m;
+  };
+
+  const mapDia = (dia: string): string => {
+    const d = dia.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (d.startsWith('lun')) return 'lunes';
+    if (d.startsWith('mar')) return 'martes';
+    if (d.startsWith('mie') || d.startsWith('mco')) return 'miercoles';
+    if (d.startsWith('jue')) return 'jueves';
+    if (d.startsWith('vie')) return 'viernes';
+    if (d.startsWith('sab')) return 'sabado';
+    return '';
+  };
+
+  const parseHorarios = (horarioStr: string) => {
+    if (!horarioStr) return [];
+    const res = [];
+    const parts = horarioStr.split(/[;,]/);
+    for (const part of parts) {
+      const regex = /([a-zA-ZáéíóúÁÉÍÓÚñÑ]+)\s*(\d{1,2}(?::\d{2})?)\s*(?:-|a)\s*(\d{1,2}(?::\d{2})?)/i;
+      const match = part.match(regex);
+      if (match) {
+        const d = mapDia(match[1]);
+        if (d) {
+          res.push({
+            dia: d,
+            start: parseTime(match[2]),
+            end: parseTime(match[3])
+          });
+        }
+      }
+    }
+    return res;
+  };
+
+  for (const row of chRows) {
+    try {
+      const adicional = typeof row.adicional === 'string'
+        ? JSON.parse(row.adicional)
+        : row.adicional;
+
+      if (adicional && adicional.cursos) {
+        for (const curso of adicional.cursos) {
+          if (curso.horario_semanal) {
+            const parsedScheds = parseHorarios(curso.horario_semanal);
+            for (const sched of parsedScheds) {
+              const matchedSlots = slots.filter((s: any) => {
+                const slotStart = parseTime(s.hora_inicio);
+                const slotEnd = parseTime(s.hora_fin);
+                return slotStart < sched.end && slotEnd > sched.start;
+              });
+
+              for (const slot of matchedSlots) {
+                virtualAsignaciones.push({
+                  id: `adicional_${curso.id}_${slot.id}`,
+                  dia: sched.dia,
+                  slot_id: slot.id,
+                  hora_inicio: slot.hora_inicio,
+                  hora_fin: slot.hora_fin,
+                  curso_nombre: curso.curso,
+                  curso_codigo: 'CARGA ADICIONAL',
+                  ambiente_nombre: curso.dependencia || 'OTROS',
+                  ambiente_codigo: 'OTROS',
+                  ambiente_tipo: 'aula',
+                  docente_id: row.docente_id,
+                  numero_grupo: 1,
+                  tipo: 'carga_adicional',
+                  ciclo_plan: row.ciclo_plan || 1
+                });
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error parsing adicional inside getCargaAdicionalCiclo:', err);
+    }
+  }
+
+  return virtualAsignaciones;
+}
+

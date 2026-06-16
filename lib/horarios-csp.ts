@@ -2,6 +2,7 @@ import { query, queryOne } from './db';
 import { resolverScp } from './scp-model';
 import { ejecutarAlgoritmoGenetico } from './horarios-ga';
 import { DIAS_SEMANA } from './horario-utils';
+import { filtrarDisponibilidadPorCargaAdicional } from './horarios';
 
 export interface CspStats {
   total_bloques: number;
@@ -33,6 +34,11 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
   const inicio = Date.now();
   const debugLog: string[] = [];
 
+  const progRow = await queryOne(`SELECT config, ciclo_academico_id FROM programaciones WHERE id = $1`, [programacion_id]);
+  if (!progRow) {
+    throw new Error('No se encontró la programación');
+  }
+
   const cursos = await query(`
     SELECT pc.*, g.num_alumnos, g.numero_grupo, cu.codigo, cu.nombre as curso_nombre, cu.ciclo_plan,
            COALESCE(cu.bloque_indivisible, true) as bloque_indivisible,
@@ -47,19 +53,21 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
              WHEN 'jefe_practica' THEN 3 
              ELSE 4
            END as categoria_orden
-    FROM programacion_cursos pc
-    LEFT JOIN grupos g ON g.id = pc.grupo_id
-    JOIN cursos cu ON cu.id = pc.curso_id
-    LEFT JOIN docentes d ON d.id = pc.docente_id
-    WHERE pc.programacion_id = $1
-    ORDER BY cu.codigo, g.numero_grupo, g.tipo_actividad
+     FROM programacion_cursos pc
+     LEFT JOIN grupos g ON g.id = pc.grupo_id
+     JOIN cursos cu ON cu.id = pc.curso_id
+     LEFT JOIN docentes d ON d.id = pc.docente_id
+     WHERE pc.programacion_id = $1
+     ORDER BY cu.codigo, g.numero_grupo, g.tipo_actividad
   `, [programacion_id]);
 
-  const disponibilidad = await query(`
+  const rawDisponibilidad = await query(`
     SELECT * FROM disponibilidad_docente 
     WHERE programacion_id = $1 AND disponible = true AND prioridad IN (1, 2)
     ORDER BY docente_id, dia, slot_id
   `, [programacion_id]);
+
+  const disponibilidad = await filtrarDisponibilidadPorCargaAdicional(rawDisponibilidad, progRow.ciclo_academico_id);
 
   let dispAmbiente: { ambiente_id: string; slot_id: string; dia: string; estado: string }[] = [];
   try {
@@ -87,7 +95,6 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
 
   // Load restrictedIds
   let restrictedIds: string[] | null = null;
-  const progRow = await queryOne(`SELECT config FROM programaciones WHERE id = $1`, [programacion_id]);
   if (progRow && progRow.config) {
     try {
       const parsedConfig = typeof progRow.config === 'string' ? JSON.parse(progRow.config) : progRow.config;
@@ -98,6 +105,7 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
       }
     } catch { /* ignore */ }
   }
+
 
   if (restrictedIds === null) {
     const config = await queryOne(`SELECT valor FROM configuracion WHERE clave = 'HORARIOS_RESTRINGIDOS'`);

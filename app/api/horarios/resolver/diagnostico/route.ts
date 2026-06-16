@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
+import { filtrarDisponibilidadPorCargaAdicional } from '@/lib/horarios';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -129,42 +130,90 @@ export async function GET(req: NextRequest) {
     const diasMap = new Map<string, any>();
     for (const d of diasPorDocente) diasMap.set(d.docente_id, d);
 
-    // ── 4. Ensamblar respuesta ────────────────────────────────────────────────
-    const docentes = filas.map(f => {
-      const dias = diasMap.get(f.docente_id) || {};
-      return {
+    // ── 3. Obtener ciclo_academico_id ─────────────────────────────────────────
+    const prog = await queryOne<{ ciclo_academico_id: string }>(
+      `SELECT ciclo_academico_id FROM programaciones WHERE id = $1`,
+      [programacion_id]
+    );
+    const cicloAcademicoId = prog?.ciclo_academico_id || '';
+
+    // ── 4. Recalcular disponibilidad y estados por docente en Javascript ───────
+    const docentes: any[] = [];
+    for (const f of filas) {
+      const rawSlots = await query(
+        `SELECT * FROM disponibilidad_docente
+         WHERE programacion_id = $1 AND docente_id = $2 AND disponible = true`,
+        [programacion_id, f.docente_id]
+      );
+
+      const filteredSlots = await filtrarDisponibilidadPorCargaAdicional(rawSlots, cicloAcademicoId);
+      
+      const horasDisponibles = filteredSlots.length;
+      const horasRequeridas = Number(f.horas_requeridas_sin_asesoria ?? f.horas_requeridas ?? f.horas_cursos ?? 0);
+      const horasFaltantes = Math.max(horasRequeridas - horasDisponibles, 0);
+
+      const slots_p1 = filteredSlots.filter((s: any) => s.prioridad === 1).length;
+      const slots_p2 = filteredSlots.filter((s: any) => s.prioridad === 2).length;
+      const dias_disponibles = new Set(filteredSlots.map((s: any) => s.dia)).size;
+
+      let estado = f.estado || 'ok';
+      let mensaje = f.mensaje || null;
+
+      if (horasDisponibles < horasRequeridas) {
+        estado = 'horas_insuficientes';
+        mensaje = 'Ampliar disponibilidad docente (descontando carga adicional)';
+      } else if (f.max_bloque_continuo != null && f.max_bloque_curso != null && Number(f.max_bloque_continuo) < Number(f.max_bloque_curso)) {
+        estado = 'sin_bloque_continuo';
+        mensaje = 'Marcar bloques continuos para teoría (lab no requiere contigüidad)';
+      } else if (dias_disponibles < 3) {
+        estado = 'pocos_dias';
+        mensaje = 'Disponibilidad en pocos días';
+      } else {
+        estado = 'ok';
+        mensaje = null;
+      }
+
+      docentes.push({
         docente_id:          f.docente_id,
         docente_nombre:      f.docente_nombre,
         categoria:           f.categoria,
         condicion:           f.condicion,
         horas_max_semana:    f.horas_max_semana,
         horas_cursos:        Number(f.horas_cursos),
-        horas_requeridas:    Number(f.horas_requeridas_sin_asesoria ?? f.horas_requeridas),
-        horas_disponibles:   Number(f.horas_disponibles),
-        horas_faltantes:     Math.max(Number(f.horas_requeridas_sin_asesoria ?? f.horas_requeridas) - Number(f.horas_disponibles), 0),
+        horas_requeridas:    horasRequeridas,
+        horas_disponibles:   horasDisponibles,
+        horas_faltantes:     horasFaltantes,
         max_bloque_continuo: f.max_bloque_continuo != null ? Number(f.max_bloque_continuo) : null,
-        dias_disponibles:    f.dias_disponibles != null ? Number(f.dias_disponibles) : Number(dias.dias_marcados ?? 0),
-        dias_marcados:       Number(dias.dias_marcados ?? 0),
-        slots_p1:            Number(dias.slots_p1 ?? 0),
-        slots_p2:            Number(dias.slots_p2 ?? 0),
+        dias_disponibles:    dias_disponibles,
+        dias_marcados:       dias_disponibles,
+        slots_p1,
+        slots_p2,
         max_bloque_curso:    f.max_bloque_curso != null ? Number(f.max_bloque_curso) : null,
-        estado:              f.estado as string,
-        mensaje:             f.mensaje as string | null,
+        estado,
+        mensaje,
         cursos:              cursosMap.get(f.docente_id) || [],
+      });
+    }
+
+    // ── 5. Ordenar docentes según severidad de estado ───────────────────────
+    docentes.sort((a, b) => {
+      const stateOrder: Record<string, number> = {
+        horas_insuficientes: 0,
+        sin_bloque_continuo: 1,
+        pocos_dias: 2,
+        ok: 3
       };
+      const orderA = stateOrder[a.estado] ?? 3;
+      const orderB = stateOrder[b.estado] ?? 3;
+      if (orderA !== orderB) return orderA - orderB;
+      
+      if (a.horas_faltantes !== b.horas_faltantes) return b.horas_faltantes - a.horas_faltantes;
+      
+      return (a.docente_nombre || '').localeCompare(b.docente_nombre || '');
     });
 
-    const resumen = await queryOne(`
-      SELECT
-        COUNT(*)                                        AS total_docentes,
-        COUNT(*) FILTER (WHERE estado = 'ok')           AS ok,
-        COUNT(*) FILTER (WHERE estado <> 'ok')          AS alertas,
-        SUM(GREATEST(horas_requeridas - horas_disponibles, 0))::int AS total_horas_faltantes
-      FROM v_pre_validacion_csp
-      WHERE programacion_id = $1
-    `, [programacion_id]).catch(() => null);
-
-    const resumenFallback = {
+    // ── 6. Calcular resumen global recalculado ──────────────────────────────
+    const resumen = {
       total_docentes: docentes.length,
       ok: docentes.filter(d => d.estado === 'ok').length,
       alertas: docentes.filter(d => d.estado !== 'ok').length,
@@ -173,12 +222,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       data: {
-        resumen: resumen ? {
-          total_docentes: Number(resumen.total_docentes),
-          ok: Number(resumen.ok),
-          alertas: Number(resumen.alertas),
-          total_horas_faltantes: Number(resumen.total_horas_faltantes ?? 0),
-        } : resumenFallback,
+        resumen,
         docentes,
       },
     });

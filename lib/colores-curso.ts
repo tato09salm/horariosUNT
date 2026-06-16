@@ -118,6 +118,14 @@ export function obtenerColorCurso(
     };
   }
 
+  if (tipoSesion === 'carga_adicional') {
+    return {
+      bg: '#FCE7F3',      // Rosado claro
+      border: '#DB2777',   // Rosado oscuro
+      name: 'carga_adicional'
+    };
+  }
+
   const c = ciclo || 0;
   if (!c || !cursoCodigo) {
     return colorDeReserva(cursoCodigo || 'sin-codigo', ciclo);
