@@ -30,15 +30,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Ciclo no encontrado' }, { status: 404 });
   }
 
+  const mappedCiclo = { ...ciclo, estado: 'activo' };
+  const mappedActualAnterior = actualAnterior ? { ...actualAnterior, estado: 'inactivo' } : null;
+
   await registrarAuditoria({
     usuario_id: session.id,
     accion: 'UPDATE',
     tabla_afectada: 'ciclos',
     registro_id: id,
-    datos_anteriores: { ciclo_actual: actualAnterior },
-    datos_nuevos: { ciclo_actual: ciclo },
+    datos_anteriores: { ciclo_actual: mappedActualAnterior },
+    datos_nuevos: { ciclo_actual: mappedCiclo },
     descripcion: `Ciclo establecido como actual: ${ciclo.nombre}`,
   });
 
-  return NextResponse.json({ data: ciclo });
+  return NextResponse.json({ data: mappedCiclo });
 }

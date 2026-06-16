@@ -41,7 +41,11 @@ export async function GET(req: NextRequest) {
 
   if (reporte) {
     const ciclos = await query(querySql, params);
-    return NextResponse.json({ data: ciclos });
+    const mappedCiclos = ciclos.map((c: any) => ({
+      ...c,
+      estado: c.activo ? 'activo' : 'inactivo'
+    }));
+    return NextResponse.json({ data: mappedCiclos });
   }
 
   const offset = (page - 1) * limit;
@@ -49,6 +53,11 @@ export async function GET(req: NextRequest) {
   params.push(limit, offset);
 
   const ciclos = await query(querySql, params);
+  const mappedCiclos = ciclos.map((c: any) => ({
+    ...c,
+    estado: c.activo ? 'activo' : 'inactivo'
+  }));
+
   const totalResult = await query(`SELECT COUNT(*) as total FROM ciclos WHERE 1=1` +
     (buscar ? ` AND nombre ILIKE $1` : '') +
     (anio ? ` AND año = $${(buscar ? 2 : 1)}` : '') +
@@ -57,7 +66,7 @@ export async function GET(req: NextRequest) {
   );
   const total = totalResult[0]?.total || 0;
 
-  return NextResponse.json({ data: ciclos, total });
+  return NextResponse.json({ data: mappedCiclos, total });
 }
 
 export async function POST(req: NextRequest) {
@@ -66,21 +75,23 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const ciclo = await queryOne(
-      `INSERT INTO ciclos (nombre, año, semestre, fecha_inicio, fecha_fin, activo, estado)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [body.nombre, body.año, body.semestre, body.fecha_inicio, body.fecha_fin, body.activo || false, 'pendiente']
+      `INSERT INTO ciclos (nombre, año, semestre, fecha_inicio, fecha_fin, activo)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [body.nombre, body.año, body.semestre, body.fecha_inicio || null, body.fecha_fin || null, body.activo || false]
     );
+
+    const mappedCiclo = ciclo ? { ...ciclo, estado: ciclo.activo ? 'activo' : 'pendiente' } : null;
 
     await registrarAuditoria({
       usuario_id: session.id,
       accion: 'CREATE',
       tabla_afectada: 'ciclos',
       registro_id: ciclo?.id,
-      datos_nuevos: ciclo,
+      datos_nuevos: mappedCiclo,
       descripcion: `Ciclo creado: ${ciclo?.nombre}`,
     });
 
-    return NextResponse.json({ data: ciclo }, { status: 201 });
+    return NextResponse.json({ data: mappedCiclo }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
