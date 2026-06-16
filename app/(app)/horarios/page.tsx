@@ -144,122 +144,182 @@ export default function HorariosPage() {
   useEffect(() => { cargarProgramaciones(); }, [cargarProgramaciones]);
 
   // Cargar asignaciones para vista de horario publicado
-  const cargarHorario = useCallback(() => {
-    if (!cicloId) return;
-    fetch(`/api/horarios?ciclo_id=${cicloId}`)
-      .then(r => r.json())
-      .then(async d => {
-        let data = d.data || [];
-        const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`).then(r => r.json());
-        const progs = progsRes.data || [];
-        const selectedProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
-        
-        if (selectedProg && selectedProg.config && selectedProg.config.horarios_restringidos) {
-          setRestringidosConfig(selectedProg.config.horarios_restringidos);
-        }
+  const cargarHorario = useCallback(async () => {
+    if (!cicloId || !slots.length || !ambientes.length) {
+      console.log('cargarHorario waiting for slots or ambientes...');
+      return;
+    }
+    console.log('cargarHorario called with cicloId:', cicloId);
+    console.log('slots in cargarHorario:', slots);
+    console.log('ambientes in cargarHorario:', ambientes);
+    try {
+      let data: any[] = [];
+      
+      // First try to get published programaciones
+      const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`);
+      if (!progsRes.ok) throw new Error('Failed to fetch programaciones');
+      const progsJson = await progsRes.json();
+      console.log('programaciones response:', progsJson);
+      const progs = progsJson.data || [];
+      const selectedProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
+      console.log('selectedProg:', selectedProg);
+      
+      if (selectedProg && selectedProg.config && selectedProg.config.horarios_restringidos) {
+        setRestringidosConfig(selectedProg.config.horarios_restringidos);
+      }
 
-        const hasAcademic = data.some((a: any) => a.tipo !== 'no_lectiva');
-        const noLectivaData = data.filter((a: any) => a.tipo === 'no_lectiva');
-        if (!hasAcademic) {
-          if (selectedProg) {
-            const exportRes = await fetch(`/api/horarios/programaciones/${selectedProg.id}/exportar`);
-            if (exportRes.ok) {
-              const exportData = await exportRes.json();
-              const slotByTime = new Map(
-                (slots || []).map((s: any) => [`${s.hora_inicio}-${s.hora_fin}`, s])
-              );
-              const ambienteByCodigo = new Map(
-                (ambientes || []).map((a: any) => [a.codigo, a])
-              );
-              const exported = (exportData.asignaciones || []).map((a: any) => ({
-                id: a.id,
-                dia: a.dia,
-                slot_id: a.slot_id || slotByTime.get(`${a.hora_inicio}-${a.hora_fin}`)?.id || null,
-                hora_inicio: a.hora_inicio,
-                hora_fin: a.hora_fin,
-                curso_nombre: a.curso_nombre,
-                curso_codigo: a.curso_codigo,
-                ciclo_plan: a.ciclo,
-                numero_grupo: parseInt(String(a.grupo || '').replace('G', ''), 10) || 1,
-                tipo: a.tipo_sesion || a.tipo,
-                docente_id: a.docente_id || null,
-                docente_nombre: a.docente_nombre || '',
-                ambiente_id: ambienteByCodigo.get(a.aula || '')?.id || null,
-                ambiente_nombre: ambienteByCodigo.get(a.aula || '')?.nombre || a.aula || '',
-                ambiente_codigo: ambienteByCodigo.get(a.aula || '')?.codigo || a.aula || '',
-                ambiente_tipo: ambienteByCodigo.get(a.aula || '')?.tipo || '',
-              }));
-              data = [...exported, ...noLectivaData];
-            }
+      // If there's a selected program, use its export data
+      if (selectedProg) {
+        const exportRes = await fetch(`/api/horarios/programaciones/${selectedProg.id}/exportar`);
+        console.log('exportRes ok:', exportRes.ok);
+        if (exportRes.ok) {
+          const exportData = await exportRes.json();
+          console.log('exportData:', exportData);
+          const slotByTime = new Map(
+            (slots || []).map((s: any) => [
+              `${(s.hora_inicio || '').substring(0, 5)}-${(s.hora_fin || '').substring(0, 5)}`, 
+              s
+            ])
+          );
+          console.log('slotByTime:', slotByTime);
+          const ambienteByCodigo = new Map(
+            (ambientes || []).map((a: any) => [a.codigo, a])
+          );
+          const exported = (exportData.asignaciones || []).map((a: any) => {
+            const timeKey = `${(a.hora_inicio || '').substring(0, 5)}-${(a.hora_fin || '').substring(0, 5)}`;
+            return {
+              id: a.id,
+              dia: a.dia,
+              slot_id: a.slot_id || slotByTime.get(timeKey)?.id || null,
+              hora_inicio: a.hora_inicio,
+              hora_fin: a.hora_fin,
+              curso_nombre: a.curso_nombre,
+              curso_codigo: a.curso_codigo,
+              ciclo_plan: a.ciclo,
+              numero_grupo: parseInt(String(a.grupo || '').replace('G', ''), 10) || 1,
+              tipo: a.tipo_sesion || a.tipo,
+              docente_id: a.docente_id || null,
+              docente_nombre: a.docente_nombre || '',
+              ambiente_id: ambienteByCodigo.get(a.aula || '')?.id || null,
+              ambiente_nombre: ambienteByCodigo.get(a.aula || '')?.nombre || a.aula || '',
+              ambiente_codigo: ambienteByCodigo.get(a.aula || '')?.codigo || a.aula || '',
+              ambiente_tipo: ambienteByCodigo.get(a.aula || '')?.tipo || '',
+            };
+          });
+          console.log('exported asignaciones:', exported);
+          data = exported;
+        }
+      }
+
+      // Try to get database asignaciones to add no lectivas
+      try {
+        const horariosRes = await fetch(`/api/horarios?ciclo_id=${cicloId}`);
+        if (horariosRes.ok) {
+          const d = await horariosRes.json();
+          console.log('API horarios response:', d);
+          const dbData = d.data || [];
+          const hasAcademic = dbData.some((a: any) => a.tipo !== 'no_lectiva');
+          const noLectivaData = dbData.filter((a: any) => a.tipo === 'no_lectiva');
+          if (!hasAcademic) {
+            data = [...data, ...noLectivaData];
+          } else {
+            data = dbData;
           }
         }
-        setAsignaciones(data);
-      });
-  }, [cicloId]);
+      } catch (horariosErr) {
+        console.warn('Failed to fetch horarios:', horariosErr);
+      }
+      
+      console.log('Final data to setAsignaciones:', data);
+      setAsignaciones(data);
+    } catch (err) {
+      console.error('Error in cargarHorario:', err);
+    }
+  }, [cicloId, slots, ambientes]);
 
   useEffect(() => { if (vista === 'horario') cargarHorario(); }, [vista, cargarHorario]);
 
   // Cargar horario personal del docente si está logueado como docente
-  useEffect(() => {
-    if (!isDocente || !cicloId || !user?.docente_id) return;
+  const cargarMiHorario = useCallback(async () => {
+    if (!isDocente || !cicloId || !user?.docente_id || !slots.length || !ambientes.length) return;
     setLoadingMiHorario(true);
-    fetch(`/api/horarios?ciclo_id=${cicloId}&docente_id=${user.docente_id}`)
-      .then(r => r.json())
-      .then(d => {
-        let data = d.data || [];
-        const hasAcademic = data.some((a: any) => a.tipo !== 'no_lectiva');
-        const noLectivaData = data.filter((a: any) => a.tipo === 'no_lectiva');
-        if (!hasAcademic) {
-          fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`)
-            .then(r => r.json())
-            .then(async (progsRes) => {
-              const progs = progsRes.data || [];
-              const selectedProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
-              if (selectedProg) {
-                const exportRes = await fetch(`/api/horarios/programaciones/${selectedProg.id}/exportar`);
-                if (exportRes.ok) {
-                  const exportData = await exportRes.json();
-                  const slotByTime = new Map(
-                    (slots || []).map((s: any) => [`${s.hora_inicio}-${s.hora_fin}`, s])
-                  );
-                  const ambienteByCodigo = new Map(
-                    (ambientes || []).map((a: any) => [a.codigo, a])
-                  );
-                  const exported = (exportData.asignaciones || []).filter((a: any) => a.docente_id === user.docente_id).map((a: any) => ({
-                    id: a.id,
-                    dia: a.dia,
-                    slot_id: a.slot_id || slotByTime.get(`${a.hora_inicio}-${a.hora_fin}`)?.id || null,
-                    hora_inicio: a.hora_inicio,
-                    hora_fin: a.hora_fin,
-                    curso_nombre: a.curso_nombre,
-                    curso_codigo: a.curso_codigo,
-                    ciclo_plan: a.ciclo,
-                    numero_grupo: parseInt(String(a.grupo || '').replace('G', ''), 10) || 1,
-                    tipo: a.tipo_sesion || a.tipo,
-                    docente_id: a.docente_id || null,
-                    docente_nombre: a.docente_nombre || '',
-                    ambiente_id: ambienteByCodigo.get(a.aula || '')?.id || null,
-                    ambiente_nombre: ambienteByCodigo.get(a.aula || '')?.nombre || a.aula || '',
-                    ambiente_codigo: ambienteByCodigo.get(a.aula || '')?.codigo || a.aula || '',
-                    ambiente_tipo: ambienteByCodigo.get(a.aula || '')?.tipo || '',
-                  }));
-                  data = [...exported, ...noLectivaData];
-                }
-              }
-              setMiHorario(data);
-              setLoadingMiHorario(false);
-            })
-            .catch(() => {
-              setMiHorario(noLectivaData);
-              setLoadingMiHorario(false);
-            });
-        } else {
-          setMiHorario(data);
-          setLoadingMiHorario(false);
+    try {
+      let data: any[] = [];
+      
+      // Try to get programaciones
+      const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`);
+      const progsJson = await progsRes.json();
+      const progs = progsJson.data || [];
+      const selectedProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
+      
+      const noLectivaData: any[] = [];
+      
+      // Try to get horarios for no lectivas first
+      try {
+        const horariosRes = await fetch(`/api/horarios?ciclo_id=${cicloId}&docente_id=${user.docente_id}`);
+        if (horariosRes.ok) {
+          const d = await horariosRes.json();
+          const dbData = d.data || [];
+          const hasAcademic = dbData.some((a: any) => a.tipo !== 'no_lectiva');
+          if (hasAcademic) {
+            data = dbData;
+          } else {
+            noLectivaData.push(...dbData.filter((a: any) => a.tipo === 'no_lectiva'));
+          }
         }
-      })
-      .catch(() => { setMiHorario([]); setLoadingMiHorario(false); });
-  }, [isDocente, cicloId, user?.docente_id]);
+      } catch (horariosErr) {
+        console.warn('Failed to fetch mi horario:', horariosErr);
+      }
+      
+      // If no academic data, use program export
+      if (data.length === 0 && selectedProg) {
+        const exportRes = await fetch(`/api/horarios/programaciones/${selectedProg.id}/exportar`);
+        if (exportRes.ok) {
+          const exportData = await exportRes.json();
+          const slotByTime = new Map(
+            (slots || []).map((s: any) => [
+              `${(s.hora_inicio || '').substring(0, 5)}-${(s.hora_fin || '').substring(0, 5)}`, 
+              s
+            ])
+          );
+          const ambienteByCodigo = new Map(
+            (ambientes || []).map((a: any) => [a.codigo, a])
+          );
+          const exported = (exportData.asignaciones || []).filter((a: any) => a.docente_id === user.docente_id).map((a: any) => {
+            const timeKey = `${(a.hora_inicio || '').substring(0, 5)}-${(a.hora_fin || '').substring(0, 5)}`;
+            return {
+              id: a.id,
+              dia: a.dia,
+              slot_id: a.slot_id || slotByTime.get(timeKey)?.id || null,
+              hora_inicio: a.hora_inicio,
+              hora_fin: a.hora_fin,
+              curso_nombre: a.curso_nombre,
+              curso_codigo: a.curso_codigo,
+              ciclo_plan: a.ciclo,
+              numero_grupo: parseInt(String(a.grupo || '').replace('G', ''), 10) || 1,
+              tipo: a.tipo_sesion || a.tipo,
+              docente_id: a.docente_id || null,
+              docente_nombre: a.docente_nombre || '',
+              ambiente_id: ambienteByCodigo.get(a.aula || '')?.id || null,
+              ambiente_nombre: ambienteByCodigo.get(a.aula || '')?.nombre || a.aula || '',
+              ambiente_codigo: ambienteByCodigo.get(a.aula || '')?.codigo || a.aula || '',
+              ambiente_tipo: ambienteByCodigo.get(a.aula || '')?.tipo || '',
+            };
+          });
+          data = [...exported, ...noLectivaData];
+        }
+      }
+      
+      setMiHorario(data);
+      setLoadingMiHorario(false);
+    } catch (err) {
+      console.error('Error in cargarMiHorario:', err);
+      setMiHorario([]);
+      setLoadingMiHorario(false);
+    }
+  }, [isDocente, cicloId, user?.docente_id, slots, ambientes]);
+
+  useEffect(() => { cargarMiHorario(); }, [cargarMiHorario]);
 
 
   // Crear programación

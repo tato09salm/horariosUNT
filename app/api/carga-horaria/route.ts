@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     // Add cursos and sections to each carga horaria
     for (let i = 0; i < cargaHoraria.length; i++) {
       const ch = cargaHoraria[i];
-      console.log('Processing carga horaria:', ch.id, ch.docente_nombre);
+
       // Add cursos (or empty array if none)
       try {
         const cursos = await query(`
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
           JOIN cursos c ON chc.curso_id = c.id
           WHERE chc.carga_horaria_id = $1
         `, [ch.id]);
-        console.log('Found cursos for carga horaria:', cursos);
+
         // Map columns to what the frontend expects
         cargaHoraria[i].cursos = cursos.map(c => ({
           ...c,
@@ -168,6 +168,7 @@ export async function POST(req: NextRequest) {
 
   try {
     // First check if the grupos columns exist, add them if they don't
+    // Also check and add time columns (dia, hora_inicio, hora_fin) to all section tables if missing
     await query(`
       DO $$ 
       BEGIN
@@ -194,6 +195,52 @@ export async function POST(req: NextRequest) {
         ) THEN
           ALTER TABLE carga_horaria_cursos ADD COLUMN laboratorio_grupos INTEGER DEFAULT 1;
         END IF;
+
+        -- Add time columns to all section tables if missing
+        DECLARE
+          section_tables TEXT[] := ARRAY[
+            'carga_horaria_preparacion', 'carga_horaria_consejeria', 
+            'carga_horaria_investigacion', 'carga_horaria_capacitacion',
+            'carga_horaria_gobierno', 'carga_horaria_administracion',
+            'carga_horaria_asesoria', 'carga_horaria_rsu', 
+            'carga_horaria_comites'
+          ];
+          tbl_name TEXT;
+        BEGIN
+          FOREACH tbl_name IN ARRAY section_tables LOOP
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns 
+              WHERE table_name = tbl_name 
+              AND column_name = 'dia'
+            ) THEN
+              EXECUTE 'ALTER TABLE ' || quote_ident(tbl_name) || ' ADD COLUMN dia TEXT';
+            END IF;
+            
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns 
+              WHERE table_name = tbl_name 
+              AND column_name = 'hora_inicio'
+            ) THEN
+              EXECUTE 'ALTER TABLE ' || quote_ident(tbl_name) || ' ADD COLUMN hora_inicio TEXT';
+            END IF;
+            
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns 
+              WHERE table_name = tbl_name 
+              AND column_name = 'hora_fin'
+            ) THEN
+              EXECUTE 'ALTER TABLE ' || quote_ident(tbl_name) || ' ADD COLUMN hora_fin TEXT';
+            END IF;
+            
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns 
+              WHERE table_name = tbl_name 
+              AND column_name = 'orden'
+            ) THEN
+              EXECUTE 'ALTER TABLE ' || quote_ident(tbl_name) || ' ADD COLUMN orden INTEGER DEFAULT 0';
+            END IF;
+          END LOOP;
+        END;
       END $$;
     `, []);
 
@@ -293,7 +340,7 @@ export async function POST(req: NextRequest) {
       await client.query('DELETE FROM carga_horaria_cursos WHERE carga_horaria_id = $1', [cargaHorariaId]);
       
       for (const curso of sanitizedCursos) {
-        console.log('Inserting curso with curso_id:', curso.curso_id);
+
         await client.query(
           `INSERT INTO carga_horaria_cursos (
             carga_horaria_id, curso_id, seccion, escuela, num_alumnos, 
@@ -329,22 +376,52 @@ export async function POST(req: NextRequest) {
         
         await client.query('DELETE FROM ' + tableName + ' WHERE carga_horaria_id = $1', [cargaHorariaId]);
 
+        // First check which columns exist on this table
+        const columnsResult = await client.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = $1
+          ORDER BY ordinal_position
+        `, [tableName]);
+        const existingColumns = new Set(columnsResult.rows.map((row: any) => row.column_name));
+
         const items = data.items || [];
         if (items.length > 0) {
           for (let i = 0; i < items.length; i++) {
             const item = items[i];
             const horas = ensureNonNegative(item.horas || data.horas || 0);
             const descripcion = item.descripcion || '';
-            const dia = item.dia || null;
-            const hora_inicio = item.hora_inicio || null;
-            const hora_fin = item.hora_fin || null;
+            const dia = existingColumns.has('dia') ? (item.dia || null) : null;
+            const hora_inicio = existingColumns.has('hora_inicio') ? (item.hora_inicio || null) : null;
+            const hora_fin = existingColumns.has('hora_fin') ? (item.hora_fin || null) : null;
+            const orden = existingColumns.has('orden') ? i : 0;
 
             if (horas > 0 || descripcion) {
-              await client.query(
-                `INSERT INTO ${tableName} (carga_horaria_id, horas, ${descField}, dia, hora_inicio, hora_fin, orden)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-                [cargaHorariaId, horas, descripcion, dia, hora_inicio, hora_fin, i]
-              );
+              // Build INSERT query dynamically
+              let insertColumns = ['carga_horaria_id', 'horas', descField];
+              let insertValues = [cargaHorariaId, horas, descripcion];
+              let paramIndex = 4;
+
+              if (existingColumns.has('dia')) {
+                insertColumns.push('dia');
+                insertValues.push(dia);
+              }
+              if (existingColumns.has('hora_inicio')) {
+                insertColumns.push('hora_inicio');
+                insertValues.push(hora_inicio);
+              }
+              if (existingColumns.has('hora_fin')) {
+                insertColumns.push('hora_fin');
+                insertValues.push(hora_fin);
+              }
+              if (existingColumns.has('orden')) {
+                insertColumns.push('orden');
+                insertValues.push(orden);
+              }
+
+              const placeholders = insertColumns.map((_, idx) => `$${idx + 1}`).join(', ');
+              const insertSql = `INSERT INTO ${tableName} (${insertColumns.join(', ')}) VALUES (${placeholders})`;
+              await client.query(insertSql, insertValues);
             }
           }
         } else {
@@ -352,11 +429,32 @@ export async function POST(req: NextRequest) {
           const horas = ensureNonNegative(data.horas || 0);
           const descripcion = data.descripcion || data.detalles || data.proyecto || data.plan || '';
           if (horas > 0) {
-            await client.query(
-              `INSERT INTO ${tableName} (carga_horaria_id, horas, ${descField})
-               VALUES ($1, $2, $3)`,
-              [cargaHorariaId, horas, descripcion]
-            );
+            // Build INSERT query dynamically for legacy case too
+            let insertColumns = ['carga_horaria_id', 'horas', descField];
+            let insertValues = [cargaHorariaId, horas, descripcion];
+            let paramIndex = 4;
+
+            // If time columns exist, insert NULLs to be consistent
+            if (existingColumns.has('dia')) {
+              insertColumns.push('dia');
+              insertValues.push(null);
+            }
+            if (existingColumns.has('hora_inicio')) {
+              insertColumns.push('hora_inicio');
+              insertValues.push(null);
+            }
+            if (existingColumns.has('hora_fin')) {
+              insertColumns.push('hora_fin');
+              insertValues.push(null);
+            }
+            if (existingColumns.has('orden')) {
+              insertColumns.push('orden');
+              insertValues.push(0);
+            }
+
+            const placeholders = insertColumns.map((_, idx) => `$${idx + 1}`).join(', ');
+            const insertSql = `INSERT INTO ${tableName} (${insertColumns.join(', ')}) VALUES (${placeholders})`;
+            await client.query(insertSql, insertValues);
           }
         }
       };

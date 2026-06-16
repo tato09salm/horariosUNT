@@ -472,18 +472,16 @@ export default function CiclosPage() {
                   <td className="hide-sm" style={{ fontSize: '12px', color: '#64748b' }}>{c.fecha_fin?.split('T')[0] || '-'}</td>
                   <td>
                     <span className={`docentes-status-badge ${
-                      c.estado === 'activo' ? 'docentes-status-badge--activo' :
-                      c.estado === 'pendiente' ? 'docentes-status-badge--pendiente' :
+                      c.activo ? 'docentes-status-badge--activo' :
                       'docentes-status-badge--inactivo'
                     }`}>
-                      {c.estado === 'activo' ? '● Activo' :
-                       c.estado === 'pendiente' ? '○ Pendiente' :
+                      {c.activo ? '● Activo' :
                        '○ Inactivo'}
                     </span>
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                        {c.estado !== 'activo' && (
+                        {!c.activo && (
                           <button
                             className="btn-primary"
                             style={{ padding: '5px 10px', fontSize: '12px' }}
