@@ -71,14 +71,6 @@ export default function CargaHorariaPage() {
   const [aulaData, setAulaData] = useState<any[]>([]);
   const [loadingAula, setLoadingAula] = useState(false);
   
-  // Cargar el ciclo academico guardado en sessionStorage
-  useEffect(() => {
-    const savedCiclo = sessionStorage.getItem('cargaHoraria_cicloAcademicoSeleccionado');
-    if (savedCiclo) {
-      setCicloAcademicoSeleccionado(savedCiclo);
-    }
-  }, []);
-  
   // Guardar el ciclo academico seleccionado en sessionStorage
   useEffect(() => {
     if (cicloAcademicoSeleccionado) {
@@ -126,7 +118,7 @@ export default function CargaHorariaPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  // Cargar ciclos academicos
+  // Cargar ciclos academicos y auto-seleccionar
   useEffect(() => {
     console.log('⏳ Fetching ciclos academicos...');
     fetch('/api/ciclos?reporte=true')
@@ -136,7 +128,32 @@ export default function CargaHorariaPage() {
       })
       .then(data => { 
         console.log('✅ Ciclos academicos data:', data);
-        setCiclosAcademicos(data.data || []); 
+        const ciclos = data.data || [];
+        setCiclosAcademicos(ciclos);
+        
+        // Verificar si hay un ciclo guardado y es válido
+        const savedCicloId = sessionStorage.getItem('cargaHoraria_cicloAcademicoSeleccionado');
+        const savedCicloExists = savedCicloId && ciclos.some((c: any) => c.id === savedCicloId);
+        
+        if (savedCicloExists) {
+          // Usar el ciclo guardado si existe
+          setCicloAcademicoSeleccionado(savedCicloId!);
+        } else {
+          // Si no hay ciclo guardado o no existe, auto-seleccionar
+          const activeCiclo = ciclos.find((c: any) => c.activo === true);
+          if (activeCiclo) {
+            setCicloAcademicoSeleccionado(activeCiclo.id);
+          } else {
+            // Si no hay ciclo activo, buscar 2026-I
+            const ciclo2026I = ciclos.find((c: any) => c.nombre === '2026-I');
+            if (ciclo2026I) {
+              setCicloAcademicoSeleccionado(ciclo2026I.id);
+            } else if (ciclos.length > 0) {
+              // Último recurso: usar el primer ciclo
+              setCicloAcademicoSeleccionado(ciclos[0].id);
+            }
+          }
+        }
       })
       .catch(err => {
         console.error('❌ Error fetching ciclos academicos:', err);
@@ -1169,7 +1186,7 @@ export default function CargaHorariaPage() {
               <option value="">Seleccionar...</option>
               {ciclosAcademicos.map(c => (
                 <option key={c.id} value={c.id}>
-                  {c.nombre} {c.estado === 'activo' ? '(Activo)' : ''}
+                  {c.nombre} {c.activo ? '(Activo)' : ''}
                 </option>
               ))}
             </select>

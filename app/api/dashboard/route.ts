@@ -95,6 +95,7 @@ export async function GET(req: NextRequest) {
       // Carga horaria por docente
       cid ? query(`
         SELECT 
+          d.id as docente_id,
           d.nombre || ' ' || d.apellidos as nombre,
           d.categoria, d.condicion, d.horas_max_semana,
           COUNT(a.id) as horas_asignadas,

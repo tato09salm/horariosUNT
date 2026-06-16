@@ -14,6 +14,7 @@ const DARK_COLORS = ['#60a5fa', '#a78bfa', '#34d399', '#fbbf24', '#f87171', '#22
 const SOFT_COLORS = ['#6366f1', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#06b6d4'];
 
 type DashboardCargaDocente = {
+  docente_id?: string;
   nombre: string;
   categoria: string;
   condicion: string;
@@ -102,6 +103,7 @@ export default function DashboardPage() {
   const [programaciones, setProgramaciones] = useState<DashboardProgramacion[]>([]);
   const [ciclosList, setCiclosList] = useState<DashboardCiclo[]>([]);
   const [miCargaDocente, setMiCargaDocente] = useState<{horas_asignadas: number; horas_max_semana: number} | null>(null);
+  const [finalPayload, setFinalPayload] = useState<DashboardApiResponse | null>(null);
 
   const user = useUser();
   const isDocente = user?.rol.codigo === 'docente';
@@ -115,7 +117,6 @@ export default function DashboardPage() {
       if (!res.ok) {
         throw new Error(`Respuesta vacia del servidor (${res.status})`);
       }
-      console.warn(`Respuesta vacia del servidor en ${url}`);
       return null;
     }
     let payload: DashboardApiResponse | null = null;
@@ -129,10 +130,13 @@ export default function DashboardPage() {
     }
     let finalPayload = payload;
 
-    const statsEmpty = (payload?.stats?.totalAsignaciones || 0) === 0;
-    if (statsEmpty && payload?.ciclo?.id) {
+    // Check if we have a programacion for this ciclo to use as fallback
+    if (payload?.ciclo?.id) {
       try {
-        const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${payload.ciclo.id}`).then(r => r.json() as Promise<ProgramacionesApiResponse>);
+        const [progsRes, docentesRes] = await Promise.all([
+          fetch(`/api/horarios/programaciones?ciclo_id=${payload.ciclo.id}`).then(r => r.json() as Promise<ProgramacionesApiResponse>),
+          fetch('/api/docentes').then(r => r.json()).catch(() => ({ data: [] })),
+        ]);
         const progs = progsRes.data || [];
         const selectedProg = progs.find((p) => p.estado === 'publicado') || progs[0];
         if (selectedProg) {
@@ -143,6 +147,8 @@ export default function DashboardPage() {
 
             if (asignaciones.length > 0) {
               const totalSlots = (payload?.slots?.length || 0) * 5 || 1;
+              const docentesList = docentesRes.data || [];
+              const docentesMap = new Map(docentesList.map((d: any) => [d.id, d]));
 
               const docenteMap = new Map<string, DashboardCargaDocente>();
               const cursosSet = new Set<string>();
@@ -153,11 +159,13 @@ export default function DashboardPage() {
 
               asignaciones.forEach((a: { docente_id?: string; docente_nombre?: string; curso_codigo?: string; aula?: string; dia?: string; tipo_sesion?: string; tipo?: string; hora_inicio?: string; hora_fin?: string; }) => {
                 if (a.docente_id) {
+                  const docenteData = docentesMap.get(a.docente_id);
                   const current: DashboardCargaDocente = docenteMap.get(a.docente_id) || {
-                    nombre: a.docente_nombre || 'Docente',
-                    categoria: 'auxiliar',
-                    condicion: 'contratado',
-                    horas_max_semana: 20,
+                    docente_id: a.docente_id,
+                    nombre: a.docente_nombre || docenteData?.nombre || 'Docente',
+                    categoria: docenteData?.categoria || 'auxiliar',
+                    condicion: docenteData?.condicion || 'contratado',
+                    horas_max_semana: docenteData?.horas_max_semana || 20,
                     horas_asignadas: 0,
                     porcentaje_carga: 0,
                   };
@@ -203,7 +211,7 @@ export default function DashboardPage() {
           }
         }
       } catch (err) {
-        console.warn('Fallback dashboard export failed', err);
+        console.warn('Fallback dashboard export failed:', err);
       }
     }
 
@@ -219,6 +227,7 @@ export default function DashboardPage() {
           fetch('/api/horarios/programaciones').then(r => r.json()).catch(() => ({ data: [] })),
           fetch('/api/ciclos?reporte=true').then(r => r.json()).catch(() => ({ data: [] })),
         ]);
+        setFinalPayload(dashboardPayload);
         setData(dashboardPayload);
         setCicloId(dashboardPayload?.ciclo?.id || '');
         setProgramaciones(progsRes.data || []);
@@ -241,6 +250,7 @@ export default function DashboardPage() {
         fetchDashboard(id),
         fetch(`/api/horarios/programaciones${id ? `?ciclo_id=${id}` : ''}`).then(r => r.json()).catch(() => ({ data: [] })),
       ]);
+      setFinalPayload(finalPayload);
       setData(finalPayload);
       setProgramaciones(progsRes.data || []);
     } catch (err) {
@@ -253,19 +263,57 @@ export default function DashboardPage() {
 
   // Docente: cargar datos propios de carga horaria
   useEffect(() => {
-    if (!isDocente || !user?.docente_id || !cicloId) return;
-    setMiCargaDocente(null);
-    fetch(`/api/docentes/${user.docente_id}/horario?ciclo_id=${cicloId}`)
-      .then(r => r.json())
-      .then(d => {
-        const asignaciones = d?.asignaciones || d?.data || [];
+    const loadMiCarga = async () => {
+      if (!isDocente || !user?.docente_id || !cicloId) return;
+      setMiCargaDocente(null);
+      try {
+        let asignaciones: any[] = [];
+        let docenteData: any = {};
+        
+        try {
+          const [horarioRes, docenteRes] = await Promise.all([
+            fetch(`/api/docentes/${user.docente_id}/horario?ciclo_id=${cicloId}`).then(async (res) => {
+              if (!res.ok) {
+                return { data: [] };
+              }
+              return res.json();
+            }),
+            fetch(`/api/docentes/${user.docente_id}`).then(async (res) => {
+              if (!res.ok) {
+                return { data: {} };
+              }
+              return res.json();
+            }).catch(() => ({ data: {} })),
+          ]);
+          
+          asignaciones = horarioRes?.asignaciones || horarioRes?.data || [];
+          docenteData = docenteRes?.data || {};
+        } catch (err) {
+          console.warn('Error fetching docente data:', err);
+        }
+        
+        if (asignaciones.length === 0 && finalPayload?.cargaDocentes) {
+          // Find this docente in cargaDocentes
+          const docenteCarga = finalPayload.cargaDocentes.find((d: any) => d.docente_id === user.docente_id);
+          if (docenteCarga) {
+            setMiCargaDocente({
+              horas_asignadas: docenteCarga.horas_asignadas || 0,
+              horas_max_semana: docenteCarga.horas_max_semana || 20,
+            });
+            return;
+          }
+        }
+        
         setMiCargaDocente({
           horas_asignadas: asignaciones.length,
-          horas_max_semana: 20,
+          horas_max_semana: docenteData.horas_max_semana || 20,
         });
-      })
-      .catch(() => {});
-  }, [isDocente, user?.docente_id, cicloId]);
+      } catch (err) {
+        console.warn('Error loading mi carga docente', err);
+      }
+    };
+    loadMiCarga();
+  }, [isDocente, user?.docente_id, cicloId, finalPayload]);
 
   async function generarReporteGestion() {
     setExporting(true);

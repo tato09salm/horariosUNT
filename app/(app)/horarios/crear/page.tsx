@@ -949,7 +949,7 @@ export default function CrearHorarioPage() {
                                             <tr key={asig.id} style={{ background: 'var(--bg-card)' }}>
                                               <td style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                                                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginRight: '16px', display: 'inline-block', width: '30px', fontFamily: 'monospace' }}>{asig.docente_codigo || '0000'}</span>
+                                                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginRight: '16px', display: 'inline-block', width: '30px', fontFamily: 'monospace' }}>{ '0000'}</span>
                                                   <span style={{ fontWeight: '500', fontSize: '12px', color: 'var(--text-primary)' }}>{asig.docente_nombre}</span>
                                                   {carga && (
                                                     <span style={{ fontSize: '11px', marginLeft: '8px', color: isExcedido ? '#fca5a5' : 'var(--text-secondary)', fontWeight: isExcedido ? '700' : '500', background: isExcedido ? 'rgba(239,68,68,0.12)' : 'transparent', padding: isExcedido ? '2px 4px' : '0', borderRadius: '4px' }}>

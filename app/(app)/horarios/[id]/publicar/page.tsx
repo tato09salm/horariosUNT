@@ -31,13 +31,57 @@ export default function PublicarPage() {
     setLoading(true);
     try {
       const [progRes, dashRes, exportRes] = await Promise.all([
-        fetch(`/api/horarios/programaciones/${progId}`).then(r => r.json()),
-        fetch('/api/dashboard').then(r => r.json()),
-        fetch(`/api/horarios/exportar?programacion_id=${progId}`).then(r => r.json()).catch(() => ({ asignaciones: [] })),
+        fetch(`/api/horarios/programaciones/${progId}`).then(r => {
+          if (!r.ok) throw new Error('Failed to fetch programacion');
+          return r.json();
+        }),
+        fetch('/api/dashboard').then(r => {
+          if (!r.ok) throw new Error('Failed to fetch dashboard');
+          return r.json();
+        }),
+        fetch(`/api/horarios/programaciones/${progId}/exportar`).then(r => {
+          if (!r.ok) throw new Error('Failed to fetch export');
+          return r.json();
+        }).catch(() => ({ asignaciones: [] }))
       ]);
+      
       setProg(progRes.data);
-      setSlots(dashRes.slots || []);
-      setAsignaciones(exportRes.asignaciones || progRes.data?.config?.asignaciones || []);
+      const slotsData = dashRes.slots || [];
+      setSlots(slotsData);
+      
+      // Map export asignaciones to match GrillaHorarios format
+      const slotByTime = new Map(
+        slotsData.map((s: any) => [
+          `${(s.hora_inicio || '').substring(0, 5)}-${(s.hora_fin || '').substring(0, 5)}`, 
+          s
+        ])
+      );
+      
+      const mappedAsignaciones = (exportRes.asignaciones || progRes.data?.config?.asignaciones || []).map((a: any) => {
+        const timeKey = `${(a.hora_inicio || '').substring(0, 5)}-${(a.hora_fin || '').substring(0, 5)}`;
+        return {
+          id: a.id,
+          dia: a.dia,
+          slot_id: a.slot_id || slotByTime.get(timeKey)?.id || null,
+          hora_inicio: a.hora_inicio,
+          hora_fin: a.hora_fin,
+          curso_nombre: a.curso_nombre,
+          curso_codigo: a.curso_codigo,
+          ciclo_plan: a.ciclo,
+          numero_grupo: parseInt(String(a.grupo || '').replace('G', ''), 10) || 1,
+          tipo: a.tipo_sesion || a.tipo,
+          docente_id: a.docente_id || null,
+          docente_nombre: a.docente_nombre || a.docente || '',
+          ambiente_id: null,
+          ambiente_nombre: a.aula || '',
+          ambiente_codigo: a.aula || '',
+          ambiente_tipo: '',
+        };
+      });
+      
+      setAsignaciones(mappedAsignaciones);
+    } catch (err) {
+      console.error('Error loading publicar page:', err);
     } finally {
       setLoading(false);
     }

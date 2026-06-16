@@ -286,25 +286,32 @@ export async function getHorarioNoLectivaDocente(docente_id: string, ciclo_id: s
 
   const slots = await query(`SELECT * FROM slots_tiempo ORDER BY orden`);
 
-  const noLectivaRows = await query(`
-    SELECT 'preparacion' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, descripcion as detalles FROM carga_horaria_preparacion WHERE carga_horaria_id = $1 AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'consejeria' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_consejeria WHERE carga_horaria_id = $1 AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'investigacion' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, proyecto FROM carga_horaria_investigacion WHERE carga_horaria_id = $1 AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'capacitacion' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_capacitacion WHERE carga_horaria_id = $1 AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'gobierno' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_gobierno WHERE carga_horaria_id = $1 AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'administracion' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_administracion WHERE carga_horaria_id = $1 AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'asesoria' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_asesoria WHERE carga_horaria_id = $1 AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'rsu' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, plan FROM carga_horaria_rsu WHERE carga_horaria_id = $1 AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'comites' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_comites WHERE carga_horaria_id = $1 AND dia IS NOT NULL
-  `, [carga_horaria_id]);
+  let noLectivaRows: any[] = [];
+  try {
+    noLectivaRows = await query(`
+      SELECT 'preparacion' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, descripcion as detalles FROM carga_horaria_preparacion WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'consejeria' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_consejeria WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'investigacion' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, proyecto FROM carga_horaria_investigacion WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'capacitacion' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_capacitacion WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'gobierno' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_gobierno WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'administracion' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_administracion WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'asesoria' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_asesoria WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'rsu' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, plan FROM carga_horaria_rsu WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'comites' as seccion_key, id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_comites WHERE carga_horaria_id = $1 AND dia IS NOT NULL
+    `, [carga_horaria_id]);
+  } catch (err) {
+    console.warn('Error fetching no lectiva rows:', err);
+    // If query fails (missing columns), return empty array
+    noLectivaRows = [];
+  }
 
   const titles: Record<string, string> = {
     preparacion: 'Preparación y Evaluación',
@@ -371,25 +378,32 @@ export async function getHorarioNoLectivaCiclo(ciclo_id: string) {
   const slots = await query(`SELECT * FROM slots_tiempo ORDER BY orden`);
 
   const placeholders = chIds.map((_, i) => `$${i + 1}`).join(',');
-  const noLectivaRows = await query(`
-    SELECT 'preparacion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, descripcion as detalles FROM carga_horaria_preparacion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'consejeria' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_consejeria WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'investigacion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, proyecto FROM carga_horaria_investigacion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'capacitacion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_capacitacion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'gobierno' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_gobierno WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'administracion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_administracion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'asesoria' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_asesoria WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'rsu' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, plan FROM carga_horaria_rsu WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-    UNION ALL
-    SELECT 'comites' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_comites WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-  `, chIds);
+  
+  let noLectivaRows: any[] = [];
+  try {
+    noLectivaRows = await query(`
+      SELECT 'preparacion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, descripcion as detalles FROM carga_horaria_preparacion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'consejeria' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_consejeria WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'investigacion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, proyecto FROM carga_horaria_investigacion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'capacitacion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_capacitacion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'gobierno' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_gobierno WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'administracion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_administracion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'asesoria' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_asesoria WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'rsu' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, plan FROM carga_horaria_rsu WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+      UNION ALL
+      SELECT 'comites' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_comites WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+    `, chIds);
+  } catch (err) {
+    console.warn('Error fetching no lectiva rows for ciclo:', err);
+    noLectivaRows = [];
+  }
 
   const titles: Record<string, string> = {
     preparacion: 'Preparación y Evaluación',

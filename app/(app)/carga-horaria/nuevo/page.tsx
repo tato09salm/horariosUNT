@@ -181,9 +181,7 @@ export default function NuevaCargaHorariaPage() {
   
   // Handle docente selection and load saved data if available
   const handleSeleccionarDocenteFromList = async (docente: Docente) => {
-    console.log('🎯 Selected docente:', docente);
-    console.log('🎯 docente.facultad:', docente.facultad);
-    console.log('🎯 docente.dpto_academico:', docente.dpto_academico);
+
     
     // Now set new docente
     setDocenteSeleccionado(docente);
@@ -205,8 +203,6 @@ export default function NuevaCargaHorariaPage() {
         
         const res = await fetch(`/api/carga-horaria?${params}`);
         const data = await res.json();
-        console.log('📄 Carga horaria from server:', data);
-        console.log('📄 Carga horaria from server:', data);
           if (data.data && data.data.length > 0) {
             // Combine all carga horaria entries into one
             const allCursos: any[] = [];
@@ -222,11 +218,6 @@ export default function NuevaCargaHorariaPage() {
               }
             }
             
-            console.log('📄 combinedCh:', combinedCh);
-          console.log('📄 combinedCh.asesoria:', combinedCh.asesoria);
-          // Convert server data to our state structure
-          console.log('📄 ch.facultad:', combinedCh.facultad, 'docente.facultad:', docente.facultad);
-          console.log('📄 ch.dpto_academico:', combinedCh.dpto_academico, 'docente.dpto_academico:', docente.dpto_academico);
           newFacultad = combinedCh.facultad || docente.facultad || '';
           newDptoAcademico = combinedCh.dpto_academico || docente.dpto_academico || '';
           newModalidad = combinedCh.modalidad || '';
@@ -349,7 +340,6 @@ export default function NuevaCargaHorariaPage() {
       return;
     }
     
-    console.log('Valid cursos with curso_id:', validCursos);
     
     const bodyToSend = {
           docente_id: docenteSeleccionado.id,
@@ -371,8 +361,6 @@ export default function NuevaCargaHorariaPage() {
           total_horas: totalHoras
         };
         
-    console.log('Sending to /api/carga-horaria:', JSON.stringify(bodyToSend, null, 2));
-
     setGuardando(true);
     try {
       const res = await fetch('/api/carga-horaria', {
@@ -418,7 +406,6 @@ export default function NuevaCargaHorariaPage() {
 
   // Filter docentes based on search query
   const filteredDocentes = docentes.filter(d => {
-    console.log('Checking docente:', d.nombre, d.apellidos, 'activo:', d.activo, 'dni:', d.dni);
     if (!d.activo) return false;
     if (!searchQuery) return true;
     const query = normalizeText(searchQuery);
