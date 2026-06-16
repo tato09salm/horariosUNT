@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
+import { getCargaAdicionalDocente } from '@/lib/horarios';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -48,7 +49,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       `, [ciclo_id, id]);
 
       if (asignaciones.length > 0) {
-        return NextResponse.json({ asignaciones });
+        const adicionales = await getCargaAdicionalDocente(id, ciclo_id);
+        return NextResponse.json({ asignaciones: [...asignaciones, ...adicionales] });
       }
 
       // Second try: use programacion.config.asignaciones
@@ -76,11 +78,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             ciclo_nombre: '',
           };
         });
-        return NextResponse.json({ data: mappedAsignaciones });
+        const adicionales = await getCargaAdicionalDocente(id, ciclo_id);
+        return NextResponse.json({ data: [...mappedAsignaciones, ...adicionales] });
       }
     }
 
-    return NextResponse.json({ data: [] });
+    const adicionales = await getCargaAdicionalDocente(id, ciclo_id);
+    return NextResponse.json({ data: adicionales });
   } catch (err) {
     console.error('Error in /api/docentes/:id/horario:', err);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });

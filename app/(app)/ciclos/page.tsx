@@ -272,7 +272,7 @@ export default function CiclosPage() {
           6: { halign: 'center', cellWidth: 20 },
         },
         didDrawPage: (data) => {
-          const str = 'Página ' + doc.internal.getNumberOfPages();
+          const str = 'Página ' + (doc.internal as any).getNumberOfPages();
           doc.setFontSize(8);
           doc.setTextColor(148, 163, 184);
           doc.text(str, 196, doc.internal.pageSize.height - 10, { align: 'right' });

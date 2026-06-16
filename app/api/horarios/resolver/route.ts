@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import { generarHorarioCSP, obtenerPreValidacionCSP } from '@/lib/horarios-csp';
 import { registrarAuditoria } from '@/lib/auditoria';
 import { query, queryOne } from '@/lib/db';
+import { filtrarDisponibilidadPorCargaAdicional } from '@/lib/horarios';
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -53,14 +54,16 @@ export async function POST(req: NextRequest) {
     }
 
     const advertencias: string[] = [];
+    const cicloAcademicoId = prog.ciclo_academico_id;
     for (const [docente_id, info] of horasPorDocente) {
       const horasRequeridas = info.horas;
-      const slotsDisponibles = await queryOne(`
-        SELECT COUNT(*) as total FROM disponibilidad_docente
+      const rawSlots = await query(`
+        SELECT * FROM disponibilidad_docente
         WHERE programacion_id = $1 AND docente_id = $2 AND disponible = true
       `, [programacion_id, docente_id]);
 
-      const totalSlots = parseInt(slotsDisponibles?.total || '0');
+      const filteredSlots = await filtrarDisponibilidadPorCargaAdicional(rawSlots, cicloAcademicoId);
+      const totalSlots = filteredSlots.length;
       if (totalSlots < horasRequeridas) {
         advertencias.push(
           `⚠️ Alerta: ${info.nombre} requiere ${horasRequeridas}h (${info.horas} cursos) pero solo tiene ${totalSlots}h disponibles. Faltan ${horasRequeridas - totalSlots}h.`

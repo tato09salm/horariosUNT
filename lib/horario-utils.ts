@@ -8,6 +8,7 @@ export const TIPO_SESION_LABEL: Record<string, string> = {
   practica: 'Práctica',
   laboratorio: 'Laboratorio',
   asesoria: 'Asesoría',
+  carga_adicional: 'Carga Adicional',
 };
 
 export const TIPO_SESION_ICON: Record<string, string> = {
@@ -15,6 +16,7 @@ export const TIPO_SESION_ICON: Record<string, string> = {
   practica: '📝',
   laboratorio: '🔬',
   asesoria: '💬',
+  carga_adicional: '📌',
 };
 
 /** Colores de borde por ciclo del plan de estudios */

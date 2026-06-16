@@ -50,7 +50,7 @@ export default function PublicarPage() {
       setSlots(slotsData);
       
       // Map export asignaciones to match GrillaHorarios format
-      const slotByTime = new Map(
+      const slotByTime = new Map<string, any>(
         slotsData.map((s: any) => [
           `${(s.hora_inicio || '').substring(0, 5)}-${(s.hora_fin || '').substring(0, 5)}`, 
           s

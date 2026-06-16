@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { query } from '@/lib/db';
+import { query, queryOne } from '@/lib/db';
+import { filtrarDisponibilidadPorCargaAdicional } from '@/lib/horarios';
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -21,11 +22,16 @@ export async function POST(req: NextRequest) {
     // 2. Obtener disponibilidad del docente
     let dispSet = new Set<string>();
     if (bloque.docente_id) {
+      const progRow = await queryOne<{ ciclo_academico_id: string }>(
+        `SELECT ciclo_academico_id FROM programaciones WHERE id = $1`,
+        [programacion_id]
+      );
       const disp = await query(
-        `SELECT dia, slot_id FROM disponibilidad_docente WHERE programacion_id = $1 AND docente_id = $2 AND disponible = true`,
+        `SELECT docente_id, dia, slot_id FROM disponibilidad_docente WHERE programacion_id = $1 AND docente_id = $2 AND disponible = true`,
         [programacion_id, bloque.docente_id]
       );
-      disp.forEach(d => dispSet.add(`${d.dia}-${d.slot_id}`));
+      const filteredDisp = await filtrarDisponibilidadPorCargaAdicional(disp, progRow?.ciclo_academico_id || '');
+      filteredDisp.forEach(d => dispSet.add(`${d.dia}-${d.slot_id}`));
     } else {
       // Si no tiene docente (ej. bloque sin asignar), asumimos que cualquier dia/hora es válido por ahora
       dias.forEach(d => slots.forEach(s => dispSet.add(`${d}-${s.id}`)));

@@ -261,7 +261,8 @@ export async function POST(req: NextRequest) {
       asesoria,
       rsu,
       comites,
-      total_horas
+      total_horas,
+      adicional
     } = body;
 
     if (!docente_id || !ciclo_academico_id) {
@@ -328,10 +329,10 @@ export async function POST(req: NextRequest) {
 
       // 2. Insert exactly ONE carga_horaria entry
       const result = await client.query(
-        `INSERT INTO carga_horaria (docente_id, ciclo_academico_id, ciclo_plan, modalidad, facultad, dpto_academico, horas_asignadas, activo)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+        `INSERT INTO carga_horaria (docente_id, ciclo_academico_id, ciclo_plan, modalidad, facultad, dpto_academico, horas_asignadas, activo, adicional)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)
          RETURNING *`,
-        [docente_id, ciclo_academico_id, ciclo_plan || 1, modalidad, facultad, dpto_academico, horasCursos || 0]
+        [docente_id, ciclo_academico_id, ciclo_plan || 1, modalidad, facultad, dpto_academico, horasCursos || 0, adicional ? JSON.stringify(adicional) : null]
       );
       const ch = result.rows[0];
       const cargaHorariaId = ch.id;
