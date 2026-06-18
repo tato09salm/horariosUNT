@@ -143,6 +143,7 @@ export default function NuevaCargaHorariaPage() {
   const initialCicloAcademico = searchParams.get('cicloAcademico');
   const initialDocenteId = searchParams.get('docenteId');
   const [cicloAcademicoSeleccionado, setCicloAcademicoSeleccionado] = useState<string>(initialCicloAcademico || '');
+  const [declaracionJuradaOpcion, setDeclaracionJuradaOpcion] = useState<string>('');
   const [ciclosAcademicos, setCiclosAcademicos] = useState<any[]>([]);
   
   // Initial state for secciones (each with 1 default item)
@@ -159,7 +160,7 @@ export default function NuevaCargaHorariaPage() {
   };
   
   // State
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [adicionalData, setAdicionalData] = useState<AdicionalData>({
     facultad: '',
     dpto_academico: '',
@@ -189,6 +190,7 @@ export default function NuevaCargaHorariaPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [confirmCambioOpcion, setConfirmCambioOpcion] = useState<string | null>(null);
   
   // Cursos for search/select modal
   const [cursos, setCursos] = useState<any[]>([]);
@@ -425,6 +427,17 @@ export default function NuevaCargaHorariaPage() {
         cursos: parsedAdicional.cursos || []
       };
     }
+    // Auto-sugerir la opción de declaración jurada según condición + régimen
+const condicionUpper = (docente.condicion || '').toUpperCase();
+const regimenCalc = mapModalidad(newModalidad);
+let opcionSugerida = '';
+if (condicionUpper === 'NOMBRADO' && regimenCalc === 'DE') opcionSugerida = 'opcion1';
+else if (condicionUpper === 'NOMBRADO' && regimenCalc === 'TC') opcionSugerida = 'opcion2';
+else if (condicionUpper === 'NOMBRADO' && regimenCalc === 'TP') opcionSugerida = 'opcion3';
+else if (condicionUpper === 'CONTRATADO' && regimenCalc === 'TC') opcionSugerida = 'opcion5';
+else if (condicionUpper === 'CONTRATADO' && regimenCalc === 'TP') opcionSugerida = 'opcion6';
+setDeclaracionJuradaOpcion(opcionSugerida);
+
     setAdicionalData(initialAdicional);
     setStep(1); // Always reset to step 1 when selecting a new docente
     
@@ -485,7 +498,6 @@ export default function NuevaCargaHorariaPage() {
         fecha_termino_periodo: finalFt,
       };
     });
-
     setStep(2);
   };
 
@@ -928,12 +940,14 @@ export default function NuevaCargaHorariaPage() {
       <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: '700', margin: '0 0 4px' }}>
-            {step === 1 ? 'Nueva Carga Horaria' : 'Carga Horaria Adicional'}
+            {step === 1 ? 'Nueva Carga Horaria' : step === 2 ? 'Declaración Jurada (F02-CAD)' : 'Carga Horaria Adicional'}
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
             {step === 1 
-              ? 'Paso 1 de 2: Rellene la carga horaria general' 
-              : 'Paso 2 de 2: Rellene la declaración de carga horaria lectiva adicional'}
+              ? 'Paso 1 de 3: Rellene la carga horaria general' 
+              : step === 2
+              ? 'Paso 2 de 3: Declaración Jurada de Incompatibilidad'
+              : 'Paso 3 de 3: Rellene la declaración de carga horaria lectiva adicional'}
           </p>
         </div>
         <button 
@@ -1877,9 +1891,239 @@ export default function NuevaCargaHorariaPage() {
               )}
             </div>
           )}
+ {/* Form 2 - F02-CAD: Declaración Jurada */}
+{step === 2 && docenteSeleccionado && (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-          {/* Form 2 */}
-          {step === 2 && docenteSeleccionado && (
+    {/* Título oficial */}
+    <div style={{ borderBottom: '2px solid var(--border-color)', paddingBottom: '16px', marginBottom: '8px' }}>
+      <h2 style={{ fontSize: '15px', fontWeight: '800', textAlign: 'center', lineHeight: '1.4', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
+        DECLARACIÓN JURADA DE NO ESTAR INCURSO EN CAUSALES<br/>
+        DE INCOMPATIBILIDAD O IMPEDIMENTO LABORAL (F02-CAD)
+      </h2>
+    </div>
+
+    {/* I. Datos del docente */}
+    <div className="card" style={{ padding: '16px', background: darkMode ? '#1e293b' : '#f8fafc' }}>
+      <h3 style={{ fontSize: '13px', fontWeight: '700', marginBottom: '16px', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+        I. DATOS DEL DOCENTE
+      </h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+        <div>
+          <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>FACULTAD</label>
+          <input className="form-input" value={adicionalData.facultad} disabled style={{ width: '100%', padding: '6px 8px', fontSize: '12px', background: darkMode ? '#0f172a' : '#f1f5f9' }} />
+        </div>
+        <div>
+          <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>DEPARTAMENTO ACADÉMICO</label>
+          <input className="form-input" value={adicionalData.dpto_academico} disabled style={{ width: '100%', padding: '6px 8px', fontSize: '12px', background: darkMode ? '#0f172a' : '#f1f5f9' }} />
+        </div>
+        <div>
+          <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>APELLIDOS Y NOMBRES</label>
+          <input className="form-input" value={adicionalData.nombre_docente} disabled style={{ width: '100%', padding: '6px 8px', fontSize: '12px', background: darkMode ? '#0f172a' : '#f1f5f9' }} />
+        </div>
+        <div>
+          <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>CONDICIÓN</label>
+          <input className="form-input" value={adicionalData.condicion} disabled style={{ width: '100%', padding: '6px 8px', fontSize: '12px', background: darkMode ? '#0f172a' : '#f1f5f9' }} />
+        </div>
+        <div>
+          <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>CATEGORÍA</label>
+          <input className="form-input" value={adicionalData.categoria} disabled style={{ width: '100%', padding: '6px 8px', fontSize: '12px', background: darkMode ? '#0f172a' : '#f1f5f9' }} />
+        </div>
+        <div>
+          <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>RÉGIMEN DE DEDICACIÓN</label>
+          <input
+            className="form-input"
+            value={
+              adicionalData.regimen_dedicacion === 'DE' ? 'Dedicación Exclusiva' :
+              adicionalData.regimen_dedicacion === 'TC' ? 'Tiempo Completo' :
+              adicionalData.regimen_dedicacion === 'TP' ? `Tiempo Parcial${getTPHours(modalidad) ? ' ' + getTPHours(modalidad) : ''}` : ''
+            }
+            disabled
+            style={{ width: '100%', padding: '6px 8px', fontSize: '12px', background: darkMode ? '#0f172a' : '#f1f5f9' }}
+          />
+        </div>
+      </div>
+    </div>
+
+    {/* II. Declaración */}
+    <div className="card" style={{ padding: '20px', background: darkMode ? '#1e293b' : '#f8fafc' }}>
+      <h3 style={{ fontSize: '13px', fontWeight: '700', marginBottom: '16px', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+        II. DECLARACIÓN
+      </h3>
+      <p style={{ margin: '0 0 12px', fontSize: '13px', lineHeight: '1.8', color: 'var(--text-primary)' }}>
+        Yo, <strong>{adicionalData.nombre_docente}</strong>, adscrito al Departamento Académico de <strong>{adicionalData.dpto_academico}</strong> de la Facultad de <strong>{adicionalData.facultad}</strong>, en el marco de la Ley Universitaria 30220, D.S. N° 418-2017-EF, Estatuto Reformado 2021 y el reglamento de asignación de la Carga Académica de los Docentes de la UNT, <strong>DECLARO BAJO JURAMENTO Y EN HONOR A LA VERDAD</strong>, que:
+      </p>
+      <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.8', color: 'var(--text-primary)' }}>
+        <strong>NO ESTOY INCURSO</strong> en causales de incompatibilidad laboral y <strong>NO TENGO</strong> impedimento para ejercer la docencia en la Universidad Nacional de Trujillo, de conformidad con lo previsto en el Capítulo VIII de las Incompatibilidades, Impedimentos y sanciones, del Título XII: de los docentes, del Estatuto institucional vigente, según la especificación siguiente:
+      </p>
+    </div>
+
+    {/* III. Especificación */}
+    <div className="card" style={{ padding: '16px', background: darkMode ? '#1e293b' : '#f8fafc' }}>
+      <h3 style={{ fontSize: '13px', fontWeight: '700', marginBottom: '16px', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+        III. ESPECIFICACIÓN
+      </h3>
+      <div className="table-container">
+        <table className="data-table" style={{ fontSize: '12px', borderCollapse: 'collapse', width: '100%' }}>
+          <tbody>
+            {[
+              { key: 'opcion1', num: '1', texto: 'Soy docente, ordinario a Dedicación Exclusiva y NO EJERZO cualquier otra actividad o cargo remunerado en otra universidad, entidad pública o privada, fuera de la Universidad Nacional de Trujillo (De conformidad con el Artículo 225° del Estatuto Institucional vigente).', condicion: 'NOMBRADO', regimen: 'DE' },
+              { key: 'opcion2', num: '2', texto: 'Soy docente, ordinario a Tiempo Completo y NO ejerzo cualquier otra actividad o cargo remunerado en otra universidad, entidad pública o privada, fuera de la Universidad Nacional de Trujillo (De conformidad con el Artículo 225° del Estatuto Institucional vigente), así mismo en caso de incumplimiento, me someto a las sanciones dispuestas en el Reglamento del Docente Investigador y Promoción de la Investigación, aprobado por R.C.U. N°281-2021/UNT.', condicion: 'NOMBRADO', regimen: 'TC' },
+              { key: 'opcion3', num: '3', texto: 'Soy docente, ordinario a Tiempo Parcial y NO TENGO incompatibilidad horaria con mi carga académica en la Universidad Nacional de Trujillo y otra institución donde laboro.', condicion: 'NOMBRADO', regimen: 'TP' },
+              { key: 'opcion4', num: '4', texto: 'Soy docente, Investigador de la UNT acreditado con Resolución Vicerrectoral y NO ejerzo cualquier otra actividad o cargo remunerado en otra universidad, entidad pública o privada, fuera de la Universidad Nacional de Trujillo (De conformidad con el Artículo 225° del Estatuto Institucional vigente), así mismo en caso de incumplimiento, me someto a las sanciones dispuestas en el Reglamento del Docente Investigador y Promoción de la Investigación, aprobado por R.C.U. N°281-2021/UNT.', condicion: '', regimen: '' },
+              { key: 'opcion5', num: '5', texto: 'Soy docente, contratado a Tiempo Completo y NO EJERZO la misma modalidad en otra entidad pública o privada, así mismo, no tengo otra responsabilidad remunerada en alguna institución pública o privada más de diez (10 horas) semanales, excepto ley expresa que lo permita.', condicion: 'CONTRATADO', regimen: 'TC' },
+              { key: 'opcion6', num: '6', texto: 'Soy docente, contratado a Tiempo Parcial y NO TENGO incompatibilidad horaria con mi carga académica en la Universidad Nacional de Trujillo y otra institución donde laboro.', condicion: 'CONTRATADO', regimen: 'TP' },
+            ].map((opcion) => {
+              const isSelected = declaracionJuradaOpcion === opcion.key;
+
+              const handleClickOpcion = () => {
+                if (opcion.key === 'opcion4') {
+                  // Opción 4: sin confirmación, directo
+                  setDeclaracionJuradaOpcion(opcion.key);
+                } else if (declaracionJuradaOpcion && declaracionJuradaOpcion !== opcion.key) {
+                  // Ya hay una seleccionada distinta → pedir confirmación
+                  setConfirmCambioOpcion(opcion.key);
+                } else {
+                  setDeclaracionJuradaOpcion(opcion.key);
+                }
+              };
+
+              return (
+                <tr key={opcion.key} style={{ background: isSelected ? (darkMode ? '#1e3a5f' : '#eff6ff') : 'transparent' }}>
+                  <td style={{ padding: '10px 12px', border: '1px solid var(--border-color)', width: '40px', textAlign: 'center', verticalAlign: 'top' }}>
+                    <div
+                      onClick={handleClickOpcion}
+                      style={{
+                        width: '22px', height: '22px', borderRadius: '4px', margin: '0 auto',
+                        border: `2px solid ${isSelected ? '#3b82f6' : '#94a3b8'}`,
+                        background: isSelected ? '#3b82f6' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {isSelected && (
+                        <svg width="13" height="13" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  </td>
+                  <td
+                    onClick={handleClickOpcion}
+                    style={{ padding: '10px 12px', border: '1px solid var(--border-color)', fontSize: '12px', lineHeight: '1.7', color: isSelected ? (darkMode ? '#93c5fd' : '#1d4ed8') : 'var(--text-primary)', fontWeight: isSelected ? '500' : '400', cursor: 'pointer' }}
+                  >
+                    <strong>{opcion.num}.</strong> {opcion.texto}
+                    {opcion.key === 'opcion4' && (
+                      <span style={{ display: 'block', marginTop: '4px', fontSize: '11px', color: '#6b7280', fontStyle: 'italic' }}>
+                        * Aplica solo si cuenta con Resolución Vicerrectoral de Docente Investigador
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {/* Párrafo final de compromiso */}
+    <div className="card" style={{ padding: '16px', background: darkMode ? '#1e293b' : '#f8fafc' }}>
+      <p style={{ margin: 0, fontSize: '12px', lineHeight: '1.7', color: 'var(--text-primary)' }}>
+        EN CASO DE FALTAR A LA VERDAD ME SOMETO A LAS SANCIONES QUE SEAN APLICABLES DE ACUERDO A LEY; ASIMISMO, DE ENCONTRARME INCURSO EN SITUACIÓN DE INCOMPATIBILIDAD O IMPEDIMENTO PARA EJERCER LA DOCENCIA EN LA U.N.T., ME SOMETO A LAS SANCIONES PREVISTAS POR SU ESTATUTO,{' '}
+        <strong><u>Y AUTORIZO AL FUNCIONARIO COMPETENTE DISPONGA EL DESCUENTO DE MI PLANILLA DE HABERES, DEL MONTO QUE LA UNIDAD DE REMUNERACIONES LIQUIDE COMO PAGOS INDEBIDOS POR EL LAPSO DE TIEMPO LABORADO ILEGALMENTE.</u></strong>
+      </p>
+    </div>
+
+    {/* Botones */}
+    {(canWrite || isDocente) && (
+      <div style={{ marginTop: '16px', display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+        <button className="btn-secondary" onClick={() => setStep(1)} style={{ padding: '10px 24px' }}>
+          Atrás
+        </button>
+        <button className="btn-secondary" onClick={() => router.push('/carga-horaria')} style={{ padding: '10px 24px' }}>
+          Cancelar
+        </button>
+        <button
+          className="btn-primary"
+          onClick={() => {
+            if (!declaracionJuradaOpcion) {
+              setAlertMessage('Debe seleccionar una opción de la Declaración Jurada');
+              return;
+            }
+            setStep(3);
+          }}
+          style={{ padding: '10px 24px' }}
+        >
+          Continuar
+        </button>
+      </div>
+    )}
+
+    {/* Modal confirmación cambio de opción */}
+    {confirmCambioOpcion && (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000
+      }}>
+        <div style={{
+          backgroundColor: darkMode ? '#1e293b' : 'white',
+          padding: '24px', borderRadius: '12px',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+          maxWidth: '400px', width: '90%'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+            <div style={{
+              width: '40px', height: '40px', backgroundColor: '#fef3c7',
+              borderRadius: '50%', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', color: '#d97706', fontSize: '20px', fontWeight: 'bold'
+            }}>
+              ?
+            </div>
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: darkMode ? '#f1f5f9' : '#111827' }}>
+              Cambiar selección
+            </h3>
+          </div>
+          <p style={{ margin: 0, marginBottom: '20px', fontSize: '14px', color: darkMode ? '#94a3b8' : '#4b5563', lineHeight: '1.5' }}>
+            ¿Está seguro que desea cambiar la opción seleccionada en la Declaración Jurada? Esta acción modificará el formato.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button
+              style={{
+                padding: '8px 16px', borderRadius: '6px',
+                border: '1px solid #d1d5db',
+                background: darkMode ? '#334155' : 'white',
+                color: darkMode ? '#f1f5f9' : '#111827',
+                cursor: 'pointer', fontSize: '14px'
+              }}
+              onClick={() => setConfirmCambioOpcion(null)}
+            >
+              Cancelar
+            </button>
+            <button
+              style={{
+                backgroundColor: '#3b82f6', color: 'white', padding: '8px 16px',
+                borderRadius: '6px', border: 'none', cursor: 'pointer',
+                fontSize: '14px', fontWeight: '500'
+              }}
+              onClick={() => {
+                setDeclaracionJuradaOpcion(confirmCambioOpcion);
+                setConfirmCambioOpcion(null);
+              }}
+            >
+              Sí, cambiar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+  </div>
+)}
+          {/* Form 3 */}
+            {step === 3 && docenteSeleccionado && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               {/* Header */}
               <div style={{ borderBottom: '2px solid var(--border-color)', paddingBottom: '16px', marginBottom: '8px' }}>
@@ -2184,7 +2428,7 @@ export default function NuevaCargaHorariaPage() {
                 <div style={{ marginTop: '32px', display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                   <button 
                     className="btn-secondary"
-                    onClick={() => setStep(1)}
+                    onClick={() => setStep(2)}
                     style={{ padding: '10px 24px' }}
                   >
                     Atrás

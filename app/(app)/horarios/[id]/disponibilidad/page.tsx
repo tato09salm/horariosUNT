@@ -41,8 +41,24 @@ export default function DisponibilidadPage() {
   const [accesoError, setAccesoError] = useState<string | null>(null);
   const [soloLectura, setSoloLectura] = useState(false);
 
+  // ── Resumen de docentes pendientes (para bloquear el avance a Fase 3) ─────
+  const [resumenPendientes, setResumenPendientes] = useState<{
+    totalDocentes: number;
+    docentesCompletos: number;
+    pendientes: { docente_id: string; nombre: string }[];
+    listo: boolean;
+  } | null>(null);
+  const [checandoResumen, setCheandoResumen] = useState(false);
+
   const isAdminOrSec = user?.rol.codigo === 'admin' || user?.rol.codigo === 'secretaria';
   const isDocente = user?.rol.codigo === 'docente';
+
+  // ── Drag-select (estilo Excel / LettuceMeet) ──────────────────────────────
+  // isDragging: si hay un arrastre de mouse en curso.
+  // Usamos refs (no state) para no perder eventos por timing de re-render.
+  const isDraggingRef = useRef(false);
+  const movedDuringDragRef = useRef(false);
+  const visitedDuringDragRef = useRef<Set<string>>(new Set());
 
   const cargarDisponibilidadPeriodo = useCallback(async () => {
     if (!progId) return;
@@ -54,7 +70,7 @@ export default function DisponibilidadPage() {
         // Convertir a hora local (Perú) para datetime-local
         const fechaInicio = data.data.fecha_inicio ? new Date(data.data.fecha_inicio) : null;
         const fechaCierre = data.data.fecha_cierre ? new Date(data.data.fecha_cierre) : null;
-        
+
         // Ajustar a zona horaria local del navegador (asumiendo Perú)
         if (fechaInicio) {
           const offset = fechaInicio.getTimezoneOffset() * 60000;
@@ -117,6 +133,21 @@ export default function DisponibilidadPage() {
       if (res.docente_id) setDocenteId(res.docente_id);
     }
   }, [progId]);
+
+  // ── Resumen de docentes pendientes (solo admin/secretaria) ────────────────
+  const cargarResumenPendientes = useCallback(async () => {
+    if (!progId || !isAdminOrSec) return;
+    setCheandoResumen(true);
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}/disponibilidad-resumen`);
+      const data = await res.json();
+      if (res.ok) setResumenPendientes(data.data);
+    } catch (e) {
+      console.error('Error cargando resumen de disponibilidad:', e);
+    } finally {
+      setCheandoResumen(false);
+    }
+  }, [progId, isAdminOrSec]);
 
   const cargarDatos = useCallback(async () => {
     setLoading(true);
@@ -211,16 +242,79 @@ export default function DisponibilidadPage() {
   }, [progId, user, isDocente, cargarDisponibilidad]);
 
   useEffect(() => { cargarDatos(); cargarDisponibilidadPeriodo(); }, [cargarDatos, cargarDisponibilidadPeriodo]);
+  useEffect(() => { cargarResumenPendientes(); }, [cargarResumenPendientes]);
 
-  const toggleSlot = (dia: string, slotId: string) => {
-    // Bloquear edición si es solo lectura o estado no editable
-    if (soloLectura) return;
-    if (prog?.estado === 'publicado' || prog?.estado === 'cancelado') return;
-    const key = `${dia}-${slotId}`;
-    const current = disponibilidad[key] ?? 0;
-    const next: PrioridadSlot = current === 0 ? 1 : current === 1 ? 2 : 0;
-    setDisponibilidad(prev => ({ ...prev, [key]: next }));
-  };
+  // ── Lógica de pintado de una celda individual ─────────────────────────────
+  // modo 'click'   -> ciclo: vacío(0) → preferida(1) → aceptable(2) → se queda en aceptable
+  // modo 'drag'    -> cada celda reacciona según SU PROPIO estado actual:
+  //                   vacío(0) -> preferida(1)
+  //                   preferida(1) o aceptable(2) -> no disponible(0)
+  const aplicarCambioCelda = useCallback((key: string, modo: 'click' | 'drag') => {
+    setDisponibilidad(prev => {
+      const current = prev[key] ?? 0;
+      let next: PrioridadSlot;
+
+      if (modo === 'click') {
+        if (current === 0) next = 1;
+        else if (current === 1) next = 2;
+        else next = 2; // ya está en "aceptable", el click simple no la cambia
+      } else {
+        // drag
+        if (current === 0) next = 1;
+        else next = 0; // preferida o aceptable -> no disponible
+      }
+
+      if (next === current) return prev; // evita re-render innecesario
+      return { ...prev, [key]: next };
+    });
+  }, []);
+
+  const puedeEditar = !soloLectura && prog?.estado !== 'publicado' && prog?.estado !== 'cancelado';
+
+  const handleCellMouseDown = useCallback((key: string) => {
+    if (!puedeEditar) return;
+    isDraggingRef.current = true;
+    movedDuringDragRef.current = false;
+    visitedDuringDragRef.current = new Set([key]);
+    // No aplicamos el cambio aún: esperamos a ver si fue click o arrastre (mouseup decide).
+  }, [puedeEditar]);
+
+  const handleCellMouseEnter = useCallback((key: string) => {
+    if (!puedeEditar || !isDraggingRef.current) return;
+    if (visitedDuringDragRef.current.has(key)) return;
+    movedDuringDragRef.current = true;
+    visitedDuringDragRef.current.add(key);
+    aplicarCambioCelda(key, 'drag');
+  }, [puedeEditar, aplicarCambioCelda]);
+
+  const handleCellMouseUp = useCallback((key: string) => {
+    if (!puedeEditar) return;
+    if (isDraggingRef.current && !movedDuringDragRef.current) {
+      // El mouse bajó y subió en la misma celda sin moverse entre celdas -> es un click simple.
+      aplicarCambioCelda(key, 'click');
+    } else if (isDraggingRef.current && movedDuringDragRef.current) {
+      // Hubo arrastre: la celda donde se soltó el mouse también debe reaccionar
+      // si no fue "visitada" todavía (por ejemplo, un drag de una sola celda de distancia
+      // ya quedó cubierta por mouseEnter, pero por seguridad la aplicamos solo si falta).
+      if (!visitedDuringDragRef.current.has(key)) {
+        aplicarCambioCelda(key, 'drag');
+      }
+    }
+    isDraggingRef.current = false;
+    movedDuringDragRef.current = false;
+    visitedDuringDragRef.current = new Set();
+  }, [puedeEditar, aplicarCambioCelda]);
+
+  // Si el usuario suelta el mouse fuera de la grilla, igual debemos terminar el drag.
+  useEffect(() => {
+    const onWindowMouseUp = () => {
+      isDraggingRef.current = false;
+      movedDuringDragRef.current = false;
+      visitedDuringDragRef.current = new Set();
+    };
+    window.addEventListener('mouseup', onWindowMouseUp);
+    return () => window.removeEventListener('mouseup', onWindowMouseUp);
+  }, []);
 
   const guardarDisponibilidad = async () => {
     if (soloLectura) return;
@@ -248,6 +342,8 @@ export default function DisponibilidadPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setMsg({ type: 'success', text: 'Disponibilidad guardada correctamente' });
+      // Refrescar el resumen de pendientes (puede que este docente ahora esté completo)
+      cargarResumenPendientes();
     } catch (e: any) {
       setMsg({ type: 'error', text: e.message });
     } finally {
@@ -285,6 +381,7 @@ export default function DisponibilidadPage() {
 
       setMsg({ type: 'success', text: json.message });
       if (docenteId) await cargarDisponibilidad(docenteId);
+      cargarResumenPendientes();
     } catch (err: any) {
       setMsg({ type: 'error', text: 'Error importando: ' + err.message });
     } finally {
@@ -311,6 +408,29 @@ export default function DisponibilidadPage() {
   };
 
   const avanzarFase = async () => {
+    // ── Bloqueo: no avanzar si falta algún docente por marcar su disponibilidad ──
+    setMsg(null);
+    setCheandoResumen(true);
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}/disponibilidad-resumen`);
+      const data = await res.json();
+      if (res.ok) {
+        setResumenPendientes(data.data);
+        if (!data.data.listo) {
+          setMsg({
+            type: 'error',
+            text: `No se puede avanzar a la Fase 3: faltan ${data.data.pendientes.length} de ${data.data.totalDocentes} docente(s) por registrar su disponibilidad.`,
+          });
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('Error validando resumen antes de avanzar:', e);
+      // No bloqueamos por un error de red, pero sí avisamos.
+    } finally {
+      setCheandoResumen(false);
+    }
+
     try {
       const res = await fetch(`/api/horarios/programaciones/${progId}`, {
         method: 'PUT',
@@ -417,13 +537,42 @@ export default function DisponibilidadPage() {
             </button>
             <button className="btn-secondary" onClick={notificarDocentes}>Notificar Docentes</button>
             <button className="btn-secondary" onClick={retrocederFase}>← Volver a Fase 1</button>
-            <button className="btn-primary" onClick={avanzarFase}>Avanzar a Fase 3</button>
+            <button
+              className="btn-primary"
+              onClick={avanzarFase}
+              disabled={checandoResumen}
+              title={resumenPendientes && !resumenPendientes.listo ? 'Aún faltan docentes por registrar su disponibilidad' : undefined}
+            >
+              {checandoResumen ? 'Verificando...' : 'Avanzar a Fase 3'}
+            </button>
             <button className="btn-danger" onClick={cancelarProgramacion}>Cancelar</button>
           </div>
         )}
       </div>
 
       {bannerSoloLectura}
+
+      {/* Aviso de docentes pendientes (solo admin/secretaria) */}
+      {isAdminOrSec && resumenPendientes && !resumenPendientes.listo && (
+        <div style={{
+          background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px',
+          padding: '12px 16px', marginBottom: '16px',
+          color: '#92400e', fontSize: '14px',
+        }}>
+          <strong>⚠️ Faltan {resumenPendientes.pendientes.length} de {resumenPendientes.totalDocentes} docentes</strong> por registrar su disponibilidad.
+          No se podrá avanzar a la Fase 3 hasta que todos registren al menos una franja.
+        </div>
+      )}
+      {isAdminOrSec && resumenPendientes && resumenPendientes.listo && resumenPendientes.totalDocentes > 0 && (
+        <div style={{
+          background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '8px',
+          padding: '12px 16px', marginBottom: '16px',
+          color: '#065f46', fontSize: '14px',
+        }}>
+          ✅ Los {resumenPendientes.totalDocentes} docentes con carga ya registraron su disponibilidad. Puedes avanzar a la Fase 3.
+        </div>
+      )}
+
       {msg && (
         <div className={`alert alert-${msg.type}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>{msg.text}</span>
@@ -598,7 +747,7 @@ export default function DisponibilidadPage() {
               <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
                 {soloLectura
                   ? 'Tu disponibilidad registrada (solo lectura).'
-                  : 'Clic: preferida → aceptable → no disponible.'}
+                  : 'Clic: preferida → aceptable. Arrastra para pintar varias celdas a la vez (estilo Excel).'}
               </p>
             </div>
           )}
@@ -630,7 +779,12 @@ export default function DisponibilidadPage() {
             No disponible
           </span>
         </div>
-        <div className="horario-grid" style={{ minWidth: '900px' }}>
+        <div
+          className="horario-grid"
+          style={{ minWidth: '900px', userSelect: 'none' }}
+          // Evita que el navegador intente "seleccionar texto" mientras arrastramos sobre las celdas.
+          onMouseLeave={() => { /* el listener global de window.mouseup ya cubre este caso */ }}
+        >
           <div className="horario-header">Hora</div>
           {DIAS.map(d => <div key={d} className="horario-header">{DIAS_LABEL[d]}</div>)}
           {slots.map((slot) => {
@@ -640,19 +794,21 @@ export default function DisponibilidadPage() {
               <div key={slot.id} style={{ display: 'contents' }}>
                 <div className="horario-time">{slot.hora_inicio}<br />{slot.hora_fin}</div>
                 {DIAS.map(dia => {
-                  const p = disponibilidad[`${dia}-${slot.id}`] ?? 0;
+                  const key = `${dia}-${slot.id}`;
+                  const p = disponibilidad[key] ?? 0;
                   const st = PRIORIDAD_STYLE[p];
                   return (
                     <div
-                      key={`${dia}-${slot.id}`}
-                      onClick={() => toggleSlot(dia, slot.id)}
+                      key={key}
+                      onMouseDown={(e) => { e.preventDefault(); handleCellMouseDown(key); }}
+                      onMouseEnter={() => handleCellMouseEnter(key)}
+                      onMouseUp={() => handleCellMouseUp(key)}
                       className={`horario-slot-cell${p === 0 ? ' horario-slot-cell--none' : ''}`}
                       style={{
                         borderRight: '1px solid #e2e8f0',
                         borderBottom: '1px solid #e2e8f0',
                         background: st.bg,
                         minHeight: 36,
-                        // Mostrar cursor normal en solo lectura
                         cursor: soloLectura ? 'default' : 'pointer',
                         opacity: soloLectura ? 0.85 : 1,
                       }}
