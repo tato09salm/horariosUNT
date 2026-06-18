@@ -912,72 +912,171 @@ export default function CargaHorariaPage() {
     doc.save(`carga-horaria-${nombreDocente.replace(/\s+/g, '-')}.pdf`);
   }
 
-  function generarF02CAD(docenteId: string) {
+function generarF02CAD(docenteId: string) {
     const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
     if (cargasDocente.length === 0) {
       setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
       return;
     }
 
-    const nombreDocente = cargasDocente[0]
-      ? `${cargasDocente[0].docente_apellidos}, ${cargasDocente[0].docente_nombre}`.toUpperCase()
-      : 'DOCENTE';
+    const primeraCarga = cargasDocente[0];
+    const docenteCompleto = allDocentes.find(d => d.id === docenteId) as any;
+
+    let adicional: any = null;
+    if (primeraCarga.adicional) {
+      try {
+        adicional = typeof primeraCarga.adicional === 'string'
+          ? JSON.parse(primeraCarga.adicional)
+          : primeraCarga.adicional;
+      } catch {}
+    }
+
+    const nombreDocente = (adicional?.nombre_docente ||
+      `${primeraCarga.docente_apellidos}, ${primeraCarga.docente_nombre}`).toUpperCase();
+    const dniDocente = adicional?.dni_docente || docenteCompleto?.dni || '...........';
+    const dptoAcademico = adicional?.dpto_academico || primeraCarga?.dpto_academico || primeraCarga?.docente_dpto_academico || '...............';
+    const facultad = adicional?.facultad || primeraCarga?.facultad || primeraCarga?.docente_facultad || '...............';
+
+    // Determinar opción seleccionada
+    const opcionSeleccionada = adicional?.declaracion_jurada_opcion || '';
+
+    const opciones = [
+      { key: 'opcion1', num: '1', texto: 'Soy docente, ordinario a Dedicación Exclusiva y NO EJERZO cualquier otra actividad o cargo remunerado en otra universidad, entidad pública o privada, fuera de la Universidad Nacional de Trujillo (De conformidad con el Artículo 225° del Estatuto Institucional vigente).' },
+      { key: 'opcion2', num: '2', texto: 'Soy docente, ordinario a Tiempo Completo y NO ejerzo cualquier otra actividad o cargo remunerado en otra universidad, entidad pública o privada, fuera de la Universidad Nacional de Trujillo (De conformidad con el Artículo 225° del Estatuto Institucional vigente), así mismo en caso de incumplimiento, me someto a las sanciones dispuestas en el Reglamento del Docente Investigador y Promoción de la Investigación, aprobado por R.C.U. N°281-2021/UNT' },
+      { key: 'opcion3', num: '3', texto: 'Soy docente, ordinario a Tiempo Parcial y NO TENGO incompatibilidad horaria con mi carga académica en la Universidad Nacional de Trujillo y otra institución donde laboro' },
+      { key: 'opcion4', num: '4', texto: 'Soy docente, Investigador de la UNT a acreditado con Resolución Vicerrectoral y NO ejerzo cualquier otra actividad o cargo remunerado en otra universidad, entidad pública o privada, fuera de la Universidad Nacional de Trujillo (De conformidad con el Artículo 225° del Estatuto Institucional vigente), así mismo en caso de incumplimiento, me someto a las sanciones dispuestas en el Reglamento del Docente Investigador y Promoción de la Investigación, aprobado por R.C.U. N°281-2021/UNT' },
+      { key: 'opcion5', num: '5', texto: 'Soy docente, contratado a Tiempo Completo y NO EJERZO la misma modalidad en otra entidad pública o privada, así mismo, no tengo otra responsabilidad remunerada en alguna institución pública o privada más de diez (10 horas) semanales, excepto ley expresa que lo permita' },
+      { key: 'opcion6', num: '6', texto: 'Soy docente, contratado a Tiempo Parcial y NO TENGO incompatibilidad horaria con mi carga académica en la Universidad Nacional de Trujillo y otra institución donde laboro.' },
+    ];
 
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    let y = 15;
+    const pw = doc.internal.pageSize.getWidth();
+    const ml = 20;
+    const mr = 20;
+    const contentWidth = pw - ml - mr;
+    let y = 18;
 
-    doc.setFontSize(14);
+    // TÍTULO
+    doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
-    doc.text('FORMATO N° 2 - CAD', pageWidth / 2, y, { align: 'center' });
-    y += 10;
-    doc.setFontSize(12);
-    doc.text('PROGRAMACIÓN DE ACTIVIDADES ACADÉMICAS', pageWidth / 2, y, { align: 'center' });
-    y += 8;
-    doc.setFontSize(10);
-    doc.text(`Docente: ${nombreDocente}`, 15, y);
+    const titulo1 = 'DECLARACION JURADA DE NO ESTAR INCURSO EN CAUSALES';
+    const titulo2 = 'DE INCOMPATIBILIDAD O IMPEDIMENTO LABORAL (F02-CAD)';
+    doc.text(titulo1, pw / 2, y, { align: 'center' });
     y += 6;
+    doc.text(titulo2, pw / 2, y, { align: 'center' });
+    y += 12;
 
-    const cursosDocente: any[] = [];
-    cargasDocente.forEach(ch => {
-      if (ch.cursos && ch.cursos.length > 0) {
-        ch.cursos.forEach((curso: any) => {
-          const ht = curso.hrs_teo || 0;
-          const hp = curso.hrs_pra || 0;
-          const hl = curso.hrs_lab || 0;
-          const tG = (curso as any).teoria_grupos ?? 1;
-          const pG = (curso as any).practica_grupos ?? 1;
-          const lG = (curso as any).laboratorio_grupos ?? 1;
-          cursosDocente.push({
-            codigo: curso.curso_codigo || '',
-            nombre: curso.curso_nombre || curso.nombre,
-            seccion: curso.seccion,
-            hrsTeo: ht,
-            hrsPra: hp,
-            hrsLab: hl,
-            total: (ht * tG) + (hp * pG) + (hl * lG)
-          });
-        });
+    // PÁRRAFO INICIAL
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', 'normal');
+    const parrafo1 = `Yo, ${nombreDocente}, identificado(a) con DNI N° ${dniDocente}, adscrito al Departamento Académico de ${dptoAcademico} de la Facultad de ${facultad}, en el marco de la Ley Universitaria 30220, D.S. N° 418-2017-EF, Estatuto Reformado 2021 y el reglamento de asignación de la Carga Académica de los Docentes de la UNT, `;
+    
+    // Texto con parte en negrita
+    const lines1 = doc.splitTextToSize(parrafo1, contentWidth);
+    doc.text(lines1, ml, y);
+    y += lines1.length * 4.5;
+
+    doc.setFont('helvetica', 'bold');
+    const boldText = 'DECLARO BAJO JURAMENTO Y EN HONOR A LA VERDAD, que:';
+    const linesBold = doc.splitTextToSize(boldText, contentWidth);
+    doc.text(linesBold, ml, y);
+    y += linesBold.length * 4.5 + 4;
+
+    // PÁRRAFO NO ESTOY INCURSO
+    doc.setFontSize(9.5);
+    const p2start = 'NO ESTOY INCURSO';
+    const p2rest = ' en causales de incompatibilidad laboral y ';
+    const p2bold2 = 'NO TENGO';
+    const p2rest2 = ' impedimento para ejercer la docencia en la Universidad Nacional de Trujillo, de conformidad con lo previsto en el Capítulo VIII de las Incompatibilidades, Impedimentos y sanciones, del Título XII: de los docentes, del Estatuto institucional vigente, según la especificación siguiente:';
+
+    // Renderizar párrafo con negritas inline
+    const fullP2 = p2start + p2rest + p2bold2 + p2rest2;
+    const linesP2 = doc.splitTextToSize(fullP2, contentWidth);
+    
+    // Dibujar línea por línea con negritas aproximadas
+    let xCursor = ml;
+    doc.setFont('helvetica', 'bold');
+    doc.text('NO ESTOY INCURSO', xCursor, y);
+    const w1 = doc.getTextWidth('NO ESTOY INCURSO');
+    doc.setFont('helvetica', 'normal');
+    
+    const restLine1 = ' en causales de incompatibilidad laboral y ';
+    doc.text(restLine1, xCursor + w1, y);
+    const w2 = doc.getTextWidth(restLine1);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.text('NO TENGO', xCursor + w1 + w2, y);
+    y += 4.5;
+    
+    doc.setFont('helvetica', 'normal');
+    const restP2 = 'impedimento para ejercer la docencia en la Universidad Nacional de Trujillo, de conformidad con lo previsto en el Capítulo VIII de las Incompatibilidades, Impedimentos y sanciones, del Título XII: de los docentes, del Estatuto institucional vigente, según la especificación siguiente:';
+    const linesRestP2 = doc.splitTextToSize(restP2, contentWidth);
+    doc.text(linesRestP2, ml, y);
+    y += linesRestP2.length * 4.5 + 6;
+
+    // OPCIONES
+    for (const opcion of opciones) {
+      const marca = opcionSeleccionada === opcion.key ? 'X' : ' ';
+      const prefijo = `${opcion.num}.( ${marca} ) `;
+      const textoCompleto = prefijo + opcion.texto;
+      const lineas = doc.splitTextToSize(textoCompleto, contentWidth);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      doc.text(lineas, ml, y);
+      y += lineas.length * 4.5 + 4;
+
+      // Salto de página si es necesario
+      if (y > 240) {
+        doc.addPage();
+        y = 20;
       }
-    });
+    }
 
-    autoTable(doc, {
-      head: [[{ content: 'Curso', styles: { fontStyle: 'bold' } }, { content: 'H.T', styles: { fontStyle: 'bold' } }, { content: 'H.P', styles: { fontStyle: 'bold' } }, { content: 'H.L', styles: { fontStyle: 'bold' } }, { content: 'Total', styles: { fontStyle: 'bold' } }]],
-      body: cursosDocente.map((c: any) => [c.nombre.substring(0, 40), c.hrsTeo, c.hrsPra, c.hrsLab, c.total]),
-      startY: y,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [220, 220, 220], textColor: 0 }
-    });
+    y += 2;
 
-    y = (doc as any).lastAutoTable.finalY + 10;
-    const fecha = new Date();
-    const mes = fecha.toLocaleString('es-ES', { month: 'long' });
-    doc.text(`Trujillo, ${fecha.getDate()} de ${mes} del ${fecha.getFullYear()}`, pageWidth / 2, y, { align: 'center' });
+    // PÁRRAFO FINAL EN MAYÚSCULAS
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', 'normal');
+    const parrafoFinal1 = 'EN CASO DE FALTAR A LA VERDAD ME SOMETO A LAS SANCIONES QUE SEAN APLICABLES DE ACUERDO A LEY; ASIMISMO, DE ENCONTRARME INCURSO EN SITUACIÓN DE INCOMPATIBILIDAD O IMPEDIMENTO PARA EJERCER LA DOCENCIA EN LA U.N.T., ME SOMETO A LAS SANCIONES PREVISTAS POR SU ESTATUTO, ';
+    const linesFinal1 = doc.splitTextToSize(parrafoFinal1, contentWidth);
+    doc.text(linesFinal1, ml, y);
+    y += linesFinal1.length * 4.5;
 
-    doc.save(`F02-CAD-${nombreDocente.replace(/\s+/g, '-')}.pdf`);
+    // Parte en negrita-cursiva subrayada
+    doc.setFont('helvetica', 'bolditalic');
+    const parrafoFinal2 = 'Y AUTORIZO AL FUNCIONARIO COMPETENTE DISPONGA EL DESCUENTO DE MI PLANILLA DE HABERES, DEL MONTO QUE LA UNIDAD DE REMUNERACIONES LIQUIDE COMO PAGOS INDEBIDOS POR EL LAPSO DE TIEMPO LABORADO ILEGALMENTE.';
+    const linesFinal2 = doc.splitTextToSize(parrafoFinal2, contentWidth);
+    
+    // Subrayado manual
+    for (const line of linesFinal2) {
+      doc.text(line, ml, y);
+      const lineW = doc.getTextWidth(line);
+      doc.line(ml, y + 0.5, ml + lineW, y + 0.5);
+      y += 4.5;
+    }
+    y += 10;
+
+    // FECHA Y FIRMA
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    const now = new Date();
+    const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    doc.text(`Trujillo, ....... de ................................ de .....`, ml, y);
+    y += 20;
+
+    // Línea de firma centrada
+    const firmaX = pw / 2;
+    doc.line(firmaX - 35, y, firmaX + 35, y);
+    y += 5;
+    doc.text('..................................................', firmaX, y, { align: 'center' });
+    y += 5;
+    doc.setFont('helvetica', 'bold');
+    doc.text(`DNI N° ${dniDocente}`, firmaX, y, { align: 'center' });
+
+    doc.save(`F02-CAD-${nombreDocente.replace(/[\s,]+/g, '-')}.pdf`);
   }
-
+  
   async function generarF03CAD(docenteId: string) {
     const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
     if (cargasDocente.length === 0) {
