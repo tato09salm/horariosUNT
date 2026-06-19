@@ -10,35 +10,41 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { programacion_id } = await req.json();
+    const { programacion_id, ciclo_academico_id, ciclo_plans } = await req.json();
     if (!programacion_id) {
       return NextResponse.json({ error: 'Se requiere programacion_id' }, { status: 400 });
+    }
+    if (!ciclo_academico_id) {
+      return NextResponse.json({ error: 'Se requiere ciclo_academico_id (período origen)' }, { status: 400 });
     }
 
     const result = await transaction(async (client) => {
       // Get programacion info
       const prog = await client.query(
-        'SELECT id, ciclo_id, nombre FROM programaciones WHERE id = $1',
+        'SELECT id, nombre FROM programaciones WHERE id = $1',
         [programacion_id]
       );
       if (!prog.rows.length) throw new Error('Programación no encontrada');
-      const { ciclo_id } = prog.rows[0];
 
-      // Find all carga_horaria records for this ciclo
-      const cargaHorariaList = await client.query(`
+      // Find carga_horaria records for this ciclo, optionally filtered by ciclo_plan
+      let cargaQuery = `
         SELECT ch.id, ch.docente_id, ch.ciclo_plan,
                d.nombre as docente_nombre, d.apellidos as docente_apellidos
         FROM carga_horaria ch
         JOIN docentes d ON ch.docente_id = d.id
         WHERE ch.ciclo_academico_id = $1 AND ch.activo = true
-        ORDER BY ch.ciclo_plan, d.apellidos, d.nombre
-      `, [ciclo_id]);
+      `;
+      const cargaParams: any[] = [ciclo_academico_id];
+      if (ciclo_plans && Array.isArray(ciclo_plans) && ciclo_plans.length > 0) {
+        cargaQuery += ` AND ch.ciclo_plan = ANY($2)`;
+        cargaParams.push(ciclo_plans);
+      }
+      cargaQuery += ` ORDER BY ch.ciclo_plan, d.apellidos, d.nombre`;
 
-      console.log('\n========== DEBUG IMPORTACIÓN CARGA HORARIA ==========');
-      console.log(`Programación: ${prog.rows[0].nombre} (${programacion_id})`);
-      console.log(`Ciclo ID: ${ciclo_id}`);
-      console.log(`Docentes encontrados: ${cargaHorariaList.rows.length}`);
-      console.log('=====================================================\n');
+      const cargaHorariaList = await client.query(cargaQuery, cargaParams);
+
+      // Prevent duplicate inserts for same (programacion_id, grupo_id, docente_id)
+      const insertCache = new Set<string>();
 
       // Track max group number per (curso_id, tipo_actividad) so we can assign sequential groups across docentes
       const maxGrupoPorActividad: Record<string, number> = {};
@@ -242,10 +248,6 @@ export async function POST(req: NextRequest) {
           }
         }
       }
-
-      console.log('\n========== FIN DEBUG ==========');
-      console.log(`Grupos creados: ${gruposCreados}, Cursos asignados: ${cursosAsignados}, Docentes: ${docentesSet.size}`);
-      console.log('================================\n');
 
       return { gruposCreados, cursosAsignados, docentesImportados: docentesSet.size };
     });
