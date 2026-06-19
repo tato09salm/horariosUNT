@@ -366,10 +366,10 @@ export default function CrearHorarioPage() {
         return obj;
       });
 
-      const res = await fetch(`/api/horarios/programaciones/${progId}/importar`, {
+      const res = await fetch('/api/horarios/importar-csv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows: data })
+        body: JSON.stringify({ programacion_id: progId, rows: data })
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);

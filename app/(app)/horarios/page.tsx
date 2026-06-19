@@ -57,14 +57,46 @@ export default function HorariosPage() {
 
   const [showImportModal, setShowImportModal] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importingCards, setImportingCards] = useState<Set<string>>(new Set());
   const [importResult, setImportResult] = useState<any>(null);
   const [importProgId, setImportProgId] = useState('');
+  const [importSourceCicloId, setImportSourceCicloId] = useState('');
+  const [cargaHorariaResumen, setCargaHorariaResumen] = useState<Record<number, number>>({});
+  const [selectedCiclosPlan, setSelectedCiclosPlan] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (showConfigRestringidos) {
       setTempRestringidos(restringidosConfig);
     }
   }, [showConfigRestringidos, restringidosConfig]);
+
+  // Fetch carga horaria summary when import modal opens
+  useEffect(() => {
+    if (showImportModal && importSourceCicloId) {
+      setCargaHorariaResumen({});
+      setSelectedCiclosPlan(new Set());
+      setImportProgId('');
+      fetch(`/api/carga-horaria?ciclo_academico_id=${importSourceCicloId}&solo_sin_asignacion=false`)
+        .then(r => r.json())
+        .then(data => {
+          const ch = data.data || [];
+          const ciclosConCarga = new Set<number>();
+          ch.forEach((entry: any) => {
+            if (entry.ciclo_plan) ciclosConCarga.add(entry.ciclo_plan);
+          });
+          const sorted = Array.from(ciclosConCarga).sort((a, b) => a - b);
+          setCargaHorariaResumen(
+            ch.reduce((acc: Record<number, number>, entry: any) => {
+              const cp = entry.ciclo_plan || 1;
+              acc[cp] = (acc[cp] || 0) + 1;
+              return acc;
+            }, {})
+          );
+          setSelectedCiclosPlan(new Set(sorted));
+        })
+        .catch(() => setCargaHorariaResumen({}));
+    }
+  }, [showImportModal, importSourceCicloId]);
 
   const user = useUser();
   const isAdminOrSec = user?.rol.codigo === 'admin' || user?.rol.codigo === 'secretaria';
@@ -370,10 +402,15 @@ export default function HorariosPage() {
     setImporting(true);
     setImportResult(null);
     try {
+      const cicloPlans = Array.from(selectedCiclosPlan).sort((a, b) => a - b);
       const res = await fetch('/api/horarios/importar-carga-horaria', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programacion_id: programacionId }),
+        body: JSON.stringify({
+          programacion_id: programacionId,
+          ciclo_academico_id: importSourceCicloId,
+          ciclo_plans: cicloPlans,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -386,6 +423,31 @@ export default function HorariosPage() {
       setMsg({ type: 'error', text: e.message });
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function importarCargaDirecta(prog: any) {
+    const progId = prog.id;
+    const cicloId = prog.ciclo_id;
+    if (!cicloId) {
+      setMsg({ type: 'error', text: 'La programación no tiene ciclo asignado' });
+      return;
+    }
+    setImportingCards(prev => new Set(prev).add(progId));
+    try {
+      const res = await fetch('/api/horarios/importar-carga-horaria', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ programacion_id: progId, ciclo_academico_id: cicloId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setMsg({ type: 'success', text: `✅ ${prog.nombre}: ${data.message}` });
+      cargarProgramaciones();
+    } catch (e: any) {
+      setMsg({ type: 'error', text: `Error en ${prog.nombre}: ${e.message}` });
+    } finally {
+      setImportingCards(prev => { const next = new Set(prev); next.delete(progId); return next; });
     }
   }
 
@@ -602,6 +664,18 @@ export default function HorariosPage() {
 
                             {(prog.fase === 4 || prog.estado === 'publicado') && (
                               <BotonExportarFormatoUNT programacionId={prog.id} />
+                            )}
+
+                            {prog.estado !== 'publicado' && prog.estado !== 'cancelado' && canEdit && (
+                              <button className="btn-secondary" style={{padding:'6px 14px',fontSize:'13px'}}
+                                disabled={importingCards.has(prog.id)}
+                                onClick={() => importarCargaDirecta(prog)}>
+                                {importingCards.has(prog.id) ? (
+                                  <><span style={{display:'inline-block',width:'12px',height:'12px',border:'2px solid rgba(0,0,0,0.2)',borderTop:'2px solid currentColor',borderRadius:'50%',animation:'spin 0.6s linear infinite',marginRight:'4px'}}></span> Importando...</>
+                                ) : (
+                                  '📥 Carga Horaria'
+                                )}
+                              </button>
                             )}
 
                             <a href={isDocente ? `/horarios/${prog.id}/disponibilidad` : getFaseUrl(prog)} style={{textDecoration:'none'}}>
@@ -944,8 +1018,47 @@ export default function HorariosPage() {
                 <>
                   <div className="alert alert-info" style={{marginBottom:'16px'}}>
                     <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{flexShrink:0}}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    <span>Se importarán los datos de Carga Horaria a la programación seleccionada. Se crearán grupos y asignaciones de cursos automáticamente.</span>
+                    <span>Se importarán los datos de Carga Horaria a la programación seleccionada.</span>
                   </div>
+                  <div className="form-group">
+                    <label className="form-label">Período origen (Carga Horaria)</label>
+                    <select className="form-input" value={importSourceCicloId} onChange={e => setImportSourceCicloId(e.target.value)}>
+                      <option value="">Seleccione un período...</option>
+                      {ciclos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    </select>
+                  </div>
+                  {importSourceCicloId && (
+                    <div className="form-group">
+                      <label className="form-label">Ciclos de estudio a importar</label>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:'8px',marginBottom:'12px'}}>
+                        {Array.from({length:10}, (_, i) => i + 1).map(cp => {
+                          const roman = ['I','II','III','IV','V','VI','VII','VIII','IX','X'][cp - 1];
+                          const count = cargaHorariaResumen[cp] || 0;
+                          const checked = selectedCiclosPlan.has(cp);
+                          return (
+                            <label key={cp} style={{
+                              display:'flex',alignItems:'center',gap:'6px',padding:'6px 12px',
+                              borderRadius:'8px',cursor:'pointer',fontSize:'13px',fontWeight:'500',
+                              background:checked?'#1a3a5c':'var(--bg-secondary)',
+                              color:checked?'white':'var(--text-primary)',
+                              border:'1px solid',borderColor:checked?'#1a3a5c':'var(--border-color)',
+                              opacity:count === 0 ? 0.4 : 1,
+                              pointerEvents: count === 0 ? 'none' as const : undefined,
+                            }}>
+                              <input type="checkbox" checked={checked}
+                                onChange={() => {
+                                  const next = new Set(selectedCiclosPlan);
+                                  if (next.has(cp)) next.delete(cp); else next.add(cp);
+                                  setSelectedCiclosPlan(next);
+                                }}
+                                style={{accentColor:'#2563eb',display:'none'}} />
+                              {roman} {count > 0 && <span style={{fontSize:'11px',opacity:0.7}}>({count})</span>}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                   <div className="form-group">
                     <label className="form-label">Programación destino</label>
                     <select className="form-input" value={importProgId} onChange={e => setImportProgId(e.target.value)}>
@@ -973,10 +1086,12 @@ export default function HorariosPage() {
                 <>
                   <button className="btn-secondary" onClick={() => { setShowImportModal(false); setImportResult(null); }}>Cancelar</button>
                   <button className="btn-primary" style={{background:'#059669',borderColor:'#047857'}}
-                    disabled={importing || !importProgId}
+                    disabled={importing || !importProgId || !importSourceCicloId || selectedCiclosPlan.size === 0}
                     onClick={() => {
-                      if (importProgId) importarCargaHoraria(importProgId);
-                      else setImportResult({ type: 'error', text: 'Seleccione una programación destino' });
+                      if (!importSourceCicloId) setImportResult({ type: 'error', text: 'Seleccione un período origen' });
+                      else if (!importProgId) setImportResult({ type: 'error', text: 'Seleccione una programación destino' });
+                      else if (selectedCiclosPlan.size === 0) setImportResult({ type: 'error', text: 'Seleccione al menos un ciclo de estudio' });
+                      else importarCargaHoraria(importProgId);
                     }}>
                     {importing ? (
                       <><span style={{display:'inline-block',width:'14px',height:'14px',border:'2px solid rgba(255,255,255,0.3)',borderTop:'2px solid white',borderRadius:'50%',animation:'spin 0.6s linear infinite'}}></span> Importando...</>
