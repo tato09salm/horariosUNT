@@ -4,10 +4,11 @@
 import { useState, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import JSZip from 'jszip';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/lib/theme';
 import { useUser } from '../layout';
-import { Edit2, Trash2 } from 'lucide-react';
+import { Edit2, Trash2, Eye } from 'lucide-react';
 
 interface CicloAcademico {
   id: string;
@@ -368,12 +369,66 @@ export default function CargaHorariaPage() {
     }
     setCiclosExpandidos(newExpandidos);
   }
+async function marcarFormatosGenerados(docenteId: string) {
+  const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
+  for (const ch of cargasDocente) {
+    await fetch(`/api/carga-horaria/${ch.id}/bloquear`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ formatos_generados: true })
+    });
+    // Actualizar estado local
+    setCargaHoraria(prev => prev.map(c =>
+      c.id === ch.id ? { ...c, formatos_generados: true } : c
+    ));
+  }
+}
 
-  function generarCargaAdicionalPDF(docenteId: string) {
+async function generarTodosFormatosZip(docenteId: string) {
     const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
     if (cargasDocente.length === 0) {
       setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
       return;
+    }
+
+    const nombreDocente = `${cargasDocente[0].docente_apellidos}-${cargasDocente[0].docente_nombre}`.replace(/\s+/g, '-');
+
+    try {
+      const zip = new JSZip();
+
+      const docF01 = generarF01CAD(docenteId, true);
+      const docF02 = generarF02CAD(docenteId, true);
+      const docF03 = await generarF03CAD(docenteId, true);
+      const docAdicional = generarCargaAdicionalPDF(docenteId, true);
+
+      if (docF01) zip.file(`F01-CAD-${nombreDocente}.pdf`, docF01.output('blob'));
+      if (docF02) zip.file(`F02-CAD-${nombreDocente}.pdf`, docF02.output('blob'));
+      if (docF03) zip.file(`F03-CAD-${nombreDocente}.pdf`, docF03.output('blob'));
+      if (docAdicional) zip.file(`Dec-Adicional-${nombreDocente}.pdf`, docAdicional.output('blob'));
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Formatos-${nombreDocente}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      await marcarFormatosGenerados(docenteId);
+      setToast({ type: 'success', text: 'Formatos descargados en .zip correctamente' });
+    } catch (e) {
+      console.error('Error generando zip:', e);
+      setToast({ type: 'error', text: 'Error al generar el archivo .zip' });
+    }
+  }
+
+function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false): jsPDF | null {
+    const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
+    if (cargasDocente.length === 0) {
+      setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
+      return null;
     }
 
     const primeraCarga = cargasDocente[0];
@@ -604,16 +659,20 @@ export default function CargaHorariaPage() {
     doc.line(ml, y, ml + 65, y);
     doc.text('Director de la Unidad Académica', ml + 32.5, y + 4, { align: 'center' });
 
-    doc.save(`carga-adicional-${nombreDocente.replace(/\s+/g, '-')}.pdf`);
+    if (returnBlob) {
+          return doc;
+        }
+        doc.save(`carga-adicional-${nombreDocente.replace(/\s+/g, '-')}.pdf`);
+        return null;
   }
 
-  function generarF01CAD(docenteId: string) {
+  function generarF01CAD(docenteId: string, returnBlob: boolean = false): jsPDF | null {
     // Obtener todos los datos de carga horaria del docente en el ciclo seleccionado
     const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
-    if (cargasDocente.length === 0) {
-      setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
-      return;
-    }
+      if (cargasDocente.length === 0) {
+        setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
+        return null;
+      }
     
     // Combinar todos los cursos de todas las cargas horarias del docente
     const cursosDocente: any[] = [];
@@ -909,14 +968,18 @@ export default function CargaHorariaPage() {
     doc.text('V° B° Decano Fac.', pageWidth - 55, firmaY + 5, { align: 'center' });
     
     // Descargar PDF
+    if (returnBlob) {
+      return doc;
+    }
     doc.save(`carga-horaria-${nombreDocente.replace(/\s+/g, '-')}.pdf`);
+    return null;
   }
 
-function generarF02CAD(docenteId: string) {
+    function generarF02CAD(docenteId: string, returnBlob: boolean = false): jsPDF | null {
     const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
     if (cargasDocente.length === 0) {
       setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
-      return;
+      return null;
     }
 
     const primeraCarga = cargasDocente[0];
@@ -1057,31 +1120,33 @@ function generarF02CAD(docenteId: string) {
     }
     y += 10;
 
-    // FECHA Y FIRMA
+// FECHA Y FIRMA
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9.5);
     const now = new Date();
     const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-    doc.text(`Trujillo, ....... de ................................ de .....`, ml, y);
+    doc.text(`Trujillo, ${now.getDate()} de ${meses[now.getMonth()]} de ${now.getFullYear()}`, ml, y);
     y += 20;
 
-    // Línea de firma centrada
+// Línea de firma centrada
     const firmaX = pw / 2;
     doc.line(firmaX - 35, y, firmaX + 35, y);
-    y += 5;
-    doc.text('..................................................', firmaX, y, { align: 'center' });
     y += 5;
     doc.setFont('helvetica', 'bold');
     doc.text(`DNI N° ${dniDocente}`, firmaX, y, { align: 'center' });
 
-    doc.save(`F02-CAD-${nombreDocente.replace(/[\s,]+/g, '-')}.pdf`);
-  }
+    if (returnBlob) {
+          return doc;
+        }
+        doc.save(`F02-CAD-${nombreDocente.replace(/[\s,]+/g, '-')}.pdf`);
+        return null;
+      }
   
-  async function generarF03CAD(docenteId: string) {
+  async function generarF03CAD(docenteId: string, returnBlob: boolean = false): Promise<jsPDF | null> {
     const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
     if (cargasDocente.length === 0) {
       setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
-      return;
+      return null;
     }
 
     const docenteData = allDocentes.find(d => d.id === docenteId);
@@ -1424,7 +1489,11 @@ function generarF02CAD(docenteId: string) {
     doc.setFont('helvetica', 'bold');
     doc.text(`FECHA DE REGISTRO: (${fechaReg})    EMAIL: ${email}`, ml, y);
 
-    doc.save(`F03-CAD-${apellidosNombre.replace(/[\s,]+/g, '-')}.pdf`);
+    if (returnBlob) {
+          return doc;
+        }
+        doc.save(`F03-CAD-${apellidosNombre.replace(/[\s,]+/g, '-')}.pdf`);
+        return null;
   }
 
   // Obtener todos los ciclos de estudio (I-X)
@@ -1488,7 +1557,11 @@ function generarF02CAD(docenteId: string) {
     )
   );
 
-  const docentesFiltradosReporte = allDocentes.filter(d =>
+  const miCargaBloqueada = isDocente && user?.docente_id
+      ? cargaHoraria.some(ch => ch.docente_id === user.docente_id && ch.formatos_generados)
+      : false;
+
+    const docentesFiltradosReporte = allDocentes.filter(d =>
     d.activo && (
       normalizeText(d.nombre || '').includes(normalizeText(buscarDocenteReporte)) ||
       normalizeText(d.apellidos || '').includes(normalizeText(buscarDocenteReporte)) ||
@@ -1496,6 +1569,7 @@ function generarF02CAD(docenteId: string) {
     )
   );
 
+  
   return (
     <div className="page-container">
       {/* Toast */}
@@ -1634,7 +1708,8 @@ function generarF02CAD(docenteId: string) {
           ) : (
             <>
               {/* Filtros */}
-              <div className="card" style={{ marginBottom: '16px', padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
+              {(!isDocente || !miCargaBloqueada) && (
+             <div className="card" style={{ marginBottom: '16px', padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end', justifyContent: 'space-between' }}>
                   {!isDocente ? (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end' }}>
@@ -1663,7 +1738,7 @@ function generarF02CAD(docenteId: string) {
                     </div>
                   ) : <div />}
                   <div>
-                    {(canWrite || isDocente) && (
+                    {(canWrite || isDocente) && !miCargaBloqueada && (
                       <button
                         className="btn-primary"
                         onClick={() => {
@@ -1686,7 +1761,7 @@ function generarF02CAD(docenteId: string) {
                   </div>
                 </div>
               </div>
-
+            )}
               {/* Accordion de ciclos de estudio */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {loadingCiclos ? (
@@ -1841,8 +1916,8 @@ function generarF02CAD(docenteId: string) {
                                                 }}
                                                 onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
                                               >
-                                                <Edit2 size={14} />
-                                                Editar
+                                                {ch.formatos_generados ? <Eye size={14} /> : <Edit2 size={14} />}
+                                                {ch.formatos_generados ? 'Visualizar' : 'Editar'}
                                               </button>
                                             )}
                                             {canWrite && (
@@ -1855,7 +1930,7 @@ function generarF02CAD(docenteId: string) {
                                                   alignItems: 'center',
                                                   gap: '6px'
                                                 }}
-                                                onClick={() => eliminarCurso(curso.id)}
+                                                onClick={() => eliminarCargaHoraria(ch.id)}
                                                 disabled={saving}
                                               >
                                                 <Trash2 size={14} />
@@ -1887,61 +1962,84 @@ function generarF02CAD(docenteId: string) {
                                          <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
                                          <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
                                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{ch.horas_asignadas}h</td>
-                                         <td style={{ verticalAlign: 'middle' }}>
-                                          {(canWrite || (isDocente && user?.docente_id === ch.docente_id)) && (
-                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                              {canWrite && (
-                                                <button
-                                                  className="btn-secondary"
-                                                  style={{ 
-                                                    padding: '6px 8px', 
-                                                    fontSize: '11px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '6px'
-                                                  }}
-                                                  onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
-                                                >
-                                                  <Edit2 size={14} />
-                                                  Editar
-                                                </button>
-                                              )}
-                                              {isDocente && user?.docente_id === ch.docente_id && (
-                                                <button
-                                                  className="btn-secondary"
-                                                  style={{ 
-                                                    padding: '6px 8px', 
-                                                    fontSize: '11px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '6px'
-                                                  }}
-                                                  onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
-                                                >
-                                                  <Edit2 size={14} />
-                                                  Editar
-                                                </button>
-                                              )}
-                                              {canWrite && (
-                                                <button
-                                                  className="btn-secondary btn-crud-deactivate"
-                                                  style={{ 
-                                                    padding: '6px 8px', 
-                                                    fontSize: '11px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '6px'
-                                                  }}
-                                                  onClick={() => eliminarCargaHoraria(ch.id)}
-                                                  disabled={saving}
-                                                >
-                                                  <Trash2 size={14} />
-                                                  Eliminar
-                                                </button>
-                                              )}
-                                            </div>
-                                          )}
-                                        </td>
+<td style={{ verticalAlign: 'middle' }}>
+                                        {(canWrite || (isDocente && user?.docente_id === ch.docente_id)) && (
+                                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                            {ch.formatos_generados && (
+                                              <span title="Formatos generados — edición bloqueada" style={{ fontSize: '16px' }}>🔒</span>
+                                            )}
+                                            {canWrite && (
+                                              <button
+                                                className="btn-secondary"
+                                                style={{ 
+                                                  padding: '6px 8px', 
+                                                  fontSize: '11px',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '6px'
+                                                }}
+                                                onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
+                                              >
+                                                <Edit2 size={14} />
+                                                Editar
+                                              </button>
+                                            )}
+                                            {isDocente && user?.docente_id === ch.docente_id && !ch.formatos_generados && (
+                                              <button
+                                                className="btn-secondary"
+                                                style={{ 
+                                                  padding: '6px 8px', 
+                                                  fontSize: '11px',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '6px'
+                                                }}
+                                                onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
+                                              >
+                                                <Edit2 size={14} />
+                                                Editar
+                                              </button>
+                                            )}
+                                            {canWrite && ch.formatos_generados && (
+                                              <button
+                                                className="btn-secondary"
+                                                style={{ padding: '6px 8px', fontSize: '11px', background: '#fef9c3', color: '#854d0e' }}
+                                                onClick={async () => {
+                                                  await fetch(`/api/carga-horaria/${ch.id}/bloquear`, {
+                                                    method: 'PATCH',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ formatos_generados: false })
+                                                  });
+                                                  const params = new URLSearchParams();
+                                                  params.set('ciclo_academico_id', cicloAcademicoSeleccionado);
+                                                  const data = await (await fetch(`/api/carga-horaria?${params}`)).json();
+                                                  setCargaHoraria(data.data || []);
+                                                  setToast({ type: 'success', text: 'Carga horaria desbloqueada' });
+                                                }}
+                                              >
+                                                🔓 Desbloquear
+                                              </button>
+                                            )}
+                                            {canWrite && (
+                                              <button
+                                                className="btn-secondary btn-crud-deactivate"
+                                                style={{ 
+                                                  padding: '6px 8px', 
+                                                  fontSize: '11px',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '6px'
+                                                }}
+                                                onClick={() => eliminarCargaHoraria(ch.id)}
+                                                disabled={saving}
+                                              >
+                                                <Trash2 size={14} />
+                                                Eliminar
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
+                                      </td>
                                       </tr>
                                     );
                                   })}
@@ -2250,7 +2348,7 @@ function generarF02CAD(docenteId: string) {
                                     alignItems: 'center',
                                     gap: '6px'
                                   }}
-                                  onClick={() => generarF01CAD(ch.docente_id)}
+                                  onClick={() => { generarF01CAD(ch.docente_id); marcarFormatosGenerados(ch.docente_id); }}
                                 >
                                   <span style={{ fontSize: '14px' }}>📄</span>
                                   F01-CAD
@@ -2264,7 +2362,7 @@ function generarF02CAD(docenteId: string) {
                                     alignItems: 'center',
                                     gap: '6px'
                                   }}
-                                  onClick={() => generarF02CAD(ch.docente_id)}
+                                  onClick={() => { generarF02CAD(ch.docente_id); marcarFormatosGenerados(ch.docente_id); }}
                                 >
                                   <span style={{ fontSize: '14px' }}>📄</span>
                                   F02-CAD
@@ -2278,7 +2376,7 @@ function generarF02CAD(docenteId: string) {
                                     alignItems: 'center',
                                     gap: '6px'
                                   }}
-                                  onClick={() => generarF03CAD(ch.docente_id)}
+                                  onClick={() => { generarF03CAD(ch.docente_id); marcarFormatosGenerados(ch.docente_id); }}
                                 >
                                   <span style={{ fontSize: '14px' }}>📄</span>
                                   F03-CAD
@@ -2292,10 +2390,24 @@ function generarF02CAD(docenteId: string) {
                                     alignItems: 'center',
                                     gap: '6px'
                                   }}
-                                  onClick={() => generarCargaAdicionalPDF(ch.docente_id)}
-                                >
-                                  <span style={{ fontSize: '14px' }}>📄</span>
-                                  Dec. Adicional
+                                  onClick={() => { generarCargaAdicionalPDF(ch.docente_id); marcarFormatosGenerados(ch.docente_id); }}
+                                  >
+                                    <span style={{ fontSize: '14px' }}>📄</span>
+                                    Dec. Adicional
+                                </button>
+                                <button
+                                  className="btn-primary"
+                                  style={{ 
+                                    padding: '6px 12px', 
+                                    fontSize: '13px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                  }}
+                                  onClick={() => generarTodosFormatosZip(ch.docente_id)}
+                                  >
+                                    <span style={{ fontSize: '14px' }}>📦</span>
+                                    Descargar Todo (.zip)
                                 </button>
                               </div>
                             </td>
