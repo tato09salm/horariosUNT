@@ -157,14 +157,22 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
 
-  if (session.rol === 'docente') {
-    const d = await queryOne<{ id: string }>('SELECT id FROM docentes WHERE email = $1 AND activo = true', [session.email]);
-    if (!d || d.id !== body.docente_id) {
-      return NextResponse.json({ error: 'Solo puedes guardar tu propia carga horaria' }, { status: 403 });
-    }
-  } else if (!['admin', 'director_escuela', 'docente', 'secretaria'].includes(session.rol)) {
-    return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
+if (session.rol === 'docente') {
+  const d = await queryOne<{ id: string; escuela_id: string | null }>(
+    'SELECT id, escuela_id FROM docentes WHERE email = $1 AND activo = true', 
+    [session.email]
+  );
+  if (!d || d.id !== body.docente_id) {
+    return NextResponse.json({ error: 'Solo puedes guardar tu propia carga horaria' }, { status: 403 });
   }
+  if (!d.escuela_id) {
+    return NextResponse.json({ 
+      error: 'No perteneces a la escuela configurada. Solo necesitas que te asignen los cursos correspondientes.' 
+    }, { status: 403 });
+  }
+} else if (!['admin', 'director_escuela', 'docente', 'secretaria'].includes(session.rol)) {
+  return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
+}
 
   try {
     // First check if the grupos columns exist, add them if they don't
