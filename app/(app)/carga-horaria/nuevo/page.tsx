@@ -187,6 +187,8 @@ export default function NuevaCargaHorariaPage() {
   const [guardando, setGuardando] = useState(false);
   const [mostrarExito, setMostrarExito] = useState(false);
   const [cargaHorariaId, setCargaHorariaId] = useState<string | null>(null);
+  const [formatosGenerados, setFormatosGenerados] = useState<boolean>(false);
+  const bloqueadoParaDocente = formatosGenerados && isDocente && !canWrite;
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -294,6 +296,7 @@ export default function NuevaCargaHorariaPage() {
                 allCursos.push(...ch.cursos);
               }
             }
+            setFormatosGenerados(!!combinedCh?.formatos_generados);
             
           newFacultad = combinedCh.facultad || docente.facultad || '';
           newDptoAcademico = combinedCh.dpto_academico || docente.dpto_academico || '';
@@ -936,14 +939,34 @@ setDeclaracionJuradaOpcion(opcionSugerida);
           <span style={{ fontSize: '16px', fontWeight: '600' }}>Carga horaria guardada exitosamente!</span>
         </div>
       )}
-      
+{formatosGenerados && isDocente && !canWrite && (
+        <div style={{
+          background: '#fef9c3',
+          border: '1px solid #facc15',
+          color: '#854d0e',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          fontSize: '14px',
+          fontWeight: '600'
+        }}>
+          🔒 Ya generaste tus formatos. Tu carga horaria está bloqueada para edición. Si necesitas hacer cambios, contacta a Secretaría para que la desbloquee.
+        </div>
+      )}
       <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', margin: '0 0 4px' }}>
-            {step === 1 ? 'Nueva Carga Horaria' : step === 2 ? 'Declaración Jurada (F02-CAD)' : 'Carga Horaria Adicional'}
+<h1 style={{ fontSize: '24px', fontWeight: '700', margin: '0 0 4px' }}>
+            {bloqueadoParaDocente
+              ? 'Visualización de Carga Horaria'
+              : step === 1 ? 'Nueva Carga Horaria' : step === 2 ? 'Declaración Jurada (F02-CAD)' : 'Carga Horaria Adicional'}
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
-            {step === 1 
+            {bloqueadoParaDocente
+              ? 'Estás visualizando tu carga horaria. Esta información es de solo lectura.'
+              : step === 1 
               ? 'Paso 1 de 3: Rellene la carga horaria general' 
               : step === 2
               ? 'Paso 2 de 3: Declaración Jurada de Incompatibilidad'
@@ -985,6 +1008,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                   placeholder="Buscar docente por nombre, apellidos o DNI..."
                   value={searchQuery}
                   onChange={handleSearchInputChange}
+                  disabled={bloqueadoParaDocente}
                   style={{ width: '100%' }}
                 />
               </div>
@@ -1031,7 +1055,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
               </div>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+<div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', width: '160px' }}>
                     FACULTAD:
                   </label>
@@ -1040,6 +1064,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                     placeholder="Ingeniería"
                     value={facultad}
                     onChange={(e) => setFacultad(e.target.value)}
+                    disabled={bloqueadoParaDocente}
                     style={{ flex: 1, padding: '6px 8px', fontSize: '12px' }}
                   />
                 </div>
@@ -1052,6 +1077,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                     placeholder="Dpto. de Ingeniería de Sistemas"
                     value={dptoAcademico}
                     onChange={(e) => setDptoAcademico(e.target.value)}
+                    disabled={bloqueadoParaDocente}
                     style={{ flex: 1, padding: '6px 8px', fontSize: '12px' }}
                   />
                 </div>
@@ -1085,10 +1111,11 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                         {docenteSeleccionado.categoria || ''}
                       </td>
                       <td style={{ padding: '12px', border: '1px solid var(--border-color)' }}>
-                        <select
+                      <select
                           className="form-input"
                           value={modalidad}
                           onChange={(e) => setModalidad(e.target.value)}
+                          disabled={bloqueadoParaDocente}
                           style={{ padding: '6px 10px', fontSize: '13px' }}
                         >
                           <option value="">Seleccionar modalidad...</option>
@@ -1116,7 +1143,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                 <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                   1. TRABAJO LECTIVO.- Datos completos y con claridad
                 </h3>
-                {(canWrite || isDocente) && (
+                {(canWrite || isDocente) && !bloqueadoParaDocente && (
                   <button
                     className="btn-primary"
                     onClick={() => setShowAgregarCursoModal(true)}
@@ -1150,13 +1177,15 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                       <th colSpan={2} style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>Hrs.Pra/Grupos</th>
                       <th colSpan={2} style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>Hrs.Lab/Grupos</th>
                       <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>Total Hrs.</th>
-                      <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>Accion</th>
+                      {!bloqueadoParaDocente && (
+                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>Accion</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
                     {cursosAsignados.length === 0 ? (
                       <tr>
-                        <td colSpan={15} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', border: '1px solid var(--border-color)' }}>
+                        <td colSpan={bloqueadoParaDocente ? 14 : 15} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', border: '1px solid var(--border-color)' }}>
                           No hay cursos agregados
                         </td>
                       </tr>
@@ -1170,7 +1199,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               className="form-input"
                               value={curso.seccion}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'seccion', e.target.value)}
-                              disabled={false}
+                              disabled={bloqueadoParaDocente}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '60px' }}
                             />
                           </td>
@@ -1179,7 +1208,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               className="form-input"
                               value={curso.condicionCurso}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'condicionCurso', e.target.value as 'OB' | 'EL')}
-                              disabled={false}
+                              disabled={bloqueadoParaDocente}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '70px' }}
                             >
                               <option value="OB">OB</option>
@@ -1191,7 +1220,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               className="form-input"
                               value={curso.escuela}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'escuela', e.target.value)}
-                              disabled={false}
+                              disabled={bloqueadoParaDocente}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '180px' }}
                             />
                           </td>
@@ -1204,7 +1233,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               value={curso.numeroAlumnos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'numeroAlumnos', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
-                              disabled={false}
+                              disabled={bloqueadoParaDocente}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '70px' }}
                             />
                           </td>
@@ -1217,7 +1246,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               value={curso.teoriaHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'teoriaHoras', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
-                              disabled={false}
+                              disabled={bloqueadoParaDocente}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -1229,7 +1258,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               value={curso.teoriaGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'teoriaGrupos', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
-                              disabled={false}
+                              disabled={bloqueadoParaDocente}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -1242,7 +1271,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               value={curso.practicaHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'practicaHoras', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
-                              disabled={false}
+                              disabled={bloqueadoParaDocente} 
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -1254,7 +1283,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               value={curso.practicaGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'practicaGrupos', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
-                              disabled={false}
+                              disabled={bloqueadoParaDocente}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -1267,7 +1296,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               value={curso.laboratorioHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'laboratorioHoras', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
-                              disabled={false}
+                              disabled={bloqueadoParaDocente}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -1279,20 +1308,22 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               value={curso.laboratorioGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'laboratorioGrupos', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
-                              disabled={false}
+                              disabled={bloqueadoParaDocente}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
-                          <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>{curso.totalHoras}</td>
-                          <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <button 
-                              className="btn-secondary btn-crud-deactivate" 
-                              style={{ padding: '4px 8px', fontSize: '11px' }}
-                              onClick={() => handleEliminarCurso(curso.id)}
-                            >
-                              Eliminar
-                            </button>
-                          </td>
+                        <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>{curso.totalHoras}</td>
+                          {!bloqueadoParaDocente && (
+                            <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
+                              <button 
+                                className="btn-secondary btn-crud-deactivate" 
+                                style={{ padding: '4px 8px', fontSize: '11px' }}
+                                onClick={() => handleEliminarCurso(curso.id)}
+                              >
+                                Eliminar
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))
                     )}
@@ -1330,7 +1361,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('preparacionEvaluacion', item.id, e.target.value)}
-                                disabled={!!item.dia}
+                                disabled={!!item.dia || bloqueadoParaDocente}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1355,7 +1386,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('preparacionEvaluacion', item.id, e.target.value)}
-                              disabled={!!item.dia}
+                             disabled={!!item.dia || bloqueadoParaDocente}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1391,7 +1422,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('consejeriaTutoria', item.id, e.target.value)}
-                                disabled={!!item.dia}
+                                disabled={!!item.dia || bloqueadoParaDocente}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1416,7 +1447,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('consejeriaTutoria', item.id, e.target.value)}
-                              disabled={!!item.dia}
+                              disabled={!!item.dia || bloqueadoParaDocente}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1452,7 +1483,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('investigacion', item.id, e.target.value)}
-                                disabled={!!item.dia}
+                                disabled={!!item.dia || bloqueadoParaDocente}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1477,7 +1508,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('investigacion', item.id, e.target.value)}
-                              disabled={!!item.dia}
+                              disabled={!!item.dia || bloqueadoParaDocente}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1513,7 +1544,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('capacitacion', item.id, e.target.value)}
-                                disabled={!!item.dia}
+                                disabled={!!item.dia || bloqueadoParaDocente}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1538,7 +1569,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('capacitacion', item.id, e.target.value)}
-                              disabled={!!item.dia}
+                              disabled={!!item.dia || bloqueadoParaDocente}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1574,7 +1605,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('gobierno', item.id, e.target.value)}
-                                disabled={!!item.dia}
+                                disabled={!!item.dia || bloqueadoParaDocente}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1599,7 +1630,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('gobierno', item.id, e.target.value)}
-                              disabled={!!item.dia}
+                              disabled={!!item.dia || bloqueadoParaDocente}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1635,7 +1666,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('administracion', item.id, e.target.value)}
-                                disabled={!!item.dia}
+                                disabled={!!item.dia || bloqueadoParaDocente}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1660,7 +1691,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('administracion', item.id, e.target.value)}
-                              disabled={!!item.dia}
+                              disabled={!!item.dia || bloqueadoParaDocente}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1696,7 +1727,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('asesoriaTesis', item.id, e.target.value)}
-                                disabled={!!item.dia}
+                                disabled={!!item.dia || bloqueadoParaDocente}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1721,7 +1752,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('asesoriaTesis', item.id, e.target.value)}
-                              disabled={!!item.dia}
+                              disabled={!!item.dia || bloqueadoParaDocente}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1757,7 +1788,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('responsabilidadSocial', item.id, e.target.value)}
-                                disabled={!!item.dia}
+                                disabled={!!item.dia || bloqueadoParaDocente}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1782,7 +1813,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('responsabilidadSocial', item.id, e.target.value)}
-                              disabled={!!item.dia}
+                              disabled={!!item.dia || bloqueadoParaDocente}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1818,7 +1849,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('comitesTecnicos', item.id, e.target.value)}
-                                disabled={!!item.dia}
+                                disabled={!!item.dia || bloqueadoParaDocente}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1843,7 +1874,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('comitesTecnicos', item.id, e.target.value)}
-                              disabled={!!item.dia}
+                              disabled={!!item.dia || bloqueadoParaDocente}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1870,7 +1901,7 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                 </div>
               </div>
 
-              {/* CONTINUAR BUTTON */}
+{/* CONTINUAR BUTTON */}
               {(canWrite || isDocente) && (
                 <div style={{ marginTop: '32px', display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                   <button 
@@ -1880,13 +1911,15 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                   >
                     Cancelar
                   </button>
-                  <button 
-                    className="btn-primary"
-                    onClick={handleContinuar}
-                    style={{ padding: '10px 24px' }}
-                  >
-                    Continuar
-                  </button>
+                  {!(formatosGenerados && isDocente && !canWrite) && (
+                    <button 
+                      className="btn-primary"
+                      onClick={handleContinuar}
+                      style={{ padding: '10px 24px' }}
+                    >
+                      Continuar
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -2044,13 +2077,14 @@ setDeclaracionJuradaOpcion(opcionSugerida);
         <button className="btn-secondary" onClick={() => router.push('/carga-horaria')} style={{ padding: '10px 24px' }}>
           Cancelar
         </button>
-        <button
+<button
           className="btn-primary"
           onClick={() => {
             if (!declaracionJuradaOpcion) {
               setAlertMessage('Debe seleccionar una opción de la Declaración Jurada');
               return;
             }
+            setAdicionalData(prev => ({ ...prev, declaracion_jurada_opcion: declaracionJuradaOpcion }));
             setStep(3);
           }}
           style={{ padding: '10px 24px' }}
@@ -2452,10 +2486,10 @@ setDeclaracionJuradaOpcion(opcionSugerida);
                   <button 
                     className="btn-primary"
                     onClick={handleGuardar}
-                    disabled={guardando}
+                    disabled={guardando || (formatosGenerados && isDocente && !canWrite)}
                     style={{ padding: '10px 24px' }}
                   >
-                    {guardando ? 'Guardando...' : 'Guardar y Programar Horario'}
+                    {guardando ? 'Guardando...' : (formatosGenerados && isDocente && !canWrite) ? 'Bloqueado' : 'Guardar y Programar Horario'}
                   </button>
                 </div>
               )}
@@ -2762,7 +2796,8 @@ setDeclaracionJuradaOpcion(opcionSugerida);
       )}
 
       {/* Botones de Guardar y Cancelar */}
-      {step === 1 && docenteSeleccionado && (canWrite || isDocente) && (
+{/* Botones de Guardar y Cancelar */}
+      {step === 1 && docenteSeleccionado && (canWrite || isDocente) && !bloqueadoParaDocente && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
           <button
             className="btn-secondary"
