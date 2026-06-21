@@ -692,10 +692,21 @@ export default function HorariosPage() {
                             )}
 
                             {prog.estado !== 'publicado' && prog.estado !== 'cancelado' && canEdit && (
+<<<<<<< HEAD
                               <button style={{padding:'4px 10px',fontSize:'12px',background:'transparent',border:'none',cursor:importingCards.has(prog.id)?'wait':'pointer',color:'var(--text-secondary)',textDecoration:'underline',textUnderlineOffset:'2px'}}
                                 disabled={importingCards.has(prog.id)}
                                 onClick={() => importarCargaDirecta(prog)}>
                                 {importingCards.has(prog.id) ? 'Importando...' : '📥 Carga Horaria'}
+=======
+                              <button className="btn-secondary" style={{padding:'6px 14px',fontSize:'13px'}}
+                                disabled={importingCards.has(prog.id)}
+                                onClick={() => importarCargaDirecta(prog)}>
+                                {importingCards.has(prog.id) ? (
+                                  <><span style={{display:'inline-block',width:'12px',height:'12px',border:'2px solid rgba(0,0,0,0.2)',borderTop:'2px solid currentColor',borderRadius:'50%',animation:'spin 0.6s linear infinite',marginRight:'4px'}}></span> Importando...</>
+                                ) : (
+                                  '📥 Carga Horaria'
+                                )}
+>>>>>>> b10dd1f (mejora del importar horario)
                               </button>
                             )}
 
