@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     const advertencias: string[] = [];
-    const cicloAcademicoId = prog.ciclo_academico_id;
+    const cicloAcademicoId = prog.ciclo_id;
     for (const [docente_id, info] of horasPorDocente) {
       const horasRequeridas = info.horas;
       const rawSlots = await query(`

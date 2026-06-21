@@ -34,7 +34,7 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
   const inicio = Date.now();
   const debugLog: string[] = [];
 
-  const progRow = await queryOne(`SELECT config, ciclo_academico_id FROM programaciones WHERE id = $1`, [programacion_id]);
+  const progRow = await queryOne(`SELECT config, ciclo_id FROM programaciones WHERE id = $1`, [programacion_id]);
   if (!progRow) {
     throw new Error('No se encontró la programación');
   }
@@ -67,7 +67,7 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
     ORDER BY docente_id, dia, slot_id
   `, [programacion_id]);
 
-  const disponibilidad = await filtrarDisponibilidadPorCargaAdicional(rawDisponibilidad, progRow.ciclo_academico_id);
+  const disponibilidad = await filtrarDisponibilidadPorCargaAdicional(rawDisponibilidad, progRow.ciclo_id);
 
   let dispAmbiente: { ambiente_id: string; slot_id: string; dia: string; estado: string }[] = [];
   try {

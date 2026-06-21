@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, Fragment } from 'react';
+import { useState, useEffect, useCallback, Fragment, useMemo } from 'react';
 import { useUser } from '@/app/(app)/layout';
 import { useTheme } from '@/lib/theme';
 import GrillaHorarios from '@/components/horarios/GrillaHorarios';
@@ -29,6 +29,25 @@ function getEstadoStyle(estado: string, darkMode: boolean) {
   };
   return palette[estado] || palette.borrador;
 }
+
+function mergeBloquesContiguos(asignaciones: any[]) {
+  const DIAS_ORDER = ['lunes','martes','miercoles','jueves','viernes','sabado'];
+  const sorted = [...asignaciones].sort(
+    (a, b) => DIAS_ORDER.indexOf(a.dia) - DIAS_ORDER.indexOf(b.dia) || (a.hora_inicio || '').localeCompare(b.hora_inicio || '')
+  );
+  const merged: { dia: string; inicio: string; fin: string }[] = [];
+  for (const a of sorted) {
+    const prev = merged[merged.length - 1];
+    if (prev && prev.dia === a.dia && prev.fin === a.hora_inicio) {
+      prev.fin = a.hora_fin;
+    } else {
+      merged.push({ dia: a.dia, inicio: a.hora_inicio, fin: a.hora_fin });
+    }
+  }
+  return merged;
+}
+
+const ORDER_TIPO: Record<string, number> = { teoria: 1, practica: 2, laboratorio: 3 };
 
 export default function HorariosPage() {
   const { darkMode } = useTheme();
@@ -63,6 +82,14 @@ export default function HorariosPage() {
   const [importSourceCicloId, setImportSourceCicloId] = useState('');
   const [cargaHorariaResumen, setCargaHorariaResumen] = useState<Record<number, number>>({});
   const [selectedCiclosPlan, setSelectedCiclosPlan] = useState<Set<number>>(new Set());
+
+  // Estado para observaciones
+  const [showObservacionesModal, setShowObservacionesModal] = useState(false);
+  const [cursoObservacionId, setCursoObservacionId] = useState<string>('');
+  const [grupoObservacionKey, setGrupoObservacionKey] = useState<string>('');
+  const [grupoObservacion, setGrupoObservacion] = useState<any[]>([]);
+  const [observacionTexto, setObservacionTexto] = useState('');
+  const [guardandoObservacion, setGuardandoObservacion] = useState(false);
 
   useEffect(() => {
     if (showConfigRestringidos) {
@@ -105,6 +132,38 @@ export default function HorariosPage() {
   const canEdit = isAdminOrSec; // Director solo lectura
   const [miHorario, setMiHorario] = useState<any[]>([]);
   const [loadingMiHorario, setLoadingMiHorario] = useState(false);
+
+  // Agrupar miHorario por (curso, tipo_actividad, grupo) para observaciones
+  const gruposObservacion = useMemo(() => {
+    const map = new Map<string, { key: string; curso_codigo: string; curso_nombre: string; tipo: string; numero_grupo: number; grupo_id: string; asignaciones: any[] }>();
+    miHorario.forEach((a: any) => {
+      const tipo = a.tipo || a.tipo_sesion || '';
+      const grupo = a.numero_grupo || 1;
+      const key = `${a.curso_codigo}|${a.curso_nombre}|${tipo}|${grupo}`;
+      if (!map.has(key)) {
+        map.set(key, { key, curso_codigo: a.curso_codigo, curso_nombre: a.curso_nombre, tipo, numero_grupo: grupo, grupo_id: a.grupo_id, asignaciones: [] });
+      }
+      map.get(key)!.asignaciones.push(a);
+    });
+    return Array.from(map.values());
+  }, [miHorario]);
+
+  // Cursos únicos para el selector de observaciones
+  const cursosUnicos = useMemo(() => {
+    const map = new Map<string, { id: string; codigo: string; nombre: string }>();
+    gruposObservacion.forEach(g => {
+      const key = `${g.curso_codigo}|${g.curso_nombre}`;
+      if (!map.has(key)) map.set(key, { id: key, codigo: g.curso_codigo, nombre: g.curso_nombre });
+    });
+    return Array.from(map.values()).sort((a, b) => a.codigo.localeCompare(b.codigo));
+  }, [gruposObservacion]);
+
+  const gruposDelCursoSeleccionado = useMemo(() => {
+    if (!cursoObservacionId) return gruposObservacion;
+    return gruposObservacion
+      .filter(g => `${g.curso_codigo}|${g.curso_nombre}` === cursoObservacionId)
+      .sort((a, b) => (ORDER_TIPO[a.tipo] || 99) - (ORDER_TIPO[b.tipo] || 99) || a.numero_grupo - b.numero_grupo);
+  }, [gruposObservacion, cursoObservacionId]);
 
   // Cargar parámetro de vista desde URL si existe
   useEffect(() => {
@@ -328,6 +387,7 @@ export default function HorariosPage() {
               curso_nombre: a.curso_nombre,
               curso_codigo: a.curso_codigo,
               ciclo_plan: a.ciclo,
+              grupo_id: a.grupo_id,
               numero_grupo: parseInt(String(a.grupo || '').replace('G', ''), 10) || 1,
               tipo: a.tipo_sesion || a.tipo,
               docente_id: a.docente_id || null,
@@ -448,6 +508,78 @@ export default function HorariosPage() {
       setMsg({ type: 'error', text: `Error en ${prog.nombre}: ${e.message}` });
     } finally {
       setImportingCards(prev => { const next = new Set(prev); next.delete(progId); return next; });
+    }
+  }
+
+  // Funciones para observaciones
+  async function abrirModalObservaciones(asignacion: any) {
+    console.debug('[Obs] asignacion:', asignacion?.id, 'miHorario sample:', miHorario.slice(0,3).map((a:any) => ({id:a.id, curso:a.curso_codigo, gid:a.grupo_id})));
+    const firstGroup = gruposObservacion.length > 0 ? gruposObservacion[0] : null;
+    const grupo = gruposObservacion.find(g => g.asignaciones.some(a => a.id === asignacion.id)) || firstGroup;
+    console.debug('[Obs] grupo encontrado:', grupo?.key, 'grupo_id:', grupo?.grupo_id);
+    const cursoKey = grupo ? `${grupo.curso_codigo}|${grupo.curso_nombre}` : '';
+    setCursoObservacionId(cursoKey);
+    setGrupoObservacionKey(grupo?.key || firstGroup?.key || '');
+    setGrupoObservacion(grupo?.asignaciones || []);
+    setObservacionTexto('');
+    setShowObservacionesModal(true);
+
+    if (grupo && grupo.grupo_id) {
+      try {
+        const res = await fetch(`/api/observaciones?grupo_id=${grupo.grupo_id}`);
+        const data = await res.json();
+        if (data.data && data.data.length > 0) {
+          setObservacionTexto(data.data[0].observaciones || '');
+        }
+      } catch (e) {
+        console.error('Error al cargar observación:', e);
+      }
+    }
+  }
+
+  async function guardarObservacion() {
+    if (grupoObservacion.length === 0) return;
+    setGuardandoObservacion(true);
+    try {
+      let grupoId = gruposObservacion.find(g => g.key === grupoObservacionKey)?.grupo_id;
+      if (!grupoId) {
+        grupoId = grupoObservacion[0]?.grupo_id;
+      }
+      if (!grupoId) {
+        throw new Error('No se encontró el grupo de esta asignación. Intente recargar la página.');
+      }
+
+      // Compute combined dia/horario from all blocks of the group
+      const times = grupoObservacion.map((a: any) => ({ dia: a.dia, h1: a.hora_inicio, h2: a.hora_fin })).filter((t: any) => t.h1);
+      const firstBlock = times.length > 0 ? times[0] : null;
+      const allSameDay = times.every((t: any) => t.dia === firstBlock?.dia);
+      const minH = times.length > 0 ? times.reduce((acc: any, t: any) => t.h1 < acc ? t.h1 : acc, times[0].h1) : null;
+      const maxH = times.length > 0 ? times.reduce((acc: any, t: any) => t.h2 > acc ? t.h2 : acc, times[0].h2) : null;
+
+      const res = await fetch('/api/observaciones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          asignacion_id: grupoObservacion[0].id,
+          grupo_id: grupoId,
+          dia: firstBlock?.dia || null,
+          slot_id: grupoObservacion[0].slot_id || null,
+          tipo: grupoObservacion[0].tipo || grupoObservacion[0].tipo_sesion || null,
+          hora_inicio: minH,
+          hora_fin: maxH,
+          observaciones: observacionTexto,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error);
+      }
+      setMsg({ type: 'success', text: 'Observación guardada' });
+      setShowObservacionesModal(false);
+    } catch (e: any) {
+      setMsg({ type: 'error', text: e.message });
+    } finally {
+      setGuardandoObservacion(false);
     }
   }
 
@@ -794,6 +926,22 @@ export default function HorariosPage() {
       {/* ===== VISTA: MI HORARIO (solo docentes) ===== */}
       {vista === 'mi-horario' && isDocente && (
         <div>
+          <div style={{marginBottom:'16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <h2 style={{fontSize:'18px',fontWeight:'600',margin:0}}>Mi Horario</h2>
+            <button
+              className="btn-primary"
+              onClick={() => {
+                if (miHorario.length > 0) {
+                  abrirModalObservaciones(miHorario[0]);
+                } else {
+                  setMsg({ type: 'error', text: 'No tienes asignaciones para agregar observaciones' });
+                }
+              }}
+              disabled={miHorario.length === 0}
+            >
+              📝 Agregar Observaciones
+            </button>
+          </div>
           {loadingMiHorario ? (
             <p style={{textAlign:'center',padding:'40px',color:'var(--text-secondary)'}}>Cargando mi horario...</p>
           ) : miHorario.length === 0 ? (
@@ -1121,6 +1269,123 @@ export default function HorariosPage() {
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Observaciones de Asignación */}
+      {showObservacionesModal && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowObservacionesModal(false)}>
+          <div className="modal" style={{maxWidth:'500px'}}>
+            <div className="modal-header">
+              <h2 style={{fontSize:'18px',fontWeight:'600',margin:0}}>
+                Observaciones
+              </h2>
+              <button onClick={() => setShowObservacionesModal(false)} style={{background:'none',border:'none',cursor:'pointer',color:'#64748b'}}>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group" style={{marginBottom:'12px'}}>
+                <label className="form-label">Curso</label>
+                <select
+                  className="form-input"
+                  value={cursoObservacionId}
+                  onChange={e => {
+                    const cursoKey = e.target.value;
+                    setCursoObservacionId(cursoKey);
+                    const grupos = cursoKey ? gruposObservacion.filter(g => `${g.curso_codigo}|${g.curso_nombre}` === cursoKey) : [];
+                    if (grupos.length > 0) {
+                      setGrupoObservacionKey(grupos[0].key);
+                      setGrupoObservacion(grupos[0].asignaciones);
+                      setObservacionTexto('');
+                      if (grupos[0].grupo_id) {
+                        fetch(`/api/observaciones?grupo_id=${grupos[0].grupo_id}`)
+                          .then(r => r.json())
+                          .then(data => {
+                            if (data.data && data.data.length > 0) {
+                              setObservacionTexto(data.data[0].observaciones || '');
+                            }
+                          })
+                          .catch(err => console.error('Error al cargar observación:', err));
+                      }
+                    }
+                  }}
+                >
+                  <option value="">Seleccione un curso...</option>
+                  {cursosUnicos.map(c => (
+                    <option key={c.id} value={c.id}>{c.codigo} - {c.nombre}</option>
+                  ))}
+                </select>
+              </div>
+              {cursoObservacionId && (
+                <div className="form-group" style={{marginBottom:'16px'}}>
+                  <label className="form-label">Tipo de clase / Grupo</label>
+                  <select
+                    className="form-input"
+                    value={grupoObservacionKey}
+                    onChange={e => {
+                      const grupo = gruposDelCursoSeleccionado.find(g => g.key === e.target.value);
+                      if (grupo) {
+                        setGrupoObservacionKey(grupo.key);
+                        setGrupoObservacion(grupo.asignaciones);
+                        setObservacionTexto('');
+                        if (grupo.grupo_id) {
+                          fetch(`/api/observaciones?grupo_id=${grupo.grupo_id}`)
+                            .then(r => r.json())
+                            .then(data => {
+                              if (data.data && data.data.length > 0) {
+                                setObservacionTexto(data.data[0].observaciones || '');
+                              }
+                            })
+                            .catch(err => console.error('Error al cargar observación:', err));
+                        }
+                      }
+                    }}
+                  >
+                    {gruposDelCursoSeleccionado.map(g => {
+                      const tipoLabel = g.tipo ? g.tipo.charAt(0).toUpperCase() + g.tipo.slice(1) : '';
+                      return (
+                        <option key={g.key} value={g.key}>
+                          {tipoLabel} - Grupo {g.numero_grupo}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+              {grupoObservacion.length > 0 && (
+                <div style={{marginBottom:'16px',padding:'12px',background:darkMode ? 'rgba(59,130,246,0.1)' : '#f0f9ff',borderRadius:'8px',border:'1px solid var(--border-color)'}}>
+                  <div style={{fontWeight:'500',color:'var(--text-primary)',marginBottom:'8px',fontSize:'14px'}}>
+                    {grupoObservacion[0].curso_codigo} - {grupoObservacion[0].curso_nombre}
+                    {(() => { const t = grupoObservacion[0].tipo; return t ? ` - ${t.charAt(0).toUpperCase() + t.slice(1)} ` : ''; })()}
+                    (Grupo {grupoObservacion[0].numero_grupo})
+                  </div>
+                  <div style={{fontSize:'12px',color:'var(--text-secondary)',marginBottom:'6px'}}>Horario</div>
+                  <div style={{fontWeight:'500',color:'var(--text-primary)',fontSize:'13px',lineHeight:'1.8'}}>
+                    {mergeBloquesContiguos(grupoObservacion).map((b, i) => (
+                      <span key={i}>{i > 0 ? ' | ' : ''}{DIAS_LABEL[b.dia]} {b.inicio.substring(0,5)}-{b.fin.substring(0,5)}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="form-group">
+                <label className="form-label">Observaciones</label>
+                <textarea
+                  className="form-input"
+                  style={{minHeight:'120px',resize:'vertical'}}
+                  placeholder="Escribe tus observaciones sobre esta asignación..."
+                  value={observacionTexto}
+                  onChange={e => setObservacionTexto(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowObservacionesModal(false)}>Cancelar</button>
+              <button className="btn-primary" onClick={guardarObservacion} disabled={guardandoObservacion}>
+                {guardandoObservacion ? 'Guardando...' : 'Guardar'}
+              </button>
             </div>
           </div>
         </div>

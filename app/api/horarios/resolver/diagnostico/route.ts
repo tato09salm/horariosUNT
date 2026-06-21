@@ -130,12 +130,12 @@ export async function GET(req: NextRequest) {
     const diasMap = new Map<string, any>();
     for (const d of diasPorDocente) diasMap.set(d.docente_id, d);
 
-    // ── 3. Obtener ciclo_academico_id ─────────────────────────────────────────
-    const prog = await queryOne<{ ciclo_academico_id: string }>(
-      `SELECT ciclo_academico_id FROM programaciones WHERE id = $1`,
+    // ── 3. Obtener ciclo_id ─────────────────────────────────────────
+    const prog = await queryOne<{ ciclo_id: string }>(
+      `SELECT ciclo_id FROM programaciones WHERE id = $1`,
       [programacion_id]
     );
-    const cicloAcademicoId = prog?.ciclo_academico_id || '';
+    const cicloAcademicoId = prog?.ciclo_id || '';
 
     // ── 4. Recalcular disponibilidad y estados por docente en Javascript ───────
     const docentes: any[] = [];
