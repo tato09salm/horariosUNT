@@ -2404,93 +2404,8 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
             </div>
           )}
         </>
-      ) : activeTab === 'carga-aula' ? (
-        // Pestaña Carga por Aula
-        <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-          {!cicloAcademicoSeleccionado ? (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: '200px',
-              textAlign: 'center',
-              color: 'var(--text-secondary)'
-            }}>
-              Selecciona un ciclo académico para ver la carga por aula
-            </div>
-          ) : loadingAula ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-              Cargando...
-            </div>
-          ) : aulaData.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-              No hay datos de carga por aula para este ciclo académico
-            </div>
-          ) : (
-            <div className="table-container">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Aula</th>
-                    <th>Tipo</th>
-                    <th>Curso</th>
-                    <th>Grupo</th>
-                    <th>Docente</th>
-                    <th>Día</th>
-                    <th>Horario</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(() => {
-                    const agrupado = new Map<string, any[]>();
-                    for (const row of aulaData) {
-                      const key = row.ambiente_nombre;
-                      if (!agrupado.has(key)) agrupado.set(key, []);
-                      agrupado.get(key)!.push(row);
-                    }
-                    const rows: any[] = [];
-                    const diaLabels: Record<string, string> = { lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue', viernes: 'Vie', sabado: 'Sáb' };
-                    const diasOrd: Record<string, number> = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 };
-                    for (const [aula, entries] of agrupado) {
-                      const tipo = entries[0].ambiente_tipo?.replace('_', ' ') || '';
-                      entries.sort((a, b) => (diasOrd[a.dia] || 0) - (diasOrd[b.dia] || 0) || a.hora_inicio.localeCompare(b.hora_inicio));
-                      const merged: any[] = [];
-                      for (const e of entries) {
-                        const last = merged[merged.length - 1];
-                        if (last && last.dia === e.dia && last.curso_codigo === e.curso_codigo &&
-                            last.numero_grupo === e.numero_grupo && last.docente_nombre === e.docente_nombre &&
-                            last.hora_fin === e.hora_inicio) {
-                          last.hora_fin = e.hora_fin;
-                        } else {
-                          merged.push({ ...e });
-                        }
-                      }
-                      rows.push(
-                        <tr key={`${aula}-hdr`} style={{ background: 'var(--bg-secondary)' }}>
-                          <td style={{ fontWeight: 600, verticalAlign: 'middle' }} rowSpan={merged.length + 1}>{aula}</td>
-                        </tr>
-                      );
-                      for (const e of merged) {
-                        rows.push(
-                          <tr key={`${aula}-${e.dia}-${e.hora_inicio}-${e.curso_codigo}`}>
-                            <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{tipo === 'laboratorio' ? 'Lab' : tipo === 'aula' ? 'Aula' : tipo}</td>
-                            <td>{e.curso_codigo} - {e.curso_nombre}</td>
-                            <td style={{ textAlign: 'center' }}>{e.numero_grupo}</td>
-                            <td>{e.docente_nombre}</td>
-                            <td style={{ textAlign: 'center' }}>{diaLabels[e.dia] || e.dia}</td>
-                            <td style={{ textAlign: 'center' }}>{e.hora_inicio} - {e.hora_fin}</td>
-                          </tr>
-                        );
-                      }
-                    }
-                    return rows;
-                  })()}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       ) : activeTab === 'carga-docentes' ? (
+        <>
         // Pestaña Carga por Docentes (RF-05)
         <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
           {!cicloAcademicoSeleccionado ? (
@@ -2761,8 +2676,10 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
             </>
           )}
         </div>
-      ) : (
+        </>
+      ) : activeTab === 'reportes' ? (
         // Pestaña Reportes
+        <>
         <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
           {!cicloAcademicoSeleccionado ? (
             <div style={{ 
@@ -2927,7 +2844,8 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
             </>
           )}
         </div>
-      )}
+        </>
+      ) : <></> }
 
       <style>{`
         @keyframes slideIn {
