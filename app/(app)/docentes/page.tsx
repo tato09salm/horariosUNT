@@ -16,13 +16,14 @@ interface Docente {
   horas_max_semana: number; activo: boolean;
   facultad: string;
   dpto_academico: string;
+  es_escuela_configurada: boolean;
 }
 
 const emptyDocente: Partial<Docente> = {
   nombre: '', apellidos: '', dni: '', email: '', telefono: '',
   categoria: 'auxiliar', condicion: 'contratado', fecha_ingreso: '',
   grado_academico: 'licenciado', horas_max_semana: 20, activo: true,
-  facultad: '', dpto_academico: '',
+  facultad: '', dpto_academico: '', es_escuela_configurada: true,
 };
 
 interface FormErrors {
@@ -617,7 +618,7 @@ export default function DocentesPage() {
                   />
                 </div>
 
-                <div className="form-group">
+<div className="form-group">
                   <label className="form-label">Departamento Académico</label>
                   <input
                     style={{...inputStyle(), textTransform:'uppercase'}}
@@ -625,6 +626,21 @@ export default function DocentesPage() {
                     onChange={e => campo('dpto_academico', e.target.value.toUpperCase() as any)}
                     placeholder="Nombre del departamento académico"
                   />
+                </div>
+
+                <div className="form-group" style={{gridColumn: '1 / -1'}}>
+                  <label style={{display:'flex', alignItems:'center', gap:'8px', cursor:'pointer', fontSize:'14px', fontWeight:500}}>
+                    <input
+                      type="checkbox"
+                      checked={editando.es_escuela_configurada ?? true}
+                      onChange={e => campo('es_escuela_configurada', e.target.checked as any)}
+                      style={{width:'16px', height:'16px', cursor:'pointer'}}
+                    />
+                    Docente de la Escuela de Ingeniería de Sistemas
+                  </label>
+                  <p style={{margin:'4px 0 0 24px', fontSize:'12px', color:'var(--text-secondary)'}}>
+                    Si no pertenece a esta escuela, no se le pedirá llenar carga lectiva ni no lectiva, solo se le asignarán cursos.
+                  </p>
                 </div>
 
               </div>
