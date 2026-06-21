@@ -137,16 +137,16 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana, facultad, dpto_academico } = body;
+    const { nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana, facultad, dpto_academico, es_escuela_configurada } = body;
     const nombreUpper = nombre?.toUpperCase() || '';
     const apellidosUpper = apellidos?.toUpperCase() || '';
 
     const result = await transaction(async (client) => {
       // 1. Crear el docente
-      const docenteRes = await client.query(
-        `INSERT INTO docentes (nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana, facultad, dpto_academico)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-        [nombreUpper, apellidosUpper, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana || 20, facultad?.toUpperCase(), dpto_academico?.toUpperCase()]
+    const docenteRes = await client.query(
+        `INSERT INTO docentes (nombre, apellidos, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana, facultad, dpto_academico, es_escuela_configurada)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+        [nombreUpper, apellidosUpper, dni, email, telefono, categoria, condicion, fecha_ingreso, grado_academico, horas_max_semana || 20, facultad?.toUpperCase(), dpto_academico?.toUpperCase(), es_escuela_configurada === true]
       );
       const docente = docenteRes.rows[0];
 

@@ -18,6 +18,7 @@ interface Docente {
   activo: boolean;
   facultad: string;
   dpto_academico: string;
+  es_escuela_configurada?: boolean;
 }
 
 interface DocenteSeleccionado extends Docente {
@@ -496,11 +497,19 @@ setDeclaracionJuradaOpcion(opcionSugerida);
         dni_docente: prev.dni_docente || docenteSeleccionado.dni || '',
         condicion: (prev.condicion || docenteSeleccionado.condicion || '').toUpperCase(),
         categoria: (prev.categoria || docenteSeleccionado.categoria || '').toUpperCase(),
-        periodo_academico: prev.periodo_academico || cycle?.nombre || '',
+periodo_academico: prev.periodo_academico || cycle?.nombre || '',
         fecha_inicio_periodo: finalFi,
         fecha_termino_periodo: finalFt,
       };
     });
+
+    // RF-10: docentes externos (no de la escuela configurada) solo asignan cursos,
+    // no necesitan declaración jurada ni carga adicional
+    if (docenteSeleccionado.es_escuela_configurada === false) {
+      handleGuardar();
+      return;
+    }
+
     setStep(2);
   };
 
@@ -674,11 +683,16 @@ setDeclaracionJuradaOpcion(opcionSugerida);
         return;
       }
 
-      const resData = await res.json();
+const resData = await res.json();
       setMostrarExito(true);
       setTimeout(() => {
         const chId = resData?.data?.[0]?.id || cargaHorariaId;
-        router.push(`/carga-horaria/horario-no-lectiva?docenteId=${docenteSeleccionado.id}&cicloAcademico=${cicloAcademicoSeleccionado}&cargaHorariaId=${chId}`);
+        if (docenteSeleccionado.es_escuela_configurada === false) {
+          // RF-10: docente externo, solo se le asignan cursos, no necesita horario no lectivo
+          router.push('/carga-horaria');
+        } else {
+          router.push(`/carga-horaria/horario-no-lectiva?docenteId=${docenteSeleccionado.id}&cicloAcademico=${cicloAcademicoSeleccionado}&cargaHorariaId=${chId}`);
+        }
       }, 2000);
     } catch (e) {
       console.error('Error guardando:', e);
