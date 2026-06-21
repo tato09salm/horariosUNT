@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from '@/lib/theme';
@@ -42,6 +42,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { darkMode, toggleDarkMode } = useTheme();
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifPos, setNotifPos] = useState({ top: 0, left: 0 });
+  const bellBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -56,6 +61,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const timer = window.setTimeout(() => setSidebarOpen(false), 0);
     return () => window.clearTimeout(timer);
   }, [pathname]);
+
+  // Cargar notificaciones (observaciones pendientes para secretaria y director, no admin)
+  useEffect(() => {
+    if (!user || user.rol.codigo === 'docente' || user.rol.codigo === 'admin') return;
+    
+    // Cargar ciclo activo
+    fetch('/api/ciclos?activo=true')
+      .then(r => r.json())
+      .then(data => {
+        const cicloActivo = data.data?.[0];
+        if (cicloActivo) {
+          return fetch(`/api/observaciones?ciclo_id=${cicloActivo.id}`);
+        }
+        return null;
+      })
+      .then(res => res ? res.json() : null)
+      .then(data => {
+        if (data && data.data) {
+          setNotificationCount(data.data.length);
+          setNotifications(data.data);
+        }
+      })
+      .catch(err => console.error('Error al cargar notificaciones:', err));
+  }, [user]);
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -143,6 +172,48 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   </svg>
                 )}
               </button>
+              {/* Campanita de notificaciones para admin, secretaria y director */}
+              {user?.rol.codigo !== 'docente' && (
+                <div style={{position:'relative'}}>
+                  <button
+                    ref={bellBtnRef}
+                    onClick={() => {
+                      if (bellBtnRef.current) {
+                        const r = bellBtnRef.current.getBoundingClientRect();
+                        setNotifPos({ top: r.bottom + 8, left: Math.max(r.right - 320, 8) });
+                      }
+                      setShowNotifications(!showNotifications);
+                    }}
+                    style={{background:'rgba(255,255,255,0.05)',border:'none',color:'#94a3b8',padding:'6px',borderRadius:'6px',cursor:'pointer',transition:'background 0.2s',position:'relative'}}
+                    onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                    onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                  >
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    {notificationCount > 0 && (
+                      <span style={{
+                        position:'absolute',
+                        top:'-2px',
+                        right:'-2px',
+                        background:'#ef4444',
+                        color:'white',
+                        fontSize:'10px',
+                        fontWeight:'bold',
+                        minWidth:'16px',
+                        height:'16px',
+                        borderRadius:'50%',
+                        display:'flex',
+                        alignItems:'center',
+                        justifyContent:'center',
+                        padding:'0 4px'
+                      }}>
+                        {notificationCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
               {/* Botón cerrar solo visible en mobile */}
               <button 
                 className="show-sm"
@@ -219,6 +290,53 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      {/* Dropdown de notificaciones renderizado fuera del sidebar para evitar overflow clipping */}
+      {showNotifications && (
+        <>
+          <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,zIndex:998}} onClick={() => setShowNotifications(false)} />
+          <div style={{
+            position:'fixed',
+            top:`${notifPos.top}px`,
+            left:`${notifPos.left}px`,
+            background:darkMode ? '#1e293b' : 'white',
+            border:'1px solid var(--border-color)',
+            borderRadius:'8px',
+            boxShadow:'0 4px 12px rgba(0,0,0,0.15)',
+            width:'320px',
+            maxHeight:'400px',
+            overflowY:'auto',
+            zIndex:999
+          }}>
+            <div style={{padding:'12px',borderBottom:'1px solid var(--border-color)',fontWeight:'600',fontSize:'14px',color:'var(--text-primary)'}}>
+              Observaciones ({notificationCount})
+            </div>
+            {notifications.length === 0 ? (
+              <div style={{padding:'20px',textAlign:'center',color:'var(--text-secondary)',fontSize:'13px'}}>
+                No hay observaciones
+              </div>
+            ) : (
+              notifications.map((obs: any) => (
+                <div key={obs.id} style={{padding:'12px',borderBottom:'1px solid var(--border-color)',fontSize:'12px'}}>
+                  <div style={{fontWeight:'500',color:'var(--text-primary)',marginBottom:'4px'}}>
+                    {obs.docente_nombre} - {obs.curso_codigo}
+                  </div>
+                  <div style={{color:'var(--text-secondary)',marginBottom:'4px'}}>
+                    {obs.observaciones}
+                  </div>
+                  <div style={{fontSize:'11px',color:'var(--text-muted)'}}>
+                    {new Date(obs.created_at).toLocaleDateString('es-PE')}
+                  </div>
+                </div>
+              ))
+            )}
+            <div style={{padding:'8px',textAlign:'center'}}>
+              <Link href="/carga-horaria" onClick={() => setShowNotifications(false)} style={{fontSize:'12px',color:'#3b82f6',textDecoration:'none',fontWeight:'500'}}>
+                Ver todas en Carga Horaria
+              </Link>
+            </div>
+          </div>
+        </>
+      )}
     </UserContext.Provider>
   );
 }

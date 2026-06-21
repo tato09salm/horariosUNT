@@ -92,7 +92,7 @@ export default function CargaHorariaPage() {
 
   const [ciclosAcademicos, setCiclosAcademicos] = useState<CicloAcademico[]>([]);
   const [cicloAcademicoSeleccionado, setCicloAcademicoSeleccionado] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'carga-horaria' | 'carga-aula' | 'carga-docentes' | 'reportes'>('carga-horaria');
+  const [activeTab, setActiveTab] = useState<'carga-horaria' | 'carga-aula' | 'carga-docentes' | 'observaciones' | 'reportes'>('carga-horaria');
   const [aulaData, setAulaData] = useState<any[]>([]);
   const [loadingAula, setLoadingAula] = useState(false);
   
@@ -103,6 +103,10 @@ export default function CargaHorariaPage() {
   const [filtroEstadoCarga, setFiltroEstadoCarga] = useState<'todos' | 'llenado' | 'no_llenado'>('todos');
   const [filtroCurso, setFiltroCurso] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  
+  // Estado para pestaña Observaciones
+  const [observaciones, setObservaciones] = useState<any[]>([]);
+  const [loadingObservaciones, setLoadingObservaciones] = useState(false);
   const [itemsPerPage] = useState(20);
 
   // Resetear página cuando cambian los filtros
@@ -355,6 +359,19 @@ export default function CargaHorariaPage() {
         setDocentesCarga([]);
       })
       .finally(() => setLoadingDocentesCarga(false));
+  }, [activeTab, cicloAcademicoSeleccionado]);
+
+  // Cargar observaciones para vista "Observaciones"
+  useEffect(() => {
+    if (activeTab !== 'observaciones' || !cicloAcademicoSeleccionado) return;
+    setLoadingObservaciones(true);
+    fetch(`/api/observaciones?ciclo_id=${cicloAcademicoSeleccionado}`)
+      .then(r => r.json())
+      .then(data => {
+        setObservaciones(data.data || []);
+      })
+      .catch(() => setObservaciones([]))
+      .finally(() => setLoadingObservaciones(false));
   }, [activeTab, cicloAcademicoSeleccionado]);
 
   async function asignarDocente() {
@@ -1797,7 +1814,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
           >
             Carga por Aula
           </button>
-          {(user?.rol.codigo === 'secretaria' || isAdmin || isDirector) && (
+          {(user?.rol.codigo === 'secretaria' || isDirector) && (
             <button
               onClick={() => setActiveTab('carga-docentes')}
               style={{
@@ -1813,6 +1830,24 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
               }}
             >
               Carga por Docentes
+            </button>
+          )}
+          {(user?.rol.codigo === 'secretaria' || isDirector) && (
+            <button
+              onClick={() => setActiveTab('observaciones')}
+              style={{
+                padding: '12px 24px',
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: activeTab === 'observaciones' ? '600' : '500',
+                color: activeTab === 'observaciones' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                borderBottom: activeTab === 'observaciones' ? '2px solid #3b82f6' : '2px solid transparent',
+                marginBottom: '-1px'
+              }}
+            >
+              Observaciones
             </button>
           )}
           <button
@@ -2677,6 +2712,90 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
           )}
         </div>
         </>
+      ) : activeTab === 'observaciones' ? (
+        // Pestaña Observaciones
+        <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
+          {!cicloAcademicoSeleccionado ? (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '200px',
+              textAlign: 'center',
+              color: 'var(--text-secondary)'
+            }}>
+              Selecciona un ciclo académico para ver las observaciones de docentes
+            </div>
+          ) : (
+            <>
+              {loadingObservaciones ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                  Cargando observaciones...
+                </div>
+              ) : observaciones.length === 0 ? (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: '200px',
+                  textAlign: 'center',
+                  color: 'var(--text-secondary)'
+                }}>
+                  No hay observaciones registradas para este ciclo académico
+                </div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
+                      Observaciones de Docentes ({observaciones.length})
+                    </h3>
+                  </div>
+                  
+                  <div className="table-container">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Docente</th>
+                          <th>Curso</th>
+                          <th>Grupo</th>
+                          <th>Tipo</th>
+                          <th>Día</th>
+                          <th>Horario</th>
+                          <th>Observación</th>
+                          <th>Fecha</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {observaciones.map((obs: any) => (
+                          <tr key={obs.id}>
+                            <td style={{ fontWeight: '500' }}>
+                              {obs.docente_nombre} {obs.docente_apellidos}
+                            </td>
+                            <td>{obs.curso_codigo} - {obs.curso_nombre}</td>
+                            <td style={{ textAlign: 'center' }}>{obs.numero_grupo}</td>
+                            <td style={{ textAlign: 'center' }}><span className={`badge-${obs.tipo || 'teoria'}`}>{obs.tipo || 'teoria'}</span></td>
+                            <td style={{ textAlign: 'center' }}>{obs.dia || '-'}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              {obs.hora_inicio && obs.hora_fin
+                                ? `${obs.hora_inicio.substring(0,5)} - ${obs.hora_fin.substring(0,5)}`
+                                : '-'}
+                            </td>
+                            <td style={{ maxWidth: '300px', wordWrap: 'break-word' }}>
+                              {obs.observaciones}
+                            </td>
+                            <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                              {new Date(obs.created_at).toLocaleDateString('es-PE')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
       ) : activeTab === 'reportes' ? (
         // Pestaña Reportes
         <>
