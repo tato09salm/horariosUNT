@@ -104,6 +104,7 @@ export default function DashboardPage() {
   const [ciclosList, setCiclosList] = useState<DashboardCiclo[]>([]);
   const [miCargaDocente, setMiCargaDocente] = useState<{horas_asignadas: number; horas_max_semana: number} | null>(null);
   const [finalPayload, setFinalPayload] = useState<DashboardApiResponse | null>(null);
+  const [observacionesPendientes, setObservacionesPendientes] = useState<any[]>([]);
 
   const user = useUser();
   const isDocente = user?.rol.codigo === 'docente';
@@ -241,6 +242,18 @@ export default function DashboardPage() {
     };
     loadInitial();
   }, []);
+
+  // Cargar observaciones pendientes para secretaria y director
+  useEffect(() => {
+    if (user?.rol.codigo !== 'admin' && !isDocente && cicloId) {
+      fetch(`/api/observaciones?ciclo_id=${cicloId}`)
+        .then(r => r.json())
+        .then(data => {
+          setObservacionesPendientes(data.data || []);
+        })
+        .catch(err => console.error('Error al cargar observaciones:', err));
+    }
+  }, [cicloId, isDocente]);
 
   async function recargar(id: string) {
     setCicloId(id);
@@ -812,6 +825,49 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Alertas de observaciones para secretaria y director */}
+      {user?.rol.codigo !== 'admin' && !isDocente && observacionesPendientes.length > 0 && (
+        <div className="card" style={{
+          padding:'20px',
+          marginBottom:'24px',
+          background: darkMode ? 'rgba(251,191,36,0.1)' : '#fef3c7',
+          border: '1px solid var(--border-color)',
+          borderRadius:'12px'
+        }}>
+          <div style={{display:'flex',alignItems:'flex-start',gap:'12px'}}>
+            <div style={{fontSize:'24px'}}>📝</div>
+            <div style={{flex:1}}>
+              <h3 style={{fontSize:'15px',fontWeight:'600',color:darkMode ? '#fbbf24' : '#92400e',margin:'0 0 8px'}}>
+                {observacionesPendientes.length} Observaciones de Docentes
+              </h3>
+              <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                {observacionesPendientes.slice(0, 5).map((obs: any) => (
+                  <div key={obs.id} style={{
+                    padding:'10px 14px',
+                    background: darkMode ? 'rgba(255,255,255,0.05)' : 'white',
+                    borderRadius:'8px',
+                    border:'1px solid var(--border-color)',
+                    fontSize:'13px'
+                  }}>
+                    <div style={{fontWeight:'500',color:'var(--text-primary)',marginBottom:'4px'}}>
+                      {obs.docente_nombre} - {obs.curso_codigo}
+                    </div>
+                    <div style={{color:'var(--text-secondary)',fontSize:'12px'}}>
+                      {obs.observaciones}
+                    </div>
+                  </div>
+                ))}
+                {observacionesPendientes.length > 5 && (
+                  <div style={{fontSize:'12px',color:'var(--text-muted)',textAlign:'center',padding:'8px'}}>
+                    Y {observacionesPendientes.length - 5} más...
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!cicloId && (
         <div style={{

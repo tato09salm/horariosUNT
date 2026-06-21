@@ -22,15 +22,15 @@ export async function POST(req: NextRequest) {
     // 2. Obtener disponibilidad del docente
     let dispSet = new Set<string>();
     if (bloque.docente_id) {
-      const progRow = await queryOne<{ ciclo_academico_id: string }>(
-        `SELECT ciclo_academico_id FROM programaciones WHERE id = $1`,
+      const progRow = await queryOne<{ ciclo_id: string }>(
+        `SELECT ciclo_id FROM programaciones WHERE id = $1`,
         [programacion_id]
       );
       const disp = await query(
         `SELECT docente_id, dia, slot_id FROM disponibilidad_docente WHERE programacion_id = $1 AND docente_id = $2 AND disponible = true`,
         [programacion_id, bloque.docente_id]
       );
-      const filteredDisp = await filtrarDisponibilidadPorCargaAdicional(disp, progRow?.ciclo_academico_id || '');
+      const filteredDisp = await filtrarDisponibilidadPorCargaAdicional(disp, progRow?.ciclo_id || '');
       filteredDisp.forEach(d => dispSet.add(`${d.dia}-${d.slot_id}`));
     } else {
       // Si no tiene docente (ej. bloque sin asignar), asumimos que cualquier dia/hora es válido por ahora

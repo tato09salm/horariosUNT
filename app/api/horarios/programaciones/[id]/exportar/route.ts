@@ -74,6 +74,7 @@ export async function GET(
       return {
         id: a.id,
         dia: a.dia,
+        grupo_id: grupo?.id || a.grupo_id || null,
         hora_inicio: slot?.hora_inicio || '',
         hora_fin: slot?.hora_fin || '',
         tipo_sesion: a.tipo_sesion || a.tipo || 'teoria',

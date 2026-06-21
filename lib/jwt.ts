@@ -10,6 +10,7 @@ export interface UserSession {
   apellidos: string;
   email: string;
   rol: 'admin' | 'director_escuela' | 'secretaria' | 'docente';
+  docente_id?: string;
 }
 
 export async function generateToken(user: UserSession): Promise<string> {
