@@ -743,8 +743,16 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     
     cargasDocente.forEach(ch => {
       for (const key of Object.keys(secciones)) {
-        if (ch[key] && !secciones[key]) {
-          secciones[key] = ch[key];
+        if (ch[key]) {
+          if (!secciones[key]) {
+            secciones[key] = ch[key];
+          } else if (Array.isArray(ch[key])) {
+            // Merge arrays if they exist
+            if (!Array.isArray(secciones[key])) {
+              secciones[key] = [secciones[key]];
+            }
+            secciones[key] = [...secciones[key], ...ch[key]];
+          }
         }
       }
     });
@@ -869,51 +877,69 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     currentY = (doc as any).lastAutoTable.finalY + 5;
     
     // Crear tabla para las secciones restantes (compacta, dos columnas)
+    // Helper function to get total hours from section (handles arrays)
+    const getSectionHoras = (section: any) => {
+      if (!section) return 0;
+      if (Array.isArray(section)) {
+        return section.reduce((sum: number, item: any) => sum + (item.horas || 0), 0);
+      }
+      return section.horas || 0;
+    };
+
+    // Helper function to get details from section (handles arrays)
+    const getSectionDetalles = (section: any, field: string = 'detalles') => {
+      if (!section) return '';
+      if (Array.isArray(section)) {
+        return section.map((item: any) => item[field] || item.descripcion || item.proyecto || item.plan || '').filter(Boolean).join('; ');
+      }
+      return section[field] || section.descripcion || section.proyecto || section.plan || '';
+    };
+
     const seccionesData = [
       {
         titulo: '2. PREPARACIÓN Y EVALUACIÓN (Max 50% de Trabajo Lectivo)',
-        horas: secciones.preparacion?.horas || 0,
-        detalles: secciones.preparacion?.descripcion || ''
+        horas: getSectionHoras(secciones.preparacion),
+        detalles: getSectionDetalles(secciones.preparacion, 'descripcion')
       },
       {
         titulo: '3. CONSEJERÍA: Señalar número de alumnos y el ciclo académico en el que se desarrolla. (Como mínimo 01 hora semanal)',
-        horas: secciones.consejeria !== null && secciones.consejeria !== undefined ? secciones.consejeria.horas : (cursosDocente.length > 0 ? Math.min(7, Math.max(1, cursosDocente.length)) : 0),
-        detalles: secciones.consejeria !== null && secciones.consejeria !== undefined && secciones.consejeria.detalles ? secciones.consejeria.detalles : ''
+        horas: getSectionHoras(secciones.consejeria),
+        detalles: getSectionDetalles(secciones.consejeria, 'detalles')
       },
       {
         titulo: '4. INVESTIGACIÓN: Consignar el N° de inscripción, código, nombre y duración del proyecto. (Como mínimo 04 y 05 horas semanales, según modalidad de trabajo).',
-        horas: secciones.investigacion?.horas || 0,
-        detalles: secciones.investigacion?.proyecto || ''
+        horas: getSectionHoras(secciones.investigacion),
+        detalles: getSectionDetalles(secciones.investigacion, 'proyecto')
       },
       {
         titulo: '5. CAPACITACIÓN: Señale lo referente a este rubro en el marco de los planes de cada Facultad (como máximo 05 semanales)',
-        horas: secciones.capacitacion?.horas || 0,
-        detalles: secciones.capacitacion?.detalles || ''
+        horas: getSectionHoras(secciones.capacitacion),
+        detalles: getSectionDetalles(secciones.capacitacion, 'detalles')
       },
       {
         titulo: '6. ACTIVIDADES DE GOBIERNO: Si desempeña cargo indique.',
-        horas: secciones.gobierno?.horas || 0,
-        detalles: secciones.gobierno?.detalles || ''
+        horas: getSectionHoras(secciones.gobierno),
+        detalles: getSectionDetalles(secciones.gobierno, 'detalles')
       },
       {
         titulo: '7. ACTIVIDADES DE ADMINISTRACIÓN: Si desempeña cargo indique.',
-        horas: secciones.administracion?.horas || 0,
-        detalles: secciones.administracion?.detalles || ''
+        horas: getSectionHoras(secciones.administracion),
+        detalles: getSectionDetalles(secciones.administracion, 'detalles')
       },
       {
         titulo: '8. ASESORÍA DE TESIS, EXÁMENES PROFESIONALES Y EXPERIENCIA PROFESIONAL: Indicar el número de Resolución Decanal, precisando el nombre y duración de la actividad programada.',
-        horas: secciones.asesoria !== null && secciones.asesoria !== undefined ? secciones.asesoria.horas : 0,
-        detalles: secciones.asesoria !== null && secciones.asesoria !== undefined && secciones.asesoria.detalles ? secciones.asesoria.detalles : ''
+        horas: getSectionHoras(secciones.asesoria),
+        detalles: getSectionDetalles(secciones.asesoria, 'detalles')
       },
       {
         titulo: '9. RESPONSABILIDAD SOCIAL UNIVERSITARIA: Señalar actividad, proyecto programa a ejecutarse n beneficio de la comunidad local o regional. (Como máximo 02 horas semanales)',
-        horas: secciones.rsu?.horas || 0,
-        detalles: secciones.rsu?.plan || ''
+        horas: getSectionHoras(secciones.rsu),
+        detalles: getSectionDetalles(secciones.rsu, 'plan')
       },
       {
         titulo: '10. COMITÉS TÉCNICOS Y COMISIONES: Consignar el número de Resolución autoritativa indicando el lapso de vigencia.',
-        horas: secciones.comites?.horas || 0,
-        detalles: secciones.comites?.detalles || ''
+        horas: getSectionHoras(secciones.comites),
+        detalles: getSectionDetalles(secciones.comites, 'detalles')
       }
     ];
     
@@ -1390,14 +1416,32 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     const secciones: Record<string, any> = {};
     cargasDocente.forEach((ch: any) => {
       for (const s of secMapping) {
-        if (s.field && ch[s.field] && !secciones[s.field]) secciones[s.field] = ch[s.field];
+        if (s.field && ch[s.field]) {
+          if (!secciones[s.field]) {
+            secciones[s.field] = ch[s.field];
+          } else if (Array.isArray(ch[s.field])) {
+            // Merge arrays if they exist
+            if (!Array.isArray(secciones[s.field])) {
+              secciones[s.field] = [secciones[s.field]];
+            }
+            secciones[s.field] = [...secciones[s.field], ...ch[s.field]];
+          }
+        }
       }
     });
 
     let totalNoLectiva = 0;
     const chnlRows: any[] = [];
     for (const s of secMapping) {
-      const hr = s.field ? (secciones[s.field]?.horas || 0) : 0;
+      // Calculate total hours from all items in the section
+      let hr = 0;
+      if (s.field && secciones[s.field]) {
+        if (Array.isArray(secciones[s.field])) {
+          hr = secciones[s.field].reduce((sum: number, item: any) => sum + (item.horas || 0), 0);
+        } else {
+          hr = secciones[s.field]?.horas || 0;
+        }
+      }
       totalNoLectiva += hr;
       const horarioEntradas = s.field ? (noLectivaLookup.get(s.field) || []) : [];
       const horarioStr = formatHorarioNoLectiva(horarioEntradas);
