@@ -62,29 +62,55 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [pathname]);
 
-  // Cargar notificaciones (observaciones pendientes para secretaria y director, no admin)
+  // Cargar notificaciones
   useEffect(() => {
-    if (!user || user.rol.codigo === 'docente' || user.rol.codigo === 'admin') return;
-    
-    // Cargar ciclo activo
-    fetch('/api/ciclos?activo=true')
-      .then(r => r.json())
-      .then(data => {
-        const cicloActivo = data.data?.[0];
-        if (cicloActivo) {
-          return fetch(`/api/observaciones?ciclo_id=${cicloActivo.id}`);
-        }
-        return null;
-      })
-      .then(res => res ? res.json() : null)
-      .then(data => {
-        if (data && data.data) {
-          const pendientes = data.data.filter((o: any) => !o.estado || o.estado === 'pendiente');
-          setNotificationCount(pendientes.length);
-          setNotifications(pendientes);
-        }
-      })
-      .catch(err => console.error('Error al cargar notificaciones:', err));
+    if (!user) return;
+
+    async function loadNotificaciones() {
+      const todas: any[] = [];
+      const currentUser = user;
+      if (!currentUser) return;
+
+      // 1. Notificaciones del sistema (carga horaria modificada, etc.)
+      try {
+        const notifRes = await fetch('/api/notificaciones');
+        const notifData = await notifRes.json();
+        (notifData.data || []).forEach((n: any) => {
+          todas.push({
+            ...n,
+            _tipo: 'notificacion',
+            docente_nombre: '',
+            curso_codigo: n.titulo,
+            observaciones: n.mensaje,
+            created_at: n.created_at,
+          });
+        });
+      } catch (_) {}
+
+      // 2. Observaciones pendientes para admin/secretaria/director
+      if (currentUser.rol.codigo !== 'docente') {
+        try {
+          const cicloRes = await fetch('/api/ciclos?activo=true');
+          const cicloData = await cicloRes.json();
+          const cicloActivo = cicloData.data?.[0];
+          if (cicloActivo) {
+            const [obsRes, cargaObsRes] = await Promise.all([
+              fetch(`/api/observaciones?ciclo_id=${cicloActivo.id}`).then(r => r.json()),
+              fetch(`/api/carga-horaria/observaciones-pendientes?ciclo_id=${cicloActivo.id}`)
+                .then(r => r.json()).catch(() => ({ data: [] })),
+            ]);
+            const obsPendientes = (obsRes.data || []).filter((o: any) => !o.estado || o.estado === 'pendiente');
+            const cargaObsPendientes = (cargaObsRes.data || []).filter((o: any) => !o.estado_observaciones || o.estado_observaciones === 'pendiente');
+            todas.push(...obsPendientes, ...cargaObsPendientes);
+          }
+        } catch (_) {}
+      }
+
+      setNotificationCount(todas.length);
+      setNotifications(todas);
+    }
+
+    loadNotificaciones();
   }, [user]);
 
   async function logout() {
@@ -173,8 +199,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   </svg>
                 )}
               </button>
-              {/* Campanita de notificaciones para admin, secretaria y director */}
-              {user?.rol.codigo !== 'docente' && (
+              {/* Campanita de notificaciones para todos los roles */}
+              {true && (
                 <div style={{position:'relative'}}>
                   <button
                     ref={bellBtnRef}
@@ -309,7 +335,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             zIndex:999
           }}>
             <div style={{padding:'12px',borderBottom:'1px solid var(--border-color)',fontWeight:'600',fontSize:'14px',color:'var(--text-primary)'}}>
-              Observaciones ({notificationCount})
+              Notificaciones ({notificationCount})
             </div>
             {notifications.length === 0 ? (
               <div style={{padding:'20px',textAlign:'center',color:'var(--text-secondary)',fontSize:'13px'}}>
@@ -319,7 +345,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               notifications.map((obs: any) => (
                 <div key={obs.id} style={{padding:'12px',borderBottom:'1px solid var(--border-color)',fontSize:'12px'}}>
                   <div style={{fontWeight:'500',color:'var(--text-primary)',marginBottom:'4px'}}>
-                    {obs.docente_nombre} - {obs.curso_codigo}
+                    {obs._tipo === 'notificacion' ? obs.titulo : `${obs.docente_nombre} - ${obs.curso_codigo}`}
                   </div>
                   <div style={{color:'var(--text-secondary)',marginBottom:'4px'}}>
                     {obs.observaciones}
@@ -330,9 +356,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
               ))
             )}
-            <div style={{padding:'8px',textAlign:'center'}}>
+            <div style={{padding:'8px',textAlign:'center',display:'flex',gap:'8px',justifyContent:'center'}}>
               <Link href="/carga-horaria" onClick={() => setShowNotifications(false)} style={{fontSize:'12px',color:'#3b82f6',textDecoration:'none',fontWeight:'500'}}>
-                Ver todas en Carga Horaria
+                Carga Horaria
+              </Link>
+              <Link href="/horarios" onClick={() => setShowNotifications(false)} style={{fontSize:'12px',color:'#3b82f6',textDecoration:'none',fontWeight:'500'}}>
+                Horarios
               </Link>
             </div>
           </div>

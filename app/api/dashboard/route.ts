@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
       distribucionDias,
       ciclos,
       slots,
+      docentesConObsCarga,
     ] = await Promise.all([
       cid ? queryOne<CountRow>(`SELECT COUNT(DISTINCT docente_id) as count FROM asignaciones WHERE ciclo_id = $1 AND estado = 'activo'`, [cid]) : Promise.resolve({count:'0'}),
       cid ? queryOne<CountRow>(`SELECT COUNT(DISTINCT g.curso_id) as count FROM grupos g JOIN programaciones p ON p.id = g.programacion_id WHERE p.ciclo_id = $1`, [cid]) : Promise.resolve({count:'0'}),
@@ -118,6 +119,18 @@ export async function GET(req: NextRequest) {
 
       query(`SELECT * FROM ciclos ORDER BY año DESC, semestre`),
       query(`SELECT * FROM slots_tiempo ORDER BY orden`),
+      // Docentes con observaciones en carga_horaria_cursos
+      cid ? query(`
+        SELECT d.id, d.nombre, d.apellidos, COUNT(chc.id) as total_cursos
+        FROM carga_horaria_cursos chc
+        JOIN carga_horaria ch ON ch.id = chc.carga_horaria_id
+        JOIN docentes d ON d.id = ch.docente_id
+        WHERE chc.observaciones IS NOT NULL AND chc.observaciones != ''
+        AND (chc.estado_observaciones IS NULL OR chc.estado_observaciones = 'pendiente')
+        AND ch.ciclo_academico_id = $1
+        GROUP BY d.id, d.nombre, d.apellidos
+        ORDER BY d.apellidos
+      `, [cid]) : Promise.resolve([]),
     ]);
 
     const totalAsignacionesCount = parseInt(totalAsignaciones?.count || '0');
@@ -141,6 +154,7 @@ export async function GET(req: NextRequest) {
       ocupacionAmbientes,
       cargaDocentes,
       distribucionDias,
+      docentesConObsCarga,
     });
   } catch (err: any) {
     console.error('Error in /api/dashboard:', err);

@@ -27,25 +27,24 @@ interface DocenteSeleccionado extends Docente {
 
 interface CursoAsignado {
   id: string;
-  curso_id: string; // NEW - UUID from cursos table
+  curso_id: string;
   codigo: string;
   nombre: string;
   seccion: string;
-  condicionCurso: 'OB' | 'EL'; // OB- obligatorio, EL-electivo
-  curso: string; // from ciclo_plan or similar
+  condicionCurso: 'OB' | 'EL';
+  curso: string;
   escuela: string;
-  anioCiclo: string; // Año o Ciclo
+  anioCiclo: string;
   numeroAlumnos: string;
-  // Horas Teoría
   teoriaHoras: string;
   teoriaGrupos: string;
-  // Horas Práctica
   practicaHoras: string;
   practicaGrupos: string;
-  // Horas Laboratorio
   laboratorioHoras: string;
   laboratorioGrupos: string;
   totalHoras: string;
+  observaciones?: string;
+  estado_observaciones?: string;
 }
 
 interface ItemActividad {
@@ -107,8 +106,10 @@ export default function NuevaCargaHorariaPage() {
   const user = useUser();
   const isAdmin = user?.rol.codigo === 'admin';
   const isDirector = user?.rol.codigo === 'director_escuela';
+  const isSecretaria = user?.rol.codigo === 'secretaria';
   const isDocente = user?.rol.codigo === 'docente';
   const canWrite = isAdmin || isDirector;
+  const canEditForm = isAdmin || isDirector || isSecretaria;
 
   const formatDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return '';
@@ -189,7 +190,9 @@ export default function NuevaCargaHorariaPage() {
   const [mostrarExito, setMostrarExito] = useState(false);
   const [cargaHorariaId, setCargaHorariaId] = useState<string | null>(null);
   const [formatosGenerados, setFormatosGenerados] = useState<boolean>(false);
-  const bloqueadoParaDocente = formatosGenerados && isDocente && !canWrite;
+  const campoBloqueado = (formatosGenerados && isDocente && !canWrite);
+  const esPropiaVistaDocente = isDocente && initialDocenteId === user?.docente_id;
+  const lectivaBloqueada = campoBloqueado || isDocente;
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -223,6 +226,7 @@ export default function NuevaCargaHorariaPage() {
   const [docentesSeleccionados, setDocentesSeleccionados] = useState<DocenteSeleccionado[]>([]);
   
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [alertType, setAlertType] = useState<'success' | 'error'>('error');
   
   // Load docentes and cursos
   useEffect(() => {
@@ -325,8 +329,8 @@ export default function NuevaCargaHorariaPage() {
             const total = (teoria * teoriaGrupos) + (practica * practicaGrupos) + (laboratorio * laboratorioGrupos);
             
             return {
-              id: curso.curso_id, // or Date.now().toString(), but use curso_id
-              curso_id: curso.curso_id, // NEW!
+              id: curso.id,
+              curso_id: curso.curso_id,
               curso: String(curso.ciclo_plan),
               codigo: curso.curso_codigo,
               nombre: curso.curso_nombre,
@@ -341,7 +345,9 @@ export default function NuevaCargaHorariaPage() {
               practicaGrupos: String(practicaGrupos),
               laboratorioHoras: String(laboratorio),
               laboratorioGrupos: String(laboratorioGrupos),
-              totalHoras: String(total)
+              totalHoras: String(total),
+              observaciones: curso.observaciones || '',
+              estado_observaciones: curso.estado_observaciones || 'pendiente'
             };
           });
           newCursosAsignados = convertedCursos;
@@ -451,30 +457,36 @@ setDeclaracionJuradaOpcion(opcionSugerida);
   
   const handleContinuar = () => {
     if (!docenteSeleccionado || !cicloAcademicoSeleccionado) {
-      setAlertMessage('Por favor seleccione un docente y ciclo académico');
+      setAlertType('error'); setAlertMessage('Por favor seleccione un docente y ciclo académico');
       return;
     }
 
     if (isDocente && user?.docente_id && docenteSeleccionado.id !== user.docente_id) {
-      setAlertMessage('Solo puedes continuar con tu propia carga horaria');
+      setAlertType('error'); setAlertMessage('Solo puedes continuar con tu propia carga horaria');
       return;
     }
 
     if (!modalidad) {
-      setAlertMessage('Por favor seleccione una modalidad');
+      setAlertType('error'); setAlertMessage('Por favor seleccione una modalidad');
       return;
     }
     
     const validCursos = cursosAsignados.filter(curso => curso.curso_id && curso.curso_id.length > 0);
     
     if (parseFloat(totalHoras) <= 0) {
-      setAlertMessage('El total de horas debe ser mayor a 0');
+      setAlertType('error'); setAlertMessage('El total de horas debe ser mayor a 0');
+      return;
+    }
+
+    if (horasEsperadas > 0 && diffHoras !== 0) {
+      setAlertType('error');
+      setAlertMessage(`Las horas totales (${totalHoras}h) no coinciden con las horas establecidas para la modalidad ${modalidad} (${horasEsperadas}h). ${diffHoras > 0 ? `Excede por ${diffHoras}h.` : `Faltan ${Math.abs(diffHoras)}h.`} Ajuste las horas lectivas o no lectivas.`);
       return;
     }
     
     const cursosSinAlumnos = validCursos.filter(c => parseFloat(c.numeroAlumnos) <= 0);
     if (cursosSinAlumnos.length > 0) {
-      setAlertMessage('Todos los cursos deben tener al menos 1 alumno');
+      setAlertType('error'); setAlertMessage('Todos los cursos deben tener al menos 1 alumno');
       return;
     }
 
@@ -608,17 +620,17 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
 
   const handleGuardar = async () => {
     if (!docenteSeleccionado || !cicloAcademicoSeleccionado) {
-      setAlertMessage('Por favor seleccione un docente y ciclo académico');
+      setAlertType('error'); setAlertMessage('Por favor seleccione un docente y ciclo académico');
       return;
     }
 
     if (isDocente && user?.docente_id && docenteSeleccionado.id !== user.docente_id) {
-      setAlertMessage('Solo puedes guardar tu propia carga horaria');
+      setAlertType('error'); setAlertMessage('Solo puedes guardar tu propia carga horaria');
       return;
     }
 
     if (!modalidad) {
-      setAlertMessage('Por favor seleccione una modalidad');
+      setAlertType('error'); setAlertMessage('Por favor seleccione una modalidad');
       return;
     }
     
@@ -626,14 +638,20 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
     const validCursos = cursosAsignados.filter(curso => curso.curso_id && curso.curso_id.length > 0);
     
     if (parseFloat(totalHoras) <= 0) {
-      setAlertMessage('El total de horas debe ser mayor a 0');
+      setAlertType('error'); setAlertMessage('El total de horas debe ser mayor a 0');
+      return;
+    }
+
+    if (horasEsperadas > 0 && diffHoras !== 0) {
+      setAlertType('error');
+      setAlertMessage(`Las horas totales (${totalHoras}h) no coinciden con las horas establecidas para la modalidad ${modalidad} (${horasEsperadas}h). ${diffHoras > 0 ? `Excede por ${diffHoras}h.` : `Faltan ${Math.abs(diffHoras)}h.`} Ajuste las horas lectivas o no lectivas.`);
       return;
     }
     
     // Check that all cursos have numeroAlumnos > 0
     const cursosSinAlumnos = validCursos.filter(c => parseFloat(c.numeroAlumnos) <= 0);
     if (cursosSinAlumnos.length > 0) {
-      setAlertMessage('Todos los cursos deben tener al menos 1 alumno');
+      setAlertType('error'); setAlertMessage('Todos los cursos deben tener al menos 1 alumno');
       return;
     }
     
@@ -679,7 +697,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       if (!res.ok) {
         const data = await res.json();
         console.error('Error from API:', data);
-        setAlertMessage('Error guardando: ' + (data.error || 'Ocurrió un error'));
+        setAlertType('error'); setAlertMessage('Error guardando: ' + (data.error || 'Ocurrió un error'));
         return;
       }
 
@@ -696,7 +714,7 @@ const resData = await res.json();
       }, 2000);
     } catch (e) {
       console.error('Error guardando:', e);
-      setAlertMessage('Error guardando la carga horaria');
+      setAlertType('error'); setAlertMessage('Error guardando la carga horaria');
     } finally {
       setGuardando(false);
     }
@@ -829,6 +847,11 @@ const resData = await res.json();
       // Update the field
       const updated = { ...c, [field]: processedValue };
       
+      // If docente edits observaciones, reset estado to pendiente
+      if (field === 'observaciones') {
+        updated.estado_observaciones = 'pendiente';
+      }
+      
       // Recalculate totalHoras
       const tHoras = parseFloat(updated.teoriaHoras || '0') * parseFloat(updated.teoriaGrupos || '0');
       const pHoras = parseFloat(updated.practicaHoras || '0') * parseFloat(updated.practicaGrupos || '0');
@@ -837,6 +860,56 @@ const resData = await res.json();
       
       return updated;
     }));
+  };
+
+  const handleGuardarObservaciones = async (curso: CursoAsignado) => {
+    try {
+      setGuardando(true);
+      const res = await fetch(`/api/carga-horaria/cursos/${curso.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ observaciones: curso.observaciones || null }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Error al guardar');
+      const result = await res.json();
+      const updated = result.data;
+      if (updated) {
+        setCursosAsignados(cursosAsignados.map(c =>
+          c.id === curso.id ? { ...c, estado_observaciones: updated.estado_observaciones || 'pendiente' } : c
+        ));
+      }
+      setAlertType('success');
+      setAlertMessage('Observaciones guardadas correctamente');
+      setTimeout(() => setAlertMessage(''), 3000);
+    } catch (e: any) {
+      setAlertType('error');
+      setAlertMessage('Error: ' + e.message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const handleCambiarEstadoObservaciones = async (curso: CursoAsignado, nuevoEstado: string) => {
+    try {
+      setGuardando(true);
+      const res = await fetch(`/api/carga-horaria/cursos/${curso.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado_observaciones: nuevoEstado }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Error al actualizar');
+      setCursosAsignados(cursosAsignados.map(c =>
+        c.id === curso.id ? { ...c, estado_observaciones: nuevoEstado } : c
+      ));
+      setAlertType('success');
+      setAlertMessage(`Observaciones ${nuevoEstado === 'validada' ? 'validadas' : 'rechazadas'} correctamente`);
+      setTimeout(() => setAlertMessage(''), 3000);
+    } catch (e: any) {
+      setAlertType('error');
+      setAlertMessage('Error: ' + e.message);
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const handleAgregarItem = (seccionKey: keyof Secciones) => {
@@ -919,6 +992,14 @@ const resData = await res.json();
     return sum + parseFloat(actividad.horas || '0');
   }, 0);
 
+  const getModalidadHorasEsperadas = (mod: string): number => {
+    if (!mod) return 0;
+    const match = mod.match(/(\d+)\s*H/i);
+    return match ? parseInt(match[1], 10) : 0;
+  };
+  const horasEsperadas = getModalidadHorasEsperadas(modalidad);
+  const diffHoras = horasEsperadas > 0 ? totalHoras - horasEsperadas : 0;
+
   if (loading) {
     return <div className="p-8 text-center">Cargando...</div>;
   }
@@ -973,12 +1054,12 @@ const resData = await res.json();
       <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
 <h1 style={{ fontSize: '24px', fontWeight: '700', margin: '0 0 4px' }}>
-            {bloqueadoParaDocente
+            {campoBloqueado
               ? 'Visualización de Carga Horaria'
               : step === 1 ? 'Nueva Carga Horaria' : step === 2 ? 'Declaración Jurada (F02-CAD)' : 'Carga Horaria Adicional'}
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
-            {bloqueadoParaDocente
+            {campoBloqueado
               ? 'Estás visualizando tu carga horaria. Esta información es de solo lectura.'
               : step === 1 
               ? 'Paso 1 de 3: Rellene la carga horaria general' 
@@ -1022,7 +1103,7 @@ const resData = await res.json();
                   placeholder="Buscar docente por nombre, apellidos o DNI..."
                   value={searchQuery}
                   onChange={handleSearchInputChange}
-                  disabled={bloqueadoParaDocente}
+                  disabled={campoBloqueado}
                   style={{ width: '100%' }}
                 />
               </div>
@@ -1078,7 +1159,7 @@ const resData = await res.json();
                     placeholder="Ingeniería"
                     value={facultad}
                     onChange={(e) => setFacultad(e.target.value)}
-                    disabled={bloqueadoParaDocente}
+                    disabled={campoBloqueado}
                     style={{ flex: 1, padding: '6px 8px', fontSize: '12px' }}
                   />
                 </div>
@@ -1091,7 +1172,7 @@ const resData = await res.json();
                     placeholder="Dpto. de Ingeniería de Sistemas"
                     value={dptoAcademico}
                     onChange={(e) => setDptoAcademico(e.target.value)}
-                    disabled={bloqueadoParaDocente}
+                    disabled={campoBloqueado}
                     style={{ flex: 1, padding: '6px 8px', fontSize: '12px' }}
                   />
                 </div>
@@ -1129,7 +1210,7 @@ const resData = await res.json();
                           className="form-input"
                           value={modalidad}
                           onChange={(e) => setModalidad(e.target.value)}
-                          disabled={bloqueadoParaDocente}
+                          disabled={campoBloqueado}
                           style={{ padding: '6px 10px', fontSize: '13px' }}
                         >
                           <option value="">Seleccionar modalidad...</option>
@@ -1157,7 +1238,7 @@ const resData = await res.json();
                 <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                   1. TRABAJO LECTIVO.- Datos completos y con claridad
                 </h3>
-                {(canWrite || isDocente) && !bloqueadoParaDocente && (
+                {(canEditForm || isDocente) && !lectivaBloqueada && (
                   <button
                     className="btn-primary"
                     onClick={() => setShowAgregarCursoModal(true)}
@@ -1191,7 +1272,7 @@ const resData = await res.json();
                       <th colSpan={2} style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>Hrs.Pra/Grupos</th>
                       <th colSpan={2} style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>Hrs.Lab/Grupos</th>
                       <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>Total Hrs.</th>
-                      {!bloqueadoParaDocente && (
+                      {!lectivaBloqueada && (
                         <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>Accion</th>
                       )}
                     </tr>
@@ -1199,7 +1280,7 @@ const resData = await res.json();
                   <tbody>
                     {cursosAsignados.length === 0 ? (
                       <tr>
-                        <td colSpan={bloqueadoParaDocente ? 14 : 15} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', border: '1px solid var(--border-color)' }}>
+                        <td colSpan={lectivaBloqueada ? 14 : 15} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', border: '1px solid var(--border-color)' }}>
                           No hay cursos agregados
                         </td>
                       </tr>
@@ -1213,7 +1294,7 @@ const resData = await res.json();
                               className="form-input"
                               value={curso.seccion}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'seccion', e.target.value)}
-                              disabled={bloqueadoParaDocente}
+                              disabled={lectivaBloqueada}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '60px' }}
                             />
                           </td>
@@ -1222,7 +1303,7 @@ const resData = await res.json();
                               className="form-input"
                               value={curso.condicionCurso}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'condicionCurso', e.target.value as 'OB' | 'EL')}
-                              disabled={bloqueadoParaDocente}
+                              disabled={lectivaBloqueada}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '70px' }}
                             >
                               <option value="OB">OB</option>
@@ -1234,7 +1315,7 @@ const resData = await res.json();
                               className="form-input"
                               value={curso.escuela}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'escuela', e.target.value)}
-                              disabled={bloqueadoParaDocente}
+                              disabled={lectivaBloqueada}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '180px' }}
                             />
                           </td>
@@ -1247,7 +1328,7 @@ const resData = await res.json();
                               value={curso.numeroAlumnos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'numeroAlumnos', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
-                              disabled={bloqueadoParaDocente}
+                              disabled={lectivaBloqueada}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '70px' }}
                             />
                           </td>
@@ -1260,7 +1341,7 @@ const resData = await res.json();
                               value={curso.teoriaHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'teoriaHoras', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
-                              disabled={bloqueadoParaDocente}
+                              disabled={lectivaBloqueada}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -1272,7 +1353,7 @@ const resData = await res.json();
                               value={curso.teoriaGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'teoriaGrupos', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
-                              disabled={bloqueadoParaDocente}
+                              disabled={lectivaBloqueada}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -1285,7 +1366,7 @@ const resData = await res.json();
                               value={curso.practicaHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'practicaHoras', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
-                              disabled={bloqueadoParaDocente} 
+                              disabled={lectivaBloqueada}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -1297,7 +1378,7 @@ const resData = await res.json();
                               value={curso.practicaGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'practicaGrupos', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
-                              disabled={bloqueadoParaDocente}
+                              disabled={lectivaBloqueada}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -1310,7 +1391,7 @@ const resData = await res.json();
                               value={curso.laboratorioHoras}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'laboratorioHoras', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
-                              disabled={bloqueadoParaDocente}
+                              disabled={lectivaBloqueada}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
@@ -1322,12 +1403,12 @@ const resData = await res.json();
                               value={curso.laboratorioGrupos}
                               onChange={(e) => handleUpdateCursoField(curso.id, 'laboratorioGrupos', e.target.value)}
                               onWheel={(e) => e.preventDefault()}
-                              disabled={bloqueadoParaDocente}
+                              disabled={lectivaBloqueada}
                               style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
                             />
                           </td>
-                        <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>{curso.totalHoras}</td>
-                          {!bloqueadoParaDocente && (
+                          <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>{curso.totalHoras}</td>
+                          {!lectivaBloqueada && (
                             <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                               <button 
                                 className="btn-secondary btn-crud-deactivate" 
@@ -1344,6 +1425,104 @@ const resData = await res.json();
                   </tbody>
                 </table>
               </div>
+
+              {/* OBSERVACIONES POR CURSO */}
+              {(esPropiaVistaDocente || canEditForm) && cursosAsignados.length > 0 && (
+                <div style={{ marginTop: '20px', marginBottom: '24px' }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 12px 0', color: 'var(--text-secondary)' }}>
+                    Observaciones por Curso
+                  </h3>
+                  <div className="table-container" style={{ overflowX: 'auto' }}>
+                    <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
+                      <thead>
+                        <tr style={{ background: darkMode ? '#1e293b' : '#f1f5f9' }}>
+                          <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>Curso</th>
+                          <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>Observaciones</th>
+                          <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>Estado</th>
+                          <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cursosAsignados
+                          .filter(c => c.observaciones && c.observaciones.trim())
+                          .length === 0 && !esPropiaVistaDocente ? (
+                          <tr>
+                            <td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '12px' }}>
+                              Ningún docente ha agregado observaciones
+                            </td>
+                          </tr>
+                        ) : (
+                          cursosAsignados.map(curso => (
+                            <tr key={`obs-${curso.id}`}>
+                              <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)', fontWeight: 600 }}>
+                                {curso.codigo} - {curso.nombre}
+                              </td>
+                              <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
+                                <textarea
+                                  className="form-input"
+                                  value={curso.observaciones || ''}
+                                  onChange={(e) => handleUpdateCursoField(curso.id, 'observaciones', e.target.value)}
+                                  disabled={!esPropiaVistaDocente}
+                                  rows={2}
+                                  style={{ width: '100%', minWidth: '300px', padding: '4px 6px', fontSize: '11px', resize: 'vertical' }}
+                                  placeholder="Agregar observaciones..."
+                                />
+                              </td>
+                              <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)', textAlign: 'center', verticalAlign: 'middle' }}>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '2px 8px',
+                                  borderRadius: '10px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  background: curso.estado_observaciones === 'validada' ? '#dcfce7' : curso.estado_observaciones === 'rechazada' ? '#fef2f2' : '#fef9c3',
+                                  color: curso.estado_observaciones === 'validada' ? '#166534' : curso.estado_observaciones === 'rechazada' ? '#991b1b' : '#854d0e'
+                                }}>
+                                  {curso.estado_observaciones === 'validada' ? 'Validada' : curso.estado_observaciones === 'rechazada' ? 'Rechazada' : 'Pendiente'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
+                                {esPropiaVistaDocente ? (
+                                  <div style={{ display: 'flex', gap: '6px' }}>
+                                    <button
+                                      className="btn-primary"
+                                      onClick={() => handleGuardarObservaciones(curso)}
+                                      style={{ padding: '4px 10px', fontSize: '11px' }}
+                                    >
+                                      Guardar
+                                    </button>
+                                  </div>
+                                ) : isSecretaria ? (
+                                  <div style={{ display: 'flex', gap: '6px' }}>
+                                    <button
+                                      className="btn-primary"
+                                      onClick={() => handleCambiarEstadoObservaciones(curso, 'validada')}
+                                      disabled={curso.estado_observaciones === 'validada' || !curso.observaciones?.trim()}
+                                      style={{ padding: '4px 10px', fontSize: '11px', background: '#16a34a', borderColor: '#16a34a' }}
+                                    >
+                                      Validar
+                                    </button>
+                                    <button
+                                      className="btn-secondary btn-crud-deactivate"
+                                      onClick={() => handleCambiarEstadoObservaciones(curso, 'rechazada')}
+                                      disabled={curso.estado_observaciones === 'rechazada' || !curso.observaciones?.trim()}
+                                      style={{ padding: '4px 10px', fontSize: '11px' }}
+                                    >
+                                      Rechazar
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>—</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1375,7 +1554,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('preparacionEvaluacion', item.id, e.target.value)}
-                                disabled={!!item.dia || bloqueadoParaDocente}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1400,7 +1579,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('preparacionEvaluacion', item.id, e.target.value)}
-                             disabled={!!item.dia || bloqueadoParaDocente}
+                             disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1436,7 +1615,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('consejeriaTutoria', item.id, e.target.value)}
-                                disabled={!!item.dia || bloqueadoParaDocente}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1461,7 +1640,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('consejeriaTutoria', item.id, e.target.value)}
-                              disabled={!!item.dia || bloqueadoParaDocente}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1497,7 +1676,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('investigacion', item.id, e.target.value)}
-                                disabled={!!item.dia || bloqueadoParaDocente}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1522,7 +1701,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('investigacion', item.id, e.target.value)}
-                              disabled={!!item.dia || bloqueadoParaDocente}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1558,7 +1737,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('capacitacion', item.id, e.target.value)}
-                                disabled={!!item.dia || bloqueadoParaDocente}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1583,7 +1762,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('capacitacion', item.id, e.target.value)}
-                              disabled={!!item.dia || bloqueadoParaDocente}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1619,7 +1798,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('gobierno', item.id, e.target.value)}
-                                disabled={!!item.dia || bloqueadoParaDocente}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1644,7 +1823,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('gobierno', item.id, e.target.value)}
-                              disabled={!!item.dia || bloqueadoParaDocente}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1680,7 +1859,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('administracion', item.id, e.target.value)}
-                                disabled={!!item.dia || bloqueadoParaDocente}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1705,7 +1884,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('administracion', item.id, e.target.value)}
-                              disabled={!!item.dia || bloqueadoParaDocente}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1741,7 +1920,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('asesoriaTesis', item.id, e.target.value)}
-                                disabled={!!item.dia || bloqueadoParaDocente}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1766,7 +1945,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('asesoriaTesis', item.id, e.target.value)}
-                              disabled={!!item.dia || bloqueadoParaDocente}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1802,7 +1981,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('responsabilidadSocial', item.id, e.target.value)}
-                                disabled={!!item.dia || bloqueadoParaDocente}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1827,7 +2006,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('responsabilidadSocial', item.id, e.target.value)}
-                              disabled={!!item.dia || bloqueadoParaDocente}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1863,7 +2042,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('comitesTecnicos', item.id, e.target.value)}
-                                disabled={!!item.dia || bloqueadoParaDocente}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1888,7 +2067,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('comitesTecnicos', item.id, e.target.value)}
-                              disabled={!!item.dia || bloqueadoParaDocente}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1913,10 +2092,20 @@ const resData = await res.json();
                     {totalHoras}
                   </span>
                 </div>
+                {horasEsperadas > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', fontSize: '14px' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      Horas lectivas: <strong>{totalTrabajoLectivo}</strong> | No lectivas: <strong>{totalHoras - totalTrabajoLectivo}</strong>
+                    </span>
+                    <span style={{ color: diffHoras === 0 ? '#059669' : diffHoras > 0 ? '#ef4444' : '#f59e0b', fontWeight: '600' }}>
+                      {diffHoras === 0 ? `✓ ${horasEsperadas}h exactas` : diffHoras > 0 ? `✗ Excede por ${diffHoras}h (máx ${horasEsperadas}h)` : `⚠ Faltan ${Math.abs(diffHoras)}h (mín ${horasEsperadas}h)`}
+                    </span>
+                  </div>
+                )}
               </div>
 
 {/* CONTINUAR BUTTON */}
-              {(canWrite || isDocente) && (
+              {(canEditForm || isDocente) && (
                 <div style={{ marginTop: '32px', display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                   <button 
                     className="btn-secondary"
@@ -2083,7 +2272,7 @@ const resData = await res.json();
     </div>
 
     {/* Botones */}
-    {(canWrite || isDocente) && (
+    {(canEditForm || isDocente) && (
       <div style={{ marginTop: '16px', display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <button className="btn-secondary" onClick={() => setStep(1)} style={{ padding: '10px 24px' }}>
           Atrás
@@ -2095,7 +2284,7 @@ const resData = await res.json();
           className="btn-primary"
           onClick={() => {
             if (!declaracionJuradaOpcion) {
-              setAlertMessage('Debe seleccionar una opción de la Declaración Jurada');
+              setAlertType('error'); setAlertMessage('Debe seleccionar una opción de la Declaración Jurada');
               return;
             }
             setAdicionalData(prev => ({ ...prev, declaracion_jurada_opcion: declaracionJuradaOpcion }));
@@ -2472,7 +2661,7 @@ const resData = await res.json();
               </div>
 
               {/* Buttons Inside Card */}
-              {(canWrite || isDocente) && (
+              {(canEditForm || isDocente) && (
                 <div style={{ marginTop: '32px', display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                   <button 
                     className="btn-secondary"
@@ -2759,16 +2948,16 @@ const resData = await res.json();
               <div style={{
                 width: '40px',
                 height: '40px',
-                backgroundColor: '#fee2e2',
+                backgroundColor: alertType === 'success' ? '#dcfce7' : '#fee2e2',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#dc2626',
+                color: alertType === 'success' ? '#16a34a' : '#dc2626',
                 fontSize: '20px',
                 fontWeight: 'bold'
               }}>
-                !
+                {alertType === 'success' ? '✓' : '!'}
               </div>
               <h3 style={{
                 margin: 0,
@@ -2776,7 +2965,7 @@ const resData = await res.json();
                 fontWeight: '600',
                 color: '#111827'
               }}>
-                Atención
+                {alertType === 'success' ? 'Éxito' : 'Atención'}
               </h3>
             </div>
             <p style={{
@@ -2811,7 +3000,7 @@ const resData = await res.json();
 
       {/* Botones de Guardar y Cancelar */}
 {/* Botones de Guardar y Cancelar */}
-      {step === 1 && docenteSeleccionado && (canWrite || isDocente) && !bloqueadoParaDocente && (
+      {step === 1 && docenteSeleccionado && (canEditForm || isDocente) && !campoBloqueado && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
           <button
             className="btn-secondary"

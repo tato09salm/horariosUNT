@@ -107,11 +107,13 @@ export default function CargaHorariaPage() {
   const isAdmin = user?.rol.codigo === 'admin';
   const isDirector = user?.rol.codigo === 'director_escuela';
   const isDocente = user?.rol.codigo === 'docente';
+  const isSecretaria = user?.rol.codigo === 'secretaria';
   const canWrite = isAdmin || isDirector;
+  const canManageCarga = isAdmin || isDirector || isSecretaria;
 
   const [ciclosAcademicos, setCiclosAcademicos] = useState<CicloAcademico[]>([]);
   const [cicloAcademicoSeleccionado, setCicloAcademicoSeleccionado] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'carga-horaria' | 'carga-aula' | 'carga-docentes' | 'observaciones' | 'mis-observaciones' | 'reportes'>('carga-horaria');
+  const [activeTab, setActiveTab] = useState<'carga-horaria' | 'carga-aula' | 'carga-docentes' | 'reportes' | 'carga-observaciones'>('carga-horaria');
   const [aulaData, setAulaData] = useState<any[]>([]);
   const [loadingAula, setLoadingAula] = useState(false);
   
@@ -123,21 +125,6 @@ export default function CargaHorariaPage() {
   const [filtroCurso, setFiltroCurso] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   
-  // Estado para pestaña Observaciones
-  const [observaciones, setObservaciones] = useState<any[]>([]);
-  const [loadingObservaciones, setLoadingObservaciones] = useState(false);
-  const [itemsPerPage] = useState(20);
-  // Estado para Mis Observaciones (docente)
-  const [misObservaciones, setMisObservaciones] = useState<any[]>([]);
-  const [loadingMisObservaciones, setLoadingMisObservaciones] = useState(false);
-  const [showObsModal, setShowObsModal] = useState(false);
-  const [obsTexto, setObsTexto] = useState('');
-  const [editObsId, setEditObsId] = useState<string | null>(null);
-  const [msgObs, setMsgObs] = useState<{type:string,text:string}|null>(null);
-  const [obsGrupos, setObsGrupos] = useState<any[]>([]);
-  const [obsCursoKey, setObsCursoKey] = useState('');
-  const [obsGrupoKey, setObsGrupoKey] = useState('');
-
   // Resetear página cuando cambian los filtros
   useEffect(() => {
     setCurrentPage(1);
@@ -389,33 +376,6 @@ export default function CargaHorariaPage() {
       })
       .finally(() => setLoadingDocentesCarga(false));
   }, [activeTab, cicloAcademicoSeleccionado]);
-
-  // Cargar observaciones para vista "Observaciones"
-  useEffect(() => {
-    if (activeTab !== 'observaciones' || !cicloAcademicoSeleccionado) return;
-    setLoadingObservaciones(true);
-    fetch(`/api/observaciones?ciclo_id=${cicloAcademicoSeleccionado}`)
-      .then(r => r.json())
-      .then(data => {
-        setObservaciones(data.data || []);
-      })
-      .catch(() => setObservaciones([]))
-      .finally(() => setLoadingObservaciones(false));
-  }, [activeTab, cicloAcademicoSeleccionado]);
-
-  // Cargar "Mis observaciones" para docente
-  useEffect(() => {
-    if (activeTab !== 'mis-observaciones' || !cicloAcademicoSeleccionado) return;
-    if (!isDocente || !user?.docente_id) return;
-    setLoadingMisObservaciones(true);
-    fetch(`/api/observaciones?ciclo_id=${cicloAcademicoSeleccionado}&docente_id=${user.docente_id}`)
-      .then(r => r.json())
-      .then(data => {
-        setMisObservaciones(data.data || []);
-      })
-      .catch(() => setMisObservaciones([]))
-      .finally(() => setLoadingMisObservaciones(false));
-  }, [activeTab, cicloAcademicoSeleccionado, isDocente, user?.docente_id]);
 
   async function asignarDocente() {
     if (!docenteSeleccionado || !cicloAcademicoSeleccionado || cicloPlanSeleccionado === null) {
@@ -1875,42 +1835,22 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
               Carga por Docentes
             </button>
           )}
-          {(user?.rol.codigo === 'secretaria' || isDirector) && (
-            <button
-              onClick={() => setActiveTab('observaciones')}
-              style={{
-                padding: '12px 24px',
-                border: 'none',
-                background: 'none',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: activeTab === 'observaciones' ? '600' : '500',
-                color: activeTab === 'observaciones' ? 'var(--text-primary)' : 'var(--text-secondary)',
-                borderBottom: activeTab === 'observaciones' ? '2px solid #3b82f6' : '2px solid transparent',
-                marginBottom: '-1px'
-              }}
-            >
-              Observaciones
-            </button>
-          )}
-          {isDocente && (
-            <button
-              onClick={() => setActiveTab('mis-observaciones')}
-              style={{
-                padding: '12px 24px',
-                border: 'none',
-                background: 'none',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: activeTab === 'mis-observaciones' ? '600' : '500',
-                color: activeTab === 'mis-observaciones' ? 'var(--text-primary)' : 'var(--text-secondary)',
-                borderBottom: activeTab === 'mis-observaciones' ? '2px solid #3b82f6' : '2px solid transparent',
-                marginBottom: '-1px'
-              }}
-            >
-              Mis observaciones
-            </button>
-          )}
+          <button
+            onClick={() => setActiveTab('carga-observaciones')}
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: activeTab === 'carga-observaciones' ? '600' : '500',
+              color: activeTab === 'carga-observaciones' ? 'var(--text-primary)' : 'var(--text-secondary)',
+              borderBottom: activeTab === 'carga-observaciones' ? '2px solid #3b82f6' : '2px solid transparent',
+              marginBottom: '-1px'
+            }}
+          >
+            💬 Carga Observaciones
+          </button>
           <button
             onClick={() => setActiveTab('reportes')}
             style={{
@@ -2131,9 +2071,9 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                                         <td style={{ textAlign: 'center' }}>{hl > 0 ? `${hl}×${lG}` : '—'}</td>
                                         <td style={{ textAlign: 'center', fontWeight: 600 }}>{total}h</td>
                                       <td style={{ verticalAlign: 'middle' }}>
-                                        {(canWrite || (isDocente && user?.docente_id === ch.docente_id)) && (
+                                        {(canManageCarga || (isDocente && user?.docente_id === ch.docente_id)) && (
                                           <div style={{ display: 'flex', gap: '8px' }}>
-                                            {canWrite && (
+                                            {canManageCarga && (
                                               <button
                                                 className="btn-secondary"
                                                 style={{ 
@@ -2146,9 +2086,8 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                                                 onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
                                               >
                                                 <Edit2 size={14} />
-                                                Editar
-                                              </button>
-                                            )}
+                                                {isSecretaria ? 'Visualizar' : 'Editar'}
+                                              </button>)}
                                             {isDocente && user?.docente_id === ch.docente_id && (
                                               <button
                                                 className="btn-secondary"
@@ -2165,7 +2104,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                                                 {ch.formatos_generados ? 'Visualizar' : 'Editar'}
                                               </button>
                                             )}
-                                            {canWrite && (
+                                            {canManageCarga && (
                                               <button
                                                 className="btn-secondary btn-crud-deactivate"
                                                 style={{ 
@@ -2208,12 +2147,12 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                                          <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
                                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{ch.horas_asignadas}h</td>
 <td style={{ verticalAlign: 'middle' }}>
-                                        {(canWrite || (isDocente && user?.docente_id === ch.docente_id)) && (
+                                        {(canManageCarga || (isDocente && user?.docente_id === ch.docente_id)) && (
                                           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                             {ch.formatos_generados && (
                                               <span title="Formatos generados — edición bloqueada" style={{ fontSize: '16px' }}>🔒</span>
                                             )}
-                                            {canWrite && (
+                                            {canManageCarga && (
                                               <button
                                                 className="btn-secondary"
                                                 style={{ 
@@ -2226,7 +2165,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                                                 onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
                                               >
                                                 <Edit2 size={14} />
-                                                Editar
+                                                {isSecretaria ? 'Visualizar' : 'Editar'}
                                               </button>
                                             )}
                                             {isDocente && user?.docente_id === ch.docente_id && !ch.formatos_generados && (
@@ -2245,7 +2184,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                                                 Editar
                                               </button>
                                             )}
-                                            {canWrite && ch.formatos_generados && (
+                                            {canManageCarga && ch.formatos_generados && (
                                               <button
                                                 className="btn-secondary"
                                                 style={{ padding: '6px 8px', fontSize: '11px', background: '#fef9c3', color: '#854d0e' }}
@@ -2265,7 +2204,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                                                 🔓 Desbloquear
                                               </button>
                                             )}
-                                            {canWrite && (
+                                            {canManageCarga && (
                                               <button
                                                 className="btn-secondary btn-crud-deactivate"
                                                 style={{ 
@@ -2502,7 +2441,6 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
         </>
       ) : activeTab === 'carga-docentes' ? (
         <>
-        // Pestaña Carga por Docentes (RF-05)
         <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
           {!cicloAcademicoSeleccionado ? (
             <div style={{
@@ -2594,11 +2532,11 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                         <th>Horas lectivas</th>
                         <th>Horas no lectivas</th>
                         <th>Horas totales</th>
+                        <th>Acción</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(() => {
-                        // Filtrar docentes
                         const filtrados = docentesCarga.filter(d => {
                           const matchNombre = !filtroNombreDocente || 
                             (d.nombre?.toLowerCase().includes(filtroNombreDocente.toLowerCase()) ||
@@ -2618,7 +2556,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                         if (filtrados.length === 0) {
                           return (
                             <tr>
-                              <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                              <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
                                 No se encontraron docentes con los filtros aplicados
                               </td>
                             </tr>
@@ -2626,9 +2564,10 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                         }
 
                         // Paginación
-                        const totalPages = Math.ceil(filtrados.length / itemsPerPage);
-                        const startIndex = (currentPage - 1) * itemsPerPage;
-                        const endIndex = startIndex + itemsPerPage;
+                        const ITEMS_PER_PAGE = 10;
+                        const totalPages = Math.ceil(filtrados.length / ITEMS_PER_PAGE);
+                        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+                        const endIndex = startIndex + ITEMS_PER_PAGE;
                         const paginados = filtrados.slice(startIndex, endIndex);
 
                         return paginados.map(d => (
@@ -2672,6 +2611,23 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                             <td style={{ textAlign: 'center' }}>{d.horas_lectivas || 0}</td>
                             <td style={{ textAlign: 'center' }}>{d.horas_no_lectivas || 0}</td>
                             <td style={{ textAlign: 'center' }}>{(d.horas_lectivas || 0) + (d.horas_no_lectivas || 0)}</td>
+                            <td>
+                              <button
+                                onClick={() => router.push(`/carga-horaria/nuevo?docenteId=${d.id}&cicloAcademico=${cicloAcademicoSeleccionado}`)}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #3b82f6',
+                                  background: 'transparent',
+                                  color: '#3b82f6',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: '500'
+                                }}
+                              >
+                                Ver
+                              </button>
+                            </td>
                           </tr>
                         ));
                       })()}
@@ -2682,6 +2638,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
 
               {/* Controles de paginación */}
               {(() => {
+                const ITEMS_PER_PAGE = 10;
                 const filtrados = docentesCarga.filter(d => {
                   const matchNombre = !filtroNombreDocente || 
                     (d.nombre?.toLowerCase().includes(filtroNombreDocente.toLowerCase()) ||
@@ -2698,7 +2655,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                   return matchNombre && matchEstado && matchCurso;
                 });
 
-                const totalPages = Math.ceil(filtrados.length / itemsPerPage);
+                const totalPages = Math.ceil(filtrados.length / ITEMS_PER_PAGE);
                 
                 if (totalPages <= 1) return null;
 
@@ -2773,8 +2730,8 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
           )}
         </div>
         </>
-      ) : activeTab === 'observaciones' ? (
-        // Pestaña Observaciones (secretaria/director)
+      ) : activeTab === 'carga-observaciones' ? (
+        // Pestaña Carga Observaciones (per-course observations from carga_horaria_cursos)
         <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
           {!cicloAcademicoSeleccionado ? (
             <div style={{
@@ -2785,427 +2742,115 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
               textAlign: 'center',
               color: 'var(--text-secondary)'
             }}>
-              Selecciona un ciclo académico para ver las observaciones de docentes
+              Selecciona un ciclo académico para ver las observaciones de carga horaria
             </div>
           ) : (
             <>
-              {loadingObservaciones ? (
-                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-                  Cargando observaciones...
-                </div>
-              ) : observaciones.length === 0 ? (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: '200px',
-                  textAlign: 'center',
-                  color: 'var(--text-secondary)'
-                }}>
-                  No hay observaciones registradas para este ciclo académico
-                </div>
-              ) : (
-                <>
-                  <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
-                      Observaciones de Docentes ({observaciones.length})
-                    </h3>
-                  </div>
-                  
-                  <div className="table-container">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Docente</th>
-                          <th>Curso</th>
-                          <th>Tipo</th>
-                          <th>Grupo</th>
-                          <th>Día</th>
-                          <th>Horario</th>
-                          <th>Observación</th>
-                          <th>Estado</th>
-                          <th>Fecha</th>
-                          <th>Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {observaciones.map((obs: any) => (
-                          <tr key={obs.id}>
-                            <td style={{ fontWeight: '500' }}>
-                              {obs.docente_nombre} {obs.docente_apellidos}
-                            </td>
-                            <td>{obs.curso_codigo} - {obs.curso_nombre}</td>
-                            <td style={{ textAlign: 'center' }}><span className={`badge-${obs.tipo || 'teoria'}`}>{obs.tipo || 'teoria'}</span></td>
-                            <td style={{ textAlign: 'center' }}>{obs.numero_grupo}</td>
-                            <td style={{ textAlign: 'center' }}>{obs.dia || '-'}</td>
-                            <td style={{ textAlign: 'center' }}>
-                              {obs.hora_inicio && obs.hora_fin
-                                ? `${obs.hora_inicio.substring(0,5)} - ${obs.hora_fin.substring(0,5)}`
-                                : '-'}
-                            </td>
-                            <td style={{ maxWidth: '250px', wordWrap: 'break-word' }}>
-                              {obs.observaciones}
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <span className={`badge-${obs.estado === 'validada' ? 'success' : obs.estado === 'rechazada' ? 'danger' : 'warning'}`}
-                                style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '9999px', fontWeight: '600', textTransform: 'uppercase' }}>
-                                {obs.estado || 'pendiente'}
-                              </span>
-                            </td>
-                            <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                              {new Date(obs.created_at).toLocaleDateString('es-PE')}
-                            </td>
-                            <td>
-                              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                                {obs.estado !== 'validada' && (
-                                  <button className="btn-primary" style={{ padding: '4px 10px', fontSize: '11px' }}
-                                    onClick={async () => {
-                                      try {
-                                        const res = await fetch(`/api/observaciones/${obs.id}`, {
-                                          method: 'PATCH',
-                                          headers: { 'Content-Type': 'application/json' },
-                                          body: JSON.stringify({ estado: 'validada' }),
-                                        });
-                                        if (res.ok) {
-                                          setObservaciones(prev => prev.map(o => o.id === obs.id ? {...o, estado: 'validada'} : o));
-                                        }
-                                      } catch(e) {}
-                                    }}>
-                                    Validar
-                                  </button>
-                                )}
-                                {obs.estado !== 'rechazada' && (
-                                  <button className="btn-danger" style={{ padding: '4px 10px', fontSize: '11px' }}
-                                    onClick={async () => {
-                                      try {
-                                        const res = await fetch(`/api/observaciones/${obs.id}`, {
-                                          method: 'PATCH',
-                                          headers: { 'Content-Type': 'application/json' },
-                                          body: JSON.stringify({ estado: 'rechazada' }),
-                                        });
-                                        if (res.ok) {
-                                          setObservaciones(prev => prev.map(o => o.id === obs.id ? {...o, estado: 'rechazada'} : o));
-                                        }
-                                      } catch(e) {}
-                                    }}>
-                                    Rechazar
-                                  </button>
-                                )}
-                              </div>
-                            </td>
+              {(() => {
+                const filas = cargaHoraria
+                  .filter(ch => isDocente ? ch.docente_id === user?.docente_id : true)
+                  .flatMap(ch => (ch.cursos || [])
+                    .filter((c: any) => c.observaciones && c.observaciones.trim())
+                    .map((c: any) => ({
+                      ...c,
+                      docente_id: ch.docente_id,
+                      docente_nombre: ch.docente_nombre,
+                      docente_apellidos: ch.docente_apellidos,
+                    }))
+                  );
+                if (filas.length === 0) {
+                  return (
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'200px',textAlign:'center',color:'var(--text-secondary)'}}>
+                      No hay observaciones de carga horaria para este ciclo académico
+                    </div>
+                  );
+                }
+                return (
+                  <>
+                    <div style={{marginBottom:'20px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <h3 style={{fontSize:'16px',fontWeight:'600',color:'var(--text-primary)',margin:0}}>
+                        Observaciones de Carga Horaria ({filas.length})
+                      </h3>
+                    </div>
+                    <div className="table-container">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Docente</th>
+                            <th>Curso</th>
+                            <th>Observación</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </div>
-      ) : activeTab === 'mis-observaciones' ? (
-        // Pestaña Mis Observaciones (docente)
-        <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-          {!cicloAcademicoSeleccionado ? (
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'200px', textAlign:'center', color:'var(--text-secondary)' }}>
-              Selecciona un ciclo académico para ver tus observaciones
-            </div>
-          ) : (
-            <>
-              {msgObs && (
-                <div style={{ padding:'12px', borderRadius:'8px', marginBottom:'16px', fontSize:'13px', fontWeight:'500',
-                  background: msgObs.type==='success' ? (darkMode?'rgba(34,197,94,0.15)':'#d1fae5') : (darkMode?'rgba(239,68,68,0.15)':'#fee2e2'),
-                  color: msgObs.type==='success' ? (darkMode?'#86efac':'#065f46') : (darkMode?'#fca5a5':'#991b1b')
-                }}>
-                  {msgObs.text}
-                  <button onClick={() => setMsgObs(null)} style={{ float:'right', background:'none', border:'none', cursor:'pointer', color:'inherit', fontWeight:'700' }}>&times;</button>
-                </div>
-              )}
-              <div style={{ marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <h3 style={{ fontSize:'16px', fontWeight:'600', color:'var(--text-primary)', margin:0 }}>
-                  Mis observaciones ({misObservaciones.length})
-                </h3>
-                <button className="btn-primary" onClick={async () => {
-                  setObsTexto('');
-                  setEditObsId(null);
-                  setObsGrupos([]);
-                  setObsCursoKey('');
-                  setObsGrupoKey('');
-                  if (user?.docente_id && cicloAcademicoSeleccionado) {
-                    try {
-                      const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloAcademicoSeleccionado}`);
-                      const progsJson = await progsRes.json();
-                      const progs = progsJson.data || [];
-                      const prog = progs.find((p: any) => p.estado === 'publicado') || progs[0];
-                      const map = new Map();
-                      let asignaciones: any[] = [];
-                      if (prog) {
-                        // Fetch the docente's programacion cursos directly (has grupo_id + curso info)
-                        const pcRes = await fetch(`/api/horarios/programaciones/${prog.id}/programacion-cursos`);
-                        if (pcRes.ok) {
-                          const pcData = await pcRes.json();
-                          const pcCursos = pcData.data || [];
-                          // Each pc row has: curso_codigo, curso_nombre, numero_grupo, grupo_id, docente_id, horas_teoria, etc.
-                          pcCursos
-                            .filter((pc: any) => pc.docente_id === user.docente_id)
-                            .forEach((pc: any) => {
-                              // Create one entry per tipo (teoria/practica/laboratorio) if the course has those hours
-                              const tipos = [];
-                              if (Number(pc.horas_teoria) > 0) tipos.push('teoria');
-                              if (Number(pc.horas_practica) > 0) tipos.push('practica');
-                              if (Number(pc.horas_laboratorio) > 0) tipos.push('laboratorio');
-                              tipos.forEach(t => {
-                                const key = `${pc.curso_codigo}|${pc.curso_nombre}|${t}|${pc.numero_grupo}`;
-                                if (!map.has(key)) {
-                                  map.set(key, {
-                                    key, curso_codigo: pc.curso_codigo, curso_nombre: pc.curso_nombre,
-                                    tipo: t, numero_grupo: pc.numero_grupo, grupo_id: pc.grupo_id,
-                                    asignaciones: []
-                                  });
-                                }
-                              });
-                            });
-                          // Also try to get dia/horario from the export endpoint for enriched display
-                          try {
-                            const expRes = await fetch(`/api/horarios/programaciones/${prog.id}/exportar`);
-                            if (expRes.ok) {
-                              const expData = await expRes.json();
-                              (expData.asignaciones || [])
-                                .filter((a: any) => a.docente_id === user.docente_id)
-                                .forEach((a: any) => {
-                                  const t = a.tipo_sesion || a.tipo || '';
-                                  const g = parseInt(String(a.grupo || '').replace('G',''), 10) || a.numero_grupo || 1;
-                                  const key = `${a.curso_codigo}|${a.curso_nombre}|${t}|${g}`;
-                                  if (map.has(key)) {
-                                    map.get(key).asignaciones.push(a);
-                                  }
-                                });
-                            }
-                          } catch (_) {}
-                        }
-                      }
-                      setObsGrupos(Array.from(map.values()));
-                      if (Array.from(map.values()).length === 0) {
-                        setMsgObs({ type:'error', text:'No se encontraron cursos asignados en este ciclo para cargar los grupos' });
-                      }
-                    } catch(e) {
-                      console.error('Error cargando grupos:', e);
-                      setMsgObs({ type:'error', text:'Error al cargar cursos: ' + String(e) });
-                    }
-                  }
-                  setShowObsModal(true);
-                }}>
-                  Agregar Observación
-                </button>
-              </div>
-
-              {loadingMisObservaciones ? (
-                <div style={{ textAlign:'center', padding:'40px', color:'var(--text-secondary)' }}>Cargando observaciones...</div>
-              ) : misObservaciones.length === 0 ? (
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'200px', textAlign:'center', color:'var(--text-secondary)' }}>
-                  No tienes observaciones registradas en este ciclo
-                </div>
-              ) : (
-                <div className="table-container">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Curso</th>
-                        <th>Tipo</th>
-                        <th>Grupo</th>
-                        <th>Día</th>
-                        <th>Horario</th>
-                        <th>Observación</th>
-                        <th>Estado</th>
-                        <th>Fecha</th>
-                        <th>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {misObservaciones.map((obs: any) => (
-                        <tr key={obs.id}>
-                          <td>{obs.curso_codigo} - {obs.curso_nombre}</td>
-                          <td style={{ textAlign:'center' }}><span className={`badge-${obs.tipo || 'teoria'}`}>{obs.tipo || 'teoria'}</span></td>
-                          <td style={{ textAlign:'center' }}>{obs.numero_grupo}</td>
-                          <td style={{ textAlign:'center' }}>{obs.dia || '-'}</td>
-                          <td style={{ textAlign:'center' }}>
-                            {obs.hora_inicio && obs.hora_fin ? `${obs.hora_inicio.substring(0,5)} - ${obs.hora_fin.substring(0,5)}` : '-'}
-                          </td>
-                          <td style={{ maxWidth:'250px', wordWrap:'break-word' }}>{obs.observaciones}</td>
-                          <td style={{ textAlign:'center' }}>
-                            <span className={`badge-${obs.estado === 'validada' ? 'success' : obs.estado === 'rechazada' ? 'danger' : 'warning'}`}
-                              style={{ fontSize:'11px', padding:'2px 8px', borderRadius:'9999px', fontWeight:'600', textTransform:'uppercase' }}>
-                              {obs.estado || 'pendiente'}
-                            </span>
-                          </td>
-                          <td style={{ fontSize:'12px', color:'var(--text-secondary)' }}>
-                            {new Date(obs.created_at).toLocaleDateString('es-PE')}
-                          </td>
-                          <td>
-                            <div style={{ display:'flex', gap:'6px' }}>
-                              <button className="btn-secondary" style={{ padding:'4px 10px', fontSize:'11px' }}
-                                onClick={() => { setEditObsId(obs.id); setObsTexto(obs.observaciones || ''); setShowObsModal(true); }}>
-                                Editar
-                              </button>
-                              <button className="btn-danger" style={{ padding:'4px 10px', fontSize:'11px' }}
-                                onClick={async () => {
-                                  if (!confirm('¿Eliminar esta observación?')) return;
-                                  try {
-                                    const res = await fetch(`/api/observaciones/${obs.id}`, { method: 'DELETE' });
-                                    if (res.ok) {
-                                      setMisObservaciones(prev => prev.filter(o => o.id !== obs.id));
-                                      setMsgObs({ type:'success', text:'Observación eliminada' });
-                                    } else {
-                                      const err = await res.json();
-                                      setMsgObs({ type:'error', text: err.error || 'Error al eliminar' });
-                                    }
-                                  } catch(e) {
-                                    setMsgObs({ type:'error', text:'Error al eliminar' });
-                                  }
-                                }}>
-                                Eliminar
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Modal Agregar/Editar Observación (docente) */}
-              {showObsModal && (
-                <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowObsModal(false)}>
-                  <div className="modal" style={{ maxWidth:'500px' }}>
-                    <div className="modal-header">
-                      <h2 style={{ fontSize:'18px', fontWeight:'600', margin:0 }}>{editObsId ? 'Editar' : 'Nueva'} Observación</h2>
-                      <button onClick={() => setShowObsModal(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#64748b' }}>
-                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                    <div className="modal-body">
-                      {!editObsId && (
-                        <>
-                          <div className="form-group" style={{marginBottom:'12px'}}>
-                            <label className="form-label">Curso</label>
-                            <select className="form-input" value={obsCursoKey}
-                              onChange={e => {
-                                const k = e.target.value;
-                                setObsCursoKey(k);
-                                const grupos = k ? obsGrupos.filter(g => `${g.curso_codigo}|${g.curso_nombre}` === k) : [];
-                                if (grupos.length > 0) { setObsGrupoKey(grupos[0].key); } else { setObsGrupoKey(''); }
-                              }}>
-                              <option value="">Seleccione un curso...</option>
-                              {Array.from(new Map(obsGrupos.map(g => [`${g.curso_codigo}|${g.curso_nombre}`, { codigo: g.curso_codigo, nombre: g.curso_nombre }])).values())
-                                .sort((a, b) => a.codigo.localeCompare(b.codigo))
-                                .map(c => (
-                                  <option key={`${c.codigo}|${c.nombre}`} value={`${c.codigo}|${c.nombre}`}>{c.codigo} - {c.nombre}</option>
-                                ))}
-                            </select>
-                          </div>
-                          {obsCursoKey && (
-                            <div className="form-group" style={{marginBottom:'16px'}}>
-                              <label className="form-label">Tipo de clase / Grupo</label>
-                              <select className="form-input" value={obsGrupoKey}
-                                onChange={e => setObsGrupoKey(e.target.value)}>
-                                {obsGrupos.filter(g => `${g.curso_codigo}|${g.curso_nombre}` === obsCursoKey)
-                                  .sort((a, b) => (ORDER_TIPO[a.tipo] || 99) - (ORDER_TIPO[b.tipo] || 99) || a.numero_grupo - b.numero_grupo)
-                                  .map(g => (
-                                    <option key={g.key} value={g.key}>
-                                      {(g.tipo ? g.tipo.charAt(0).toUpperCase() + g.tipo.slice(1) : '')} - Grupo {g.numero_grupo}
-                                    </option>
-                                  ))}
-                              </select>
-                            </div>
-                          )}
-                          {obsGrupoKey && (() => {
-                            const grupo = obsGrupos.find(g => g.key === obsGrupoKey);
-                            if (!grupo || !grupo.asignaciones.length) return null;
-                            return (
-                              <div style={{marginBottom:'16px',padding:'12px',background:darkMode ? 'rgba(59,130,246,0.1)' : '#f0f9ff',borderRadius:'8px',border:'1px solid var(--border-color)'}}>
-                                <div style={{fontWeight:'500',color:'var(--text-primary)',marginBottom:'8px',fontSize:'14px'}}>
-                                  {grupo.curso_codigo} - {grupo.curso_nombre}
-                                  {grupo.tipo ? ` - ${grupo.tipo.charAt(0).toUpperCase() + grupo.tipo.slice(1)}` : ''}
-                                  {' '}(Grupo {grupo.numero_grupo})
+                        </thead>
+                        <tbody>
+                          {filas.map((curso: any, idx: number) => (
+                            <tr key={curso.id || idx}>
+                              <td style={{fontWeight:'500'}}>{curso.docente_apellidos}, {curso.docente_nombre}</td>
+                              <td>{curso.curso_codigo} - {curso.curso_nombre}</td>
+                              <td style={{maxWidth:'300px',wordWrap:'break-word'}}>{curso.observaciones}</td>
+                              <td style={{textAlign:'center'}}>
+                                <span className={`badge-${curso.estado_observaciones === 'validada' ? 'success' : curso.estado_observaciones === 'rechazada' ? 'danger' : 'warning'}`}
+                                  style={{fontSize:'11px',padding:'2px 8px',borderRadius:'9999px',fontWeight:'600',textTransform:'uppercase'}}>
+                                  {curso.estado_observaciones || 'pendiente'}
+                                </span>
+                              </td>
+                              <td>
+                                <div style={{display:'flex',gap:'4px',flexWrap:'wrap'}}>
+                                  {(isAdmin || isSecretaria) && curso.estado_observaciones !== 'validada' && (
+                                    <button className="btn-primary" style={{padding:'4px 10px',fontSize:'11px'}}
+                                      onClick={async () => {
+                                        try {
+                                          const res = await fetch(`/api/carga-horaria/cursos/${curso.id}`, {
+                                            method: 'PATCH',
+                                            headers: {'Content-Type':'application/json'},
+                                            body: JSON.stringify({estado_observaciones:'validada'}),
+                                          });
+                                          if (res.ok) {
+                                            setCargaHoraria(prev => prev.map(ch => ({
+                                              ...ch,
+                                              cursos: (ch.cursos || []).map((c: any) =>
+                                                c.id === curso.id ? {...c, estado_observaciones:'validada'} : c
+                                              ),
+                                            })));
+                                          }
+                                        } catch(e) {}
+                                      }}>
+                                      Validar
+                                    </button>
+                                  )}
+                                  {(isAdmin || isSecretaria) && curso.estado_observaciones !== 'rechazada' && (
+                                    <button className="btn-danger" style={{padding:'4px 10px',fontSize:'11px'}}
+                                      onClick={async () => {
+                                        try {
+                                          const res = await fetch(`/api/carga-horaria/cursos/${curso.id}`, {
+                                            method: 'PATCH',
+                                            headers: {'Content-Type':'application/json'},
+                                            body: JSON.stringify({estado_observaciones:'rechazada'}),
+                                          });
+                                          if (res.ok) {
+                                            setCargaHoraria(prev => prev.map(ch => ({
+                                              ...ch,
+                                              cursos: (ch.cursos || []).map((c: any) =>
+                                                c.id === curso.id ? {...c, estado_observaciones:'rechazada'} : c
+                                              ),
+                                            })));
+                                          }
+                                        } catch(e) {}
+                                      }}>
+                                      Rechazar
+                                    </button>
+                                  )}
                                 </div>
-                                <div style={{fontSize:'12px',color:'var(--text-secondary)',marginBottom:'6px'}}>Horario</div>
-                                <div style={{fontWeight:'500',color:'var(--text-primary)',fontSize:'13px',lineHeight:'1.8'}}>
-                                  {mergeBloquesContiguos(grupo.asignaciones).map((b, i) => (
-                                    <span key={i}>{i > 0 ? ' | ' : ''}{DIAS_LABEL[b.dia] || b.dia} {b.inicio.substring(0,5)}-{b.fin.substring(0,5)}</span>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </>
-                      )}
-                      <div className="form-group">
-                        <label className="form-label">Observación</label>
-                        <textarea className="form-input" style={{ minHeight:'120px', resize:'vertical' }}
-                          placeholder="Escribe tus observaciones..."
-                          value={obsTexto}
-                          onChange={e => setObsTexto(e.target.value)}
-                        />
-                      </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                    <div className="modal-footer">
-                      <button className="btn-secondary" onClick={() => setShowObsModal(false)}>Cancelar</button>
-                      <button className="btn-primary" disabled={!obsTexto.trim()}
-                        onClick={async () => {
-                          try {
-                            let res;
-                            if (editObsId) {
-                              res = await fetch(`/api/observaciones/${editObsId}`, {
-                                method: 'PUT',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ observaciones: obsTexto }),
-                              });
-                            } else {
-                              const grupo = obsGrupos.find(g => g.key === obsGrupoKey);
-                              const grupoId = grupo?.grupo_id;
-                              const times = grupo?.asignaciones?.map((a: any) => ({ dia: a.dia, h1: a.hora_inicio, h2: a.hora_fin })).filter((t: any) => t.h1) || [];
-                              const firstBlock = times[0];
-                              const minH = times.length ? times.reduce((acc: any, t: any) => t.h1 < acc ? t.h1 : acc, times[0].h1) : null;
-                              const maxH = times.length ? times.reduce((acc: any, t: any) => t.h2 > acc ? t.h2 : acc, times[0].h2) : null;
-                              const body: any = { observaciones: obsTexto, ciclo_id: cicloAcademicoSeleccionado };
-                              if (grupoId) {
-                                body.grupo_id = grupoId;
-                                body.asignacion_id = grupo.asignaciones[0]?.id;
-                                body.dia = firstBlock?.dia || null;
-                                body.tipo = grupo.tipo || grupo.asignaciones[0]?.tipo_sesion || grupo.asignaciones[0]?.tipo || null;
-                                body.hora_inicio = minH;
-                                body.hora_fin = maxH;
-                              }
-                              res = await fetch(`/api/observaciones`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(body),
-                              });
-                            }
-                            if (res.ok) {
-                              setShowObsModal(false);
-                              setMsgObs({ type:'success', text: editObsId ? 'Observación actualizada' : 'Observación creada' });
-                              if (user?.docente_id) {
-                                const data = await fetch(`/api/observaciones?ciclo_id=${cicloAcademicoSeleccionado}&docente_id=${user.docente_id}`).then(r => r.json());
-                                setMisObservaciones(data.data || []);
-                              }
-                            } else {
-                              const err = await res.json();
-                              setMsgObs({ type:'error', text: err.error || 'Error al guardar' });
-                            }
-                          } catch(e) {
-                            setMsgObs({ type:'error', text:'Error al guardar' });
-                          }
-                        }}>
-                        {editObsId ? 'Actualizar' : 'Guardar'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+                  </>
+                );
+              })()}
             </>
           )}
         </div>

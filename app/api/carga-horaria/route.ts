@@ -83,7 +83,9 @@ export async function GET(req: NextRequest) {
           horas_laboratorio: c.horas_laboratorio || c.hrs_lab,
           teoria_grupos: c.teoria_grupos ?? 1,
           practica_grupos: c.practica_grupos ?? 1,
-          laboratorio_grupos: c.laboratorio_grupos ?? 1
+          laboratorio_grupos: c.laboratorio_grupos ?? 1,
+          observaciones: c.observaciones || null,
+          estado_observaciones: c.estado_observaciones || 'pendiente'
         }));
       } catch (err) {
         console.error('Error loading courses:', err);
@@ -354,8 +356,8 @@ if (session.rol === 'docente') {
           `INSERT INTO carga_horaria_cursos (
             carga_horaria_id, curso_id, seccion, escuela, num_alumnos, 
             hrs_teo, hrs_pra, hrs_lab, total_hrs,
-            teoria_grupos, practica_grupos, laboratorio_grupos
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            teoria_grupos, practica_grupos, laboratorio_grupos, observaciones
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           [
             cargaHorariaId,
             curso.curso_id,
@@ -368,7 +370,8 @@ if (session.rol === 'docente') {
             curso.totalHoras,
             curso.teoriaGrupos,
             curso.practicaGrupos,
-            curso.laboratorioGrupos
+            curso.laboratorioGrupos,
+            curso.observaciones || null
           ]
         );
       }
@@ -490,6 +493,46 @@ if (session.rol === 'docente') {
       datos_nuevos: body,
       descripcion: `Carga horaria completa guardada: docente_id=${docente_id}`,
     });
+
+    // Notificar al docente si quien guarda no es el mismo docente
+    if (session.rol !== 'docente' && docente_id) {
+      try {
+        const docenteUser = await queryOne<{ usuario_id: string }>(
+          'SELECT usuario_id FROM docentes WHERE id = $1',
+          [docente_id]
+        );
+        if (docenteUser?.usuario_id) {
+          const docenteEmail = session.rol === 'admin' || session.rol === 'secretaria' || session.rol === 'director_escuela';
+          const rolLabel: Record<string, string> = { admin: 'Administrador', secretaria: 'Secretario/a', director_escuela: 'Director de Escuela' };
+          const quien = rolLabel[session.rol] || session.rol;
+
+          await query(`
+            CREATE TABLE IF NOT EXISTS notificaciones (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+              titulo TEXT NOT NULL,
+              mensaje TEXT NOT NULL,
+              tipo VARCHAR(50) DEFAULT 'info',
+              leida BOOLEAN DEFAULT false,
+              created_at TIMESTAMP DEFAULT NOW(),
+              updated_at TIMESTAMP DEFAULT NOW()
+            )
+          `);
+
+          await query(`
+            INSERT INTO notificaciones (usuario_id, titulo, mensaje, tipo)
+            VALUES ($1, $2, $3, $4)
+          `, [
+            docenteUser.usuario_id,
+            'Carga horaria modificada',
+            `${quien} ha modificado tu carga horaria (${modalidad || 'sin modalidad'}). Revisa los cambios.`,
+            'carga_modificada'
+          ]);
+        }
+      } catch (notifErr) {
+        console.error('Error creating notification:', notifErr);
+      }
+    }
 
     return NextResponse.json({ data: cargaHorariaResults }, { status: 201 });
   } catch (error: any) {
