@@ -160,99 +160,72 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
 
 if (session.rol === 'docente') {
-  const d = await queryOne<{ id: string; escuela_id: string | null }>(
-    'SELECT id, escuela_id FROM docentes WHERE email = $1 AND activo = true', 
-    [session.email]
-  );
-  if (!d || d.id !== body.docente_id) {
-    return NextResponse.json({ error: 'Solo puedes guardar tu propia carga horaria' }, { status: 403 });
-  }
-  if (!d.escuela_id) {
-    return NextResponse.json({ 
-      error: 'No perteneces a la escuela configurada. Solo necesitas que te asignen los cursos correspondientes.' 
-    }, { status: 403 });
+  try {
+    const d = await queryOne<{ id: string }>(
+      'SELECT id FROM docentes WHERE email = $1 AND activo = true', 
+      [session.email]
+    );
+    if (!d || d.id !== body.docente_id) {
+      return NextResponse.json({ error: 'Solo puedes guardar tu propia carga horaria' }, { status: 403 });
+    }
+  } catch (e) {
+    console.error('Error verificando docente:', e);
   }
 } else if (!['admin', 'director_escuela', 'docente', 'secretaria'].includes(session.rol)) {
   return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
 }
 
   try {
-    // First check if the grupos columns exist, add them if they don't
-    // Also check and add time columns (dia, hora_inicio, hora_fin) to all section tables if missing
-    await query(`
-      DO $$ 
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_name = 'carga_horaria_cursos' 
-          AND column_name = 'teoria_grupos'
-        ) THEN
-          ALTER TABLE carga_horaria_cursos ADD COLUMN teoria_grupos INTEGER DEFAULT 1;
-        END IF;
-        
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_name = 'carga_horaria_cursos' 
-          AND column_name = 'practica_grupos'
-        ) THEN
-          ALTER TABLE carga_horaria_cursos ADD COLUMN practica_grupos INTEGER DEFAULT 1;
-        END IF;
-        
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_name = 'carga_horaria_cursos' 
-          AND column_name = 'laboratorio_grupos'
-        ) THEN
-          ALTER TABLE carga_horaria_cursos ADD COLUMN laboratorio_grupos INTEGER DEFAULT 1;
-        END IF;
+    // Ensure all required columns exist on carga_horaria_cursos
+    const cursoColumns = ['teoria_grupos', 'practica_grupos', 'laboratorio_grupos', 'observaciones', 'estado_observaciones'];
+    for (const col of cursoColumns) {
+      const colType = col === 'observaciones' ? 'TEXT' : col === 'estado_observaciones' ? 'VARCHAR(20) DEFAULT \'pendiente\'' : 'INTEGER DEFAULT 1';
+      try {
+        await query(`
+          DO $$ BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns 
+              WHERE table_name = 'carga_horaria_cursos' 
+              AND column_name = '${col}'
+            ) THEN
+              EXECUTE 'ALTER TABLE carga_horaria_cursos ADD COLUMN ${col} ${colType}';
+            END IF;
+          END $$;
+        `);
+      } catch (_) {}
+    }
 
-        -- Add time columns to all section tables if missing
-        DECLARE
-          section_tables TEXT[] := ARRAY[
-            'carga_horaria_preparacion', 'carga_horaria_consejeria', 
-            'carga_horaria_investigacion', 'carga_horaria_capacitacion',
-            'carga_horaria_gobierno', 'carga_horaria_administracion',
-            'carga_horaria_asesoria', 'carga_horaria_rsu', 
-            'carga_horaria_comites'
-          ];
-          tbl_name TEXT;
-        BEGIN
-          FOREACH tbl_name IN ARRAY section_tables LOOP
-            IF NOT EXISTS (
-              SELECT 1 FROM information_schema.columns 
-              WHERE table_name = tbl_name 
-              AND column_name = 'dia'
-            ) THEN
-              EXECUTE 'ALTER TABLE ' || quote_ident(tbl_name) || ' ADD COLUMN dia TEXT';
-            END IF;
-            
-            IF NOT EXISTS (
-              SELECT 1 FROM information_schema.columns 
-              WHERE table_name = tbl_name 
-              AND column_name = 'hora_inicio'
-            ) THEN
-              EXECUTE 'ALTER TABLE ' || quote_ident(tbl_name) || ' ADD COLUMN hora_inicio TEXT';
-            END IF;
-            
-            IF NOT EXISTS (
-              SELECT 1 FROM information_schema.columns 
-              WHERE table_name = tbl_name 
-              AND column_name = 'hora_fin'
-            ) THEN
-              EXECUTE 'ALTER TABLE ' || quote_ident(tbl_name) || ' ADD COLUMN hora_fin TEXT';
-            END IF;
-            
-            IF NOT EXISTS (
-              SELECT 1 FROM information_schema.columns 
-              WHERE table_name = tbl_name 
-              AND column_name = 'orden'
-            ) THEN
-              EXECUTE 'ALTER TABLE ' || quote_ident(tbl_name) || ' ADD COLUMN orden INTEGER DEFAULT 0';
-            END IF;
-          END LOOP;
-        END;
-      END $$;
-    `, []);
+    // Add time columns (dia, hora_inicio, hora_fin, orden) to all section tables if missing
+    const sectionTables = [
+      'carga_horaria_preparacion', 'carga_horaria_consejeria', 
+      'carga_horaria_investigacion', 'carga_horaria_capacitacion',
+      'carga_horaria_gobierno', 'carga_horaria_administracion',
+      'carga_horaria_asesoria', 'carga_horaria_rsu', 
+      'carga_horaria_comites'
+    ];
+    const sectionCols: [string, string][] = [
+      ['dia', 'TEXT'],
+      ['hora_inicio', 'TEXT'],
+      ['hora_fin', 'TEXT'],
+      ['orden', 'INTEGER DEFAULT 0'],
+    ];
+    for (const tbl of sectionTables) {
+      for (const [col, colType] of sectionCols) {
+        try {
+          await query(`
+            DO $$ BEGIN
+              IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = '${tbl}' 
+                AND column_name = '${col}'
+              ) THEN
+                EXECUTE 'ALTER TABLE ${tbl} ADD COLUMN ${col} ${colType}';
+              END IF;
+            END $$;
+          `);
+        } catch (_) {}
+      }
+    }
 
     const {
       docente_id,

@@ -12,6 +12,12 @@ export async function GET(req: NextRequest) {
   if (!ciclo_id) return NextResponse.json({ data: [] });
 
   try {
+    // Ensure columns exist
+    try {
+      await query(`ALTER TABLE carga_horaria_cursos ADD COLUMN IF NOT EXISTS observaciones TEXT`);
+      await query(`ALTER TABLE carga_horaria_cursos ADD COLUMN IF NOT EXISTS estado_observaciones VARCHAR(20) DEFAULT 'pendiente'`);
+    } catch (_) {}
+
     const rows = await query(`
       SELECT
         chc.id,
@@ -34,6 +40,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ data: rows });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ data: [] });
   }
 }

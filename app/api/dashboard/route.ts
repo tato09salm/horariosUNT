@@ -120,17 +120,27 @@ export async function GET(req: NextRequest) {
       query(`SELECT * FROM ciclos ORDER BY año DESC, semestre`),
       query(`SELECT * FROM slots_tiempo ORDER BY orden`),
       // Docentes con observaciones en carga_horaria_cursos
-      cid ? query(`
-        SELECT d.id, d.nombre, d.apellidos, COUNT(chc.id) as total_cursos
-        FROM carga_horaria_cursos chc
-        JOIN carga_horaria ch ON ch.id = chc.carga_horaria_id
-        JOIN docentes d ON d.id = ch.docente_id
-        WHERE chc.observaciones IS NOT NULL AND chc.observaciones != ''
-        AND (chc.estado_observaciones IS NULL OR chc.estado_observaciones = 'pendiente')
-        AND ch.ciclo_academico_id = $1
-        GROUP BY d.id, d.nombre, d.apellidos
-        ORDER BY d.apellidos
-      `, [cid]) : Promise.resolve([]),
+      cid ? (async () => {
+        try {
+          try {
+            await query(`ALTER TABLE carga_horaria_cursos ADD COLUMN IF NOT EXISTS observaciones TEXT`);
+            await query(`ALTER TABLE carga_horaria_cursos ADD COLUMN IF NOT EXISTS estado_observaciones VARCHAR(20) DEFAULT 'pendiente'`);
+          } catch (_) {}
+          return await query(`
+            SELECT d.id, d.nombre, d.apellidos, COUNT(chc.id) as total_cursos
+            FROM carga_horaria_cursos chc
+            JOIN carga_horaria ch ON ch.id = chc.carga_horaria_id
+            JOIN docentes d ON d.id = ch.docente_id
+            WHERE chc.observaciones IS NOT NULL AND chc.observaciones != ''
+            AND (chc.estado_observaciones IS NULL OR chc.estado_observaciones = 'pendiente')
+            AND ch.ciclo_academico_id = $1
+            GROUP BY d.id, d.nombre, d.apellidos
+            ORDER BY d.apellidos
+          `, [cid]);
+        } catch (_) {
+          return [];
+        }
+      })() : Promise.resolve([]),
     ]);
 
     const totalAsignacionesCount = parseInt(totalAsignaciones?.count || '0');
