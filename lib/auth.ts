@@ -71,12 +71,22 @@ export async function login(email: string, password: string, ip?: string): Promi
   const valid = await verifyPassword(password, user.password_hash);
   if (!valid) return null;
 
+  let docente_id: string | undefined;
+  if (user.rol === 'docente') {
+    const d = await queryOne<{ id: string }>(
+      'SELECT id FROM docentes WHERE email = $1 AND activo = true',
+      [user.email]
+    );
+    if (d) docente_id = d.id;
+  }
+
   const session: UserSession = {
     id: user.id,
     nombre: user.nombre,
     apellidos: user.apellidos,
     email: user.email,
     rol: user.rol,
+    docente_id,
   };
 
   const token = await generateToken(session);

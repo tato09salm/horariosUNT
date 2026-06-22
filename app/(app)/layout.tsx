@@ -79,8 +79,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       .then(res => res ? res.json() : null)
       .then(data => {
         if (data && data.data) {
-          setNotificationCount(data.data.length);
-          setNotifications(data.data);
+          const pendientes = data.data.filter((o: any) => !o.estado || o.estado === 'pendiente');
+          setNotificationCount(pendientes.length);
+          setNotifications(pendientes);
         }
       })
       .catch(err => console.error('Error al cargar notificaciones:', err));
@@ -180,7 +181,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     onClick={() => {
                       if (bellBtnRef.current) {
                         const r = bellBtnRef.current.getBoundingClientRect();
-                        setNotifPos({ top: r.bottom + 8, left: Math.max(r.right - 320, 8) });
+                        setNotifPos({ top: r.bottom + 8, left: r.right + 8 });
                       }
                       setShowNotifications(!showNotifications);
                     }}
