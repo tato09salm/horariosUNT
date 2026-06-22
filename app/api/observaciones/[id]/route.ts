@@ -17,17 +17,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         d.nombre as docente_nombre,
         d.apellidos as docente_apellidos,
         c.nombre as ciclo_nombre,
-<<<<<<< HEAD
         COALESCE(oa.dia::text, a.dia::text) as dia,
         COALESCE(oa.tipo, a.tipo::text) as tipo,
         COALESCE(oa.hora_inicio::text, s.hora_inicio::text) as hora_inicio,
         COALESCE(oa.hora_fin::text, s.hora_fin::text) as hora_fin,
-=======
-        COALESCE(oa.dia, a.dia) as dia,
-        COALESCE(oa.tipo, a.tipo::text) as tipo,
-        COALESCE(oa.hora_inicio, s.hora_inicio) as hora_inicio,
-        COALESCE(oa.hora_fin, s.hora_fin) as hora_fin,
->>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
         cu.codigo as curso_codigo,
         cu.nombre as curso_nombre,
         g.numero_grupo
@@ -92,7 +85,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-<<<<<<< HEAD
 // PATCH - Actualizar estado de observación (secretaria/director)
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -127,9 +119,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 // DELETE - Eliminar observación (soft delete)
-=======
-// DELETE - Eliminar observación
->>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session || !['admin', 'secretaria', 'docente'].includes(session.rol)) {
@@ -152,11 +141,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
 
     await query(`
-<<<<<<< HEAD
       UPDATE observaciones_asignaciones SET estado = 'eliminado', updated_at = NOW()
-=======
-      DELETE FROM observaciones_asignaciones
->>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
       WHERE id = $1
     `, [id]);
 
