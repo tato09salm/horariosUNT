@@ -89,7 +89,10 @@ export default function HorariosPage() {
   const [grupoObservacionKey, setGrupoObservacionKey] = useState<string>('');
   const [grupoObservacion, setGrupoObservacion] = useState<any[]>([]);
   const [observacionTexto, setObservacionTexto] = useState('');
+<<<<<<< HEAD
   const [observacionEstado, setObservacionEstado] = useState<string>('');
+=======
+>>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
   const [guardandoObservacion, setGuardandoObservacion] = useState(false);
 
   useEffect(() => {
@@ -523,7 +526,10 @@ export default function HorariosPage() {
     setGrupoObservacionKey(grupo?.key || firstGroup?.key || '');
     setGrupoObservacion(grupo?.asignaciones || []);
     setObservacionTexto('');
+<<<<<<< HEAD
     setObservacionEstado('');
+=======
+>>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
     setShowObservacionesModal(true);
 
     if (grupo && grupo.grupo_id) {
@@ -532,7 +538,10 @@ export default function HorariosPage() {
         const data = await res.json();
         if (data.data && data.data.length > 0) {
           setObservacionTexto(data.data[0].observaciones || '');
+<<<<<<< HEAD
           setObservacionEstado(data.data[0].estado || '');
+=======
+>>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
         }
       } catch (e) {
         console.error('Error al cargar observación:', e);
@@ -1373,6 +1382,7 @@ export default function HorariosPage() {
                   </div>
                 </div>
               )}
+<<<<<<< HEAD
               {observacionEstado && (
                 <div style={{marginBottom:'12px', textAlign:'right'}}>
                   <span className={`badge-${observacionEstado === 'validada' ? 'success' : observacionEstado === 'rechazada' ? 'danger' : 'warning'}`}
@@ -1381,6 +1391,8 @@ export default function HorariosPage() {
                   </span>
                 </div>
               )}
+=======
+>>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
               <div className="form-group">
                 <label className="form-label">Observaciones</label>
                 <textarea

@@ -249,7 +249,11 @@ export default function DashboardPage() {
       fetch(`/api/observaciones?ciclo_id=${cicloId}`)
         .then(r => r.json())
         .then(data => {
+<<<<<<< HEAD
           setObservacionesPendientes((data.data || []).filter((o: any) => !o.estado || o.estado === 'pendiente'));
+=======
+          setObservacionesPendientes(data.data || []);
+>>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
         })
         .catch(err => console.error('Error al cargar observaciones:', err));
     }

@@ -111,7 +111,11 @@ export default function CargaHorariaPage() {
 
   const [ciclosAcademicos, setCiclosAcademicos] = useState<CicloAcademico[]>([]);
   const [cicloAcademicoSeleccionado, setCicloAcademicoSeleccionado] = useState<string>('');
+<<<<<<< HEAD
   const [activeTab, setActiveTab] = useState<'carga-horaria' | 'carga-aula' | 'carga-docentes' | 'observaciones' | 'mis-observaciones' | 'reportes'>('carga-horaria');
+=======
+  const [activeTab, setActiveTab] = useState<'carga-horaria' | 'carga-aula' | 'carga-docentes' | 'observaciones' | 'reportes'>('carga-horaria');
+>>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
   const [aulaData, setAulaData] = useState<any[]>([]);
   const [loadingAula, setLoadingAula] = useState(false);
   
@@ -127,6 +131,7 @@ export default function CargaHorariaPage() {
   const [observaciones, setObservaciones] = useState<any[]>([]);
   const [loadingObservaciones, setLoadingObservaciones] = useState(false);
   const [itemsPerPage] = useState(20);
+<<<<<<< HEAD
   // Estado para Mis Observaciones (docente)
   const [misObservaciones, setMisObservaciones] = useState<any[]>([]);
   const [loadingMisObservaciones, setLoadingMisObservaciones] = useState(false);
@@ -137,6 +142,8 @@ export default function CargaHorariaPage() {
   const [obsGrupos, setObsGrupos] = useState<any[]>([]);
   const [obsCursoKey, setObsCursoKey] = useState('');
   const [obsGrupoKey, setObsGrupoKey] = useState('');
+=======
+>>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
 
   // Resetear página cuando cambian los filtros
   useEffect(() => {
@@ -403,6 +410,7 @@ export default function CargaHorariaPage() {
       .finally(() => setLoadingObservaciones(false));
   }, [activeTab, cicloAcademicoSeleccionado]);
 
+<<<<<<< HEAD
   // Cargar "Mis observaciones" para docente
   useEffect(() => {
     if (activeTab !== 'mis-observaciones' || !cicloAcademicoSeleccionado) return;
@@ -417,6 +425,8 @@ export default function CargaHorariaPage() {
       .finally(() => setLoadingMisObservaciones(false));
   }, [activeTab, cicloAcademicoSeleccionado, isDocente, user?.docente_id]);
 
+=======
+>>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
   async function asignarDocente() {
     if (!docenteSeleccionado || !cicloAcademicoSeleccionado || cicloPlanSeleccionado === null) {
       setToast({ type: 'error', text: 'Selecciona un docente' });
@@ -1893,6 +1903,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
               Observaciones
             </button>
           )}
+<<<<<<< HEAD
           {isDocente && (
             <button
               onClick={() => setActiveTab('mis-observaciones')}
@@ -1911,6 +1922,8 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
               Mis observaciones
             </button>
           )}
+=======
+>>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
           <button
             onClick={() => setActiveTab('reportes')}
             style={{
@@ -2774,7 +2787,11 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
         </div>
         </>
       ) : activeTab === 'observaciones' ? (
+<<<<<<< HEAD
         // Pestaña Observaciones (secretaria/director)
+=======
+        // Pestaña Observaciones
+>>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
         <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
           {!cicloAcademicoSeleccionado ? (
             <div style={{
@@ -2818,6 +2835,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                         <tr>
                           <th>Docente</th>
                           <th>Curso</th>
+<<<<<<< HEAD
                           <th>Tipo</th>
                           <th>Grupo</th>
                           <th>Día</th>
@@ -2826,6 +2844,14 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                           <th>Estado</th>
                           <th>Fecha</th>
                           <th>Acciones</th>
+=======
+                          <th>Grupo</th>
+                          <th>Tipo</th>
+                          <th>Día</th>
+                          <th>Horario</th>
+                          <th>Observación</th>
+                          <th>Fecha</th>
+>>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
                         </tr>
                       </thead>
                       <tbody>
@@ -2835,14 +2861,20 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                               {obs.docente_nombre} {obs.docente_apellidos}
                             </td>
                             <td>{obs.curso_codigo} - {obs.curso_nombre}</td>
+<<<<<<< HEAD
                             <td style={{ textAlign: 'center' }}><span className={`badge-${obs.tipo || 'teoria'}`}>{obs.tipo || 'teoria'}</span></td>
                             <td style={{ textAlign: 'center' }}>{obs.numero_grupo}</td>
+=======
+                            <td style={{ textAlign: 'center' }}>{obs.numero_grupo}</td>
+                            <td style={{ textAlign: 'center' }}><span className={`badge-${obs.tipo || 'teoria'}`}>{obs.tipo || 'teoria'}</span></td>
+>>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
                             <td style={{ textAlign: 'center' }}>{obs.dia || '-'}</td>
                             <td style={{ textAlign: 'center' }}>
                               {obs.hora_inicio && obs.hora_fin
                                 ? `${obs.hora_inicio.substring(0,5)} - ${obs.hora_fin.substring(0,5)}`
                                 : '-'}
                             </td>
+<<<<<<< HEAD
                             <td style={{ maxWidth: '250px', wordWrap: 'break-word' }}>
                               {obs.observaciones}
                             </td>
@@ -2893,6 +2925,14 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                                 )}
                               </div>
                             </td>
+=======
+                            <td style={{ maxWidth: '300px', wordWrap: 'break-word' }}>
+                              {obs.observaciones}
+                            </td>
+                            <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                              {new Date(obs.created_at).toLocaleDateString('es-PE')}
+                            </td>
+>>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
                           </tr>
                         ))}
                       </tbody>
@@ -2903,6 +2943,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
             </>
           )}
         </div>
+<<<<<<< HEAD
       ) : activeTab === 'mis-observaciones' ? (
         // Pestaña Mis Observaciones (docente)
         <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
@@ -3209,6 +3250,8 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
             </>
           )}
         </div>
+=======
+>>>>>>> 38f1f41de45b79a37428d4694f91b2fd2630bd29
       ) : activeTab === 'reportes' ? (
         // Pestaña Reportes
         <>
