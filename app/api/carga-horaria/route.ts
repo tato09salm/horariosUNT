@@ -83,7 +83,9 @@ export async function GET(req: NextRequest) {
           horas_laboratorio: c.horas_laboratorio || c.hrs_lab,
           teoria_grupos: c.teoria_grupos ?? 1,
           practica_grupos: c.practica_grupos ?? 1,
-          laboratorio_grupos: c.laboratorio_grupos ?? 1
+          laboratorio_grupos: c.laboratorio_grupos ?? 1,
+          observaciones: c.observaciones || null,
+          estado_observaciones: c.estado_observaciones || 'pendiente'
         }));
       } catch (err) {
         console.error('Error loading courses:', err);
@@ -158,99 +160,72 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
 
 if (session.rol === 'docente') {
-  const d = await queryOne<{ id: string; escuela_id: string | null }>(
-    'SELECT id, escuela_id FROM docentes WHERE email = $1 AND activo = true', 
-    [session.email]
-  );
-  if (!d || d.id !== body.docente_id) {
-    return NextResponse.json({ error: 'Solo puedes guardar tu propia carga horaria' }, { status: 403 });
-  }
-  if (!d.escuela_id) {
-    return NextResponse.json({ 
-      error: 'No perteneces a la escuela configurada. Solo necesitas que te asignen los cursos correspondientes.' 
-    }, { status: 403 });
+  try {
+    const d = await queryOne<{ id: string }>(
+      'SELECT id FROM docentes WHERE email = $1 AND activo = true', 
+      [session.email]
+    );
+    if (!d || d.id !== body.docente_id) {
+      return NextResponse.json({ error: 'Solo puedes guardar tu propia carga horaria' }, { status: 403 });
+    }
+  } catch (e) {
+    console.error('Error verificando docente:', e);
   }
 } else if (!['admin', 'director_escuela', 'docente', 'secretaria'].includes(session.rol)) {
   return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
 }
 
   try {
-    // First check if the grupos columns exist, add them if they don't
-    // Also check and add time columns (dia, hora_inicio, hora_fin) to all section tables if missing
-    await query(`
-      DO $$ 
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_name = 'carga_horaria_cursos' 
-          AND column_name = 'teoria_grupos'
-        ) THEN
-          ALTER TABLE carga_horaria_cursos ADD COLUMN teoria_grupos INTEGER DEFAULT 1;
-        END IF;
-        
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_name = 'carga_horaria_cursos' 
-          AND column_name = 'practica_grupos'
-        ) THEN
-          ALTER TABLE carga_horaria_cursos ADD COLUMN practica_grupos INTEGER DEFAULT 1;
-        END IF;
-        
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns 
-          WHERE table_name = 'carga_horaria_cursos' 
-          AND column_name = 'laboratorio_grupos'
-        ) THEN
-          ALTER TABLE carga_horaria_cursos ADD COLUMN laboratorio_grupos INTEGER DEFAULT 1;
-        END IF;
+    // Ensure all required columns exist on carga_horaria_cursos
+    const cursoColumns = ['teoria_grupos', 'practica_grupos', 'laboratorio_grupos', 'observaciones', 'estado_observaciones'];
+    for (const col of cursoColumns) {
+      const colType = col === 'observaciones' ? 'TEXT' : col === 'estado_observaciones' ? 'VARCHAR(20) DEFAULT \'pendiente\'' : 'INTEGER DEFAULT 1';
+      try {
+        await query(`
+          DO $$ BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns 
+              WHERE table_name = 'carga_horaria_cursos' 
+              AND column_name = '${col}'
+            ) THEN
+              EXECUTE 'ALTER TABLE carga_horaria_cursos ADD COLUMN ${col} ${colType}';
+            END IF;
+          END $$;
+        `);
+      } catch (_) {}
+    }
 
-        -- Add time columns to all section tables if missing
-        DECLARE
-          section_tables TEXT[] := ARRAY[
-            'carga_horaria_preparacion', 'carga_horaria_consejeria', 
-            'carga_horaria_investigacion', 'carga_horaria_capacitacion',
-            'carga_horaria_gobierno', 'carga_horaria_administracion',
-            'carga_horaria_asesoria', 'carga_horaria_rsu', 
-            'carga_horaria_comites'
-          ];
-          tbl_name TEXT;
-        BEGIN
-          FOREACH tbl_name IN ARRAY section_tables LOOP
-            IF NOT EXISTS (
-              SELECT 1 FROM information_schema.columns 
-              WHERE table_name = tbl_name 
-              AND column_name = 'dia'
-            ) THEN
-              EXECUTE 'ALTER TABLE ' || quote_ident(tbl_name) || ' ADD COLUMN dia TEXT';
-            END IF;
-            
-            IF NOT EXISTS (
-              SELECT 1 FROM information_schema.columns 
-              WHERE table_name = tbl_name 
-              AND column_name = 'hora_inicio'
-            ) THEN
-              EXECUTE 'ALTER TABLE ' || quote_ident(tbl_name) || ' ADD COLUMN hora_inicio TEXT';
-            END IF;
-            
-            IF NOT EXISTS (
-              SELECT 1 FROM information_schema.columns 
-              WHERE table_name = tbl_name 
-              AND column_name = 'hora_fin'
-            ) THEN
-              EXECUTE 'ALTER TABLE ' || quote_ident(tbl_name) || ' ADD COLUMN hora_fin TEXT';
-            END IF;
-            
-            IF NOT EXISTS (
-              SELECT 1 FROM information_schema.columns 
-              WHERE table_name = tbl_name 
-              AND column_name = 'orden'
-            ) THEN
-              EXECUTE 'ALTER TABLE ' || quote_ident(tbl_name) || ' ADD COLUMN orden INTEGER DEFAULT 0';
-            END IF;
-          END LOOP;
-        END;
-      END $$;
-    `, []);
+    // Add time columns (dia, hora_inicio, hora_fin, orden) to all section tables if missing
+    const sectionTables = [
+      'carga_horaria_preparacion', 'carga_horaria_consejeria', 
+      'carga_horaria_investigacion', 'carga_horaria_capacitacion',
+      'carga_horaria_gobierno', 'carga_horaria_administracion',
+      'carga_horaria_asesoria', 'carga_horaria_rsu', 
+      'carga_horaria_comites'
+    ];
+    const sectionCols: [string, string][] = [
+      ['dia', 'TEXT'],
+      ['hora_inicio', 'TEXT'],
+      ['hora_fin', 'TEXT'],
+      ['orden', 'INTEGER DEFAULT 0'],
+    ];
+    for (const tbl of sectionTables) {
+      for (const [col, colType] of sectionCols) {
+        try {
+          await query(`
+            DO $$ BEGIN
+              IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = '${tbl}' 
+                AND column_name = '${col}'
+              ) THEN
+                EXECUTE 'ALTER TABLE ${tbl} ADD COLUMN ${col} ${colType}';
+              END IF;
+            END $$;
+          `);
+        } catch (_) {}
+      }
+    }
 
     const {
       docente_id,
@@ -354,8 +329,8 @@ if (session.rol === 'docente') {
           `INSERT INTO carga_horaria_cursos (
             carga_horaria_id, curso_id, seccion, escuela, num_alumnos, 
             hrs_teo, hrs_pra, hrs_lab, total_hrs,
-            teoria_grupos, practica_grupos, laboratorio_grupos
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            teoria_grupos, practica_grupos, laboratorio_grupos, observaciones
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           [
             cargaHorariaId,
             curso.curso_id,
@@ -368,7 +343,8 @@ if (session.rol === 'docente') {
             curso.totalHoras,
             curso.teoriaGrupos,
             curso.practicaGrupos,
-            curso.laboratorioGrupos
+            curso.laboratorioGrupos,
+            curso.observaciones || null
           ]
         );
       }
@@ -490,6 +466,46 @@ if (session.rol === 'docente') {
       datos_nuevos: body,
       descripcion: `Carga horaria completa guardada: docente_id=${docente_id}`,
     });
+
+    // Notificar al docente si quien guarda no es el mismo docente
+    if (session.rol !== 'docente' && docente_id) {
+      try {
+        const docenteUser = await queryOne<{ usuario_id: string }>(
+          'SELECT usuario_id FROM docentes WHERE id = $1',
+          [docente_id]
+        );
+        if (docenteUser?.usuario_id) {
+          const docenteEmail = session.rol === 'admin' || session.rol === 'secretaria' || session.rol === 'director_escuela';
+          const rolLabel: Record<string, string> = { admin: 'Administrador', secretaria: 'Secretario/a', director_escuela: 'Director de Escuela' };
+          const quien = rolLabel[session.rol] || session.rol;
+
+          await query(`
+            CREATE TABLE IF NOT EXISTS notificaciones (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+              titulo TEXT NOT NULL,
+              mensaje TEXT NOT NULL,
+              tipo VARCHAR(50) DEFAULT 'info',
+              leida BOOLEAN DEFAULT false,
+              created_at TIMESTAMP DEFAULT NOW(),
+              updated_at TIMESTAMP DEFAULT NOW()
+            )
+          `);
+
+          await query(`
+            INSERT INTO notificaciones (usuario_id, titulo, mensaje, tipo)
+            VALUES ($1, $2, $3, $4)
+          `, [
+            docenteUser.usuario_id,
+            'Carga horaria modificada',
+            `${quien} ha modificado tu carga horaria (${modalidad || 'sin modalidad'}). Revisa los cambios.`,
+            'carga_modificada'
+          ]);
+        }
+      } catch (notifErr) {
+        console.error('Error creating notification:', notifErr);
+      }
+    }
 
     return NextResponse.json({ data: cargaHorariaResults }, { status: 201 });
   } catch (error: any) {

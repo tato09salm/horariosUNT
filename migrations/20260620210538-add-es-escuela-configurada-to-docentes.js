@@ -3,7 +3,7 @@ module.exports = {
     await queryInterface.addColumn('docentes', 'es_escuela_configurada', {
       type: Sequelize.BOOLEAN,
       allowNull: false,
-      defaultValue: false,
+      defaultValue: true,
     });
   },
 

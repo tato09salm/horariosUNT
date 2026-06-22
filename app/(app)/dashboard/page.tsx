@@ -79,6 +79,7 @@ type DashboardData = {
   docentesPorCategoria?: DashboardCategoria[];
   aulasPorTipo?: DashboardAulaTipo[];
   conflictosPendientes?: number;
+  docentesConObsCarga?: Array<{ id: string; nombre: string; apellidos: string; total_cursos: number }>;
 };
 
 type DashboardApiResponse = DashboardData & { error?: string };
@@ -105,6 +106,7 @@ export default function DashboardPage() {
   const [miCargaDocente, setMiCargaDocente] = useState<{horas_asignadas: number; horas_max_semana: number} | null>(null);
   const [finalPayload, setFinalPayload] = useState<DashboardApiResponse | null>(null);
   const [observacionesPendientes, setObservacionesPendientes] = useState<any[]>([]);
+  const [docentesConObsCarga, setDocentesConObsCarga] = useState<any[]>([]);
 
   const user = useUser();
   const isDocente = user?.rol.codigo === 'docente';
@@ -230,6 +232,7 @@ export default function DashboardPage() {
         ]);
         setFinalPayload(dashboardPayload);
         setData(dashboardPayload);
+        setDocentesConObsCarga(dashboardPayload?.docentesConObsCarga || []);
         setCicloId(dashboardPayload?.ciclo?.id || '');
         setProgramaciones(progsRes.data || []);
         setCiclosList(ciclosRes.data || []);
@@ -265,6 +268,7 @@ export default function DashboardPage() {
       ]);
       setFinalPayload(finalPayload);
       setData(finalPayload);
+      setDocentesConObsCarga(finalPayload?.docentesConObsCarga || []);
       setProgramaciones(progsRes.data || []);
     } catch (err) {
       console.error(err);
@@ -826,7 +830,50 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Alertas de observaciones para secretaria y director */}
+      {/* Alertas de observaciones de carga horaria para secretaria y director */}
+      {user?.rol.codigo !== 'admin' && !isDocente && docentesConObsCarga.length > 0 && (
+        <div className="card" style={{
+          padding:'20px',
+          marginBottom:'24px',
+          background: darkMode ? 'rgba(59,130,246,0.1)' : '#dbeafe',
+          border: '1px solid var(--border-color)',
+          borderRadius:'12px'
+        }}>
+          <div style={{display:'flex',alignItems:'flex-start',gap:'12px'}}>
+            <div style={{fontSize:'24px'}}>💬</div>
+            <div style={{flex:1}}>
+              <h3 style={{fontSize:'15px',fontWeight:'600',color:darkMode ? '#93c5fd' : '#1e40af',margin:'0 0 8px'}}>
+                {docentesConObsCarga.length} Docentes con observaciones en su carga horaria
+              </h3>
+              <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                {docentesConObsCarga.slice(0, 5).map((d: any) => (
+                  <div key={d.id} style={{
+                    padding:'10px 14px',
+                    background: darkMode ? 'rgba(255,255,255,0.05)' : 'white',
+                    borderRadius:'8px',
+                    border:'1px solid var(--border-color)',
+                    fontSize:'13px'
+                  }}>
+                    <div style={{fontWeight:'500',color:'var(--text-primary)',marginBottom:'4px'}}>
+                      {d.apellidos}, {d.nombre}
+                    </div>
+                    <div style={{color:'var(--text-secondary)',fontSize:'12px'}}>
+                      {d.total_cursos} curso{d.total_cursos !== 1 ? 's' : ''} con observaciones
+                    </div>
+                  </div>
+                ))}
+                {docentesConObsCarga.length > 5 && (
+                  <div style={{fontSize:'12px',color:'var(--text-muted)',textAlign:'center',padding:'8px'}}>
+                    Y {docentesConObsCarga.length - 5} más...
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alertas de observaciones de horario para secretaria y director */}
       {user?.rol.codigo !== 'admin' && !isDocente && observacionesPendientes.length > 0 && (
         <div className="card" style={{
           padding:'20px',

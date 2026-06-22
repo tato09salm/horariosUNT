@@ -59,7 +59,7 @@ export default function HorariosPage() {
   const [docentes, setDocentes] = useState<any[]>([]);
   const [ambientes, setAmbientes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [vista, setVista] = useState<'programaciones'|'horario'|'mi-horario'>('programaciones');
+  const [vista, setVista] = useState<'programaciones'|'horario'|'mi-horario'|'observaciones'|'mis-observaciones'>('programaciones');
   const [subVista, setSubVista] = useState<'activas'|'canceladas'>('activas');
   const [msg, setMsg] = useState<any>(null);
   const [showCrear, setShowCrear] = useState(false);
@@ -91,6 +91,10 @@ export default function HorariosPage() {
   const [observacionTexto, setObservacionTexto] = useState('');
   const [observacionEstado, setObservacionEstado] = useState<string>('');
   const [guardandoObservacion, setGuardandoObservacion] = useState(false);
+  const [obsLista, setObsLista] = useState<any[]>([]);
+  const [loadingObsLista, setLoadingObsLista] = useState(false);
+  const [misObsLista, setMisObsLista] = useState<any[]>([]);
+  const [loadingMisObsLista, setLoadingMisObsLista] = useState(false);
 
   useEffect(() => {
     if (showConfigRestringidos) {
@@ -414,6 +418,26 @@ export default function HorariosPage() {
 
   useEffect(() => { cargarMiHorario(); }, [cargarMiHorario]);
 
+  // Cargar observaciones para la vista de observaciones
+  useEffect(() => {
+    if (!cicloId) return;
+    if (vista === 'observaciones') {
+      setLoadingObsLista(true);
+      fetch(`/api/observaciones?ciclo_id=${cicloId}`)
+        .then(r => r.json())
+        .then(d => setObsLista(d.data || []))
+        .catch(() => setObsLista([]))
+        .finally(() => setLoadingObsLista(false));
+    }
+    if (vista === 'mis-observaciones' && isDocente && user?.docente_id) {
+      setLoadingMisObsLista(true);
+      fetch(`/api/observaciones?ciclo_id=${cicloId}&docente_id=${user.docente_id}`)
+        .then(r => r.json())
+        .then(d => setMisObsLista(d.data || []))
+        .catch(() => setMisObsLista([]))
+        .finally(() => setLoadingMisObsLista(false));
+    }
+  }, [vista, cicloId, isDocente, user?.docente_id]);
 
   // Crear programación
   async function crearProgramacion() {
@@ -666,6 +690,28 @@ export default function HorariosPage() {
             </>
           )}
         </div>
+      </div>
+
+      {/* Observaciones tabs (segunda fila) */}
+      <div style={{display:'flex',gap:'8px',marginBottom:'16px',borderBottom:'1px solid var(--border-color)',paddingBottom:'8px'}}>
+        {!isDocente && (
+          <button
+            style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderRadius:'8px',background:vista==='observaciones'?'#1a3a5c':'var(--bg-card)',color:vista==='observaciones'?'white':'var(--text-secondary)'}}
+            onClick={() => setVista('observaciones')}
+          >💬 Observaciones</button>
+        )}
+        {isDocente && (
+          <>
+            <button
+              style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderRadius:'8px',background:vista==='mis-observaciones'?'#1a3a5c':'var(--bg-card)',color:vista==='mis-observaciones'?'white':'var(--text-secondary)'}}
+              onClick={() => setVista('mis-observaciones')}
+            >💬 Mis Observaciones</button>
+            <button
+              style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderRadius:'8px',background:vista==='observaciones'?'#1a3a5c':'var(--bg-card)',color:vista==='observaciones'?'white':'var(--text-secondary)'}}
+              onClick={() => setVista('observaciones')}
+            >💬 Todas</button>
+          </>
+        )}
       </div>
 
       {msg && (
@@ -953,6 +999,266 @@ export default function HorariosPage() {
             </div>
           ) : (
             <GrillaHorarios asignaciones={miHorario} slots={slots} restringidosConfig={restringidosConfig} hideDocenteFilter />
+          )}
+        </div>
+      )}
+
+      {/* ===== VISTA: OBSERVACIONES (secretaria/director) ===== */}
+      {vista === 'observaciones' && !isDocente && (
+        <div className="card" style={{padding:'20px',border:'1px solid var(--border-color)',background:'var(--bg-card)'}}>
+          {!cicloId ? (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'200px',textAlign:'center',color:'var(--text-secondary)'}}>
+              Selecciona un ciclo académico para ver las observaciones
+            </div>
+          ) : loadingObsLista ? (
+            <div style={{textAlign:'center',padding:'40px',color:'var(--text-secondary)'}}>Cargando observaciones...</div>
+          ) : obsLista.length === 0 ? (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'200px',textAlign:'center',color:'var(--text-secondary)'}}>
+              No hay observaciones registradas para este ciclo académico
+            </div>
+          ) : (
+            <>
+              <div style={{marginBottom:'20px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <h3 style={{fontSize:'16px',fontWeight:'600',color:'var(--text-primary)',margin:0}}>
+                  Observaciones de Docentes ({obsLista.length})
+                </h3>
+              </div>
+              <div className="table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Docente</th>
+                      <th>Curso</th>
+                      <th>Tipo</th>
+                      <th>Grupo</th>
+                      <th>Día</th>
+                      <th>Horario</th>
+                      <th>Observación</th>
+                      <th>Estado</th>
+                      <th>Fecha</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {obsLista.map((obs: any) => (
+                      <tr key={obs.id}>
+                        <td style={{fontWeight:'500'}}>{obs.docente_nombre} {obs.docente_apellidos}</td>
+                        <td>{obs.curso_codigo} - {obs.curso_nombre}</td>
+                        <td style={{textAlign:'center'}}><span className={`badge-${obs.tipo || 'teoria'}`}>{obs.tipo || 'teoria'}</span></td>
+                        <td style={{textAlign:'center'}}>{obs.numero_grupo}</td>
+                        <td style={{textAlign:'center'}}>{obs.dia || '-'}</td>
+                        <td style={{textAlign:'center'}}>
+                          {obs.hora_inicio && obs.hora_fin ? `${obs.hora_inicio.substring(0,5)} - ${obs.hora_fin.substring(0,5)}` : '-'}
+                        </td>
+                        <td style={{maxWidth:'250px',wordWrap:'break-word'}}>{obs.observaciones}</td>
+                        <td style={{textAlign:'center'}}>
+                          <span className={`badge-${obs.estado === 'validada' ? 'success' : obs.estado === 'rechazada' ? 'danger' : 'warning'}`}
+                            style={{fontSize:'11px',padding:'2px 8px',borderRadius:'9999px',fontWeight:'600',textTransform:'uppercase'}}>
+                            {obs.estado || 'pendiente'}
+                          </span>
+                        </td>
+                        <td style={{fontSize:'12px',color:'var(--text-secondary)'}}>
+                          {new Date(obs.created_at).toLocaleDateString('es-PE')}
+                        </td>
+                        <td>
+                          <div style={{display:'flex',gap:'4px',flexWrap:'wrap'}}>
+                            {obs.estado !== 'validada' && (
+                              <button className="btn-primary" style={{padding:'4px 10px',fontSize:'11px'}}
+                                onClick={async () => {
+                                  try {
+                                    const res = await fetch(`/api/observaciones/${obs.id}`, {
+                                      method: 'PATCH',
+                                      headers: {'Content-Type':'application/json'},
+                                      body: JSON.stringify({estado:'validada'}),
+                                    });
+                                    if (res.ok) setObsLista(prev => prev.map(o => o.id === obs.id ? {...o, estado:'validada'} : o));
+                                  } catch(e) {}
+                                }}>
+                                Validar
+                              </button>
+                            )}
+                            {obs.estado !== 'rechazada' && (
+                              <button className="btn-danger" style={{padding:'4px 10px',fontSize:'11px'}}
+                                onClick={async () => {
+                                  try {
+                                    const res = await fetch(`/api/observaciones/${obs.id}`, {
+                                      method: 'PATCH',
+                                      headers: {'Content-Type':'application/json'},
+                                      body: JSON.stringify({estado:'rechazada'}),
+                                    });
+                                    if (res.ok) setObsLista(prev => prev.map(o => o.id === obs.id ? {...o, estado:'rechazada'} : o));
+                                  } catch(e) {}
+                                }}>
+                                Rechazar
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ===== VISTA: OBSERVACIONES TODAS (docente) ===== */}
+      {vista === 'observaciones' && isDocente && (
+        <div className="card" style={{padding:'20px',border:'1px solid var(--border-color)',background:'var(--bg-card)'}}>
+          {!cicloId ? (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'200px',textAlign:'center',color:'var(--text-secondary)'}}>
+              Selecciona un ciclo académico para ver las observaciones
+            </div>
+          ) : loadingObsLista ? (
+            <div style={{textAlign:'center',padding:'40px',color:'var(--text-secondary)'}}>Cargando observaciones...</div>
+          ) : obsLista.length === 0 ? (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'200px',textAlign:'center',color:'var(--text-secondary)'}}>
+              No hay observaciones registradas para este ciclo académico
+            </div>
+          ) : (
+            <>
+              <div style={{marginBottom:'20px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <h3 style={{fontSize:'16px',fontWeight:'600',color:'var(--text-primary)',margin:0}}>
+                  Observaciones de Docentes ({obsLista.length})
+                </h3>
+              </div>
+              <div className="table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Docente</th>
+                      <th>Curso</th>
+                      <th>Tipo</th>
+                      <th>Grupo</th>
+                      <th>Día</th>
+                      <th>Horario</th>
+                      <th>Observación</th>
+                      <th>Estado</th>
+                      <th>Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {obsLista.map((obs: any) => (
+                      <tr key={obs.id}>
+                        <td style={{fontWeight:'500'}}>{obs.docente_nombre} {obs.docente_apellidos}</td>
+                        <td>{obs.curso_codigo} - {obs.curso_nombre}</td>
+                        <td style={{textAlign:'center'}}><span className={`badge-${obs.tipo || 'teoria'}`}>{obs.tipo || 'teoria'}</span></td>
+                        <td style={{textAlign:'center'}}>{obs.numero_grupo}</td>
+                        <td style={{textAlign:'center'}}>{obs.dia || '-'}</td>
+                        <td style={{textAlign:'center'}}>
+                          {obs.hora_inicio && obs.hora_fin ? `${obs.hora_inicio.substring(0,5)} - ${obs.hora_fin.substring(0,5)}` : '-'}
+                        </td>
+                        <td style={{maxWidth:'250px',wordWrap:'break-word'}}>{obs.observaciones}</td>
+                        <td style={{textAlign:'center'}}>
+                          <span className={`badge-${obs.estado === 'validada' ? 'success' : obs.estado === 'rechazada' ? 'danger' : 'warning'}`}
+                            style={{fontSize:'11px',padding:'2px 8px',borderRadius:'9999px',fontWeight:'600',textTransform:'uppercase'}}>
+                            {obs.estado || 'pendiente'}
+                          </span>
+                        </td>
+                        <td style={{fontSize:'12px',color:'var(--text-secondary)'}}>
+                          {new Date(obs.created_at).toLocaleDateString('es-PE')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ===== VISTA: MIS OBSERVACIONES (docente) ===== */}
+      {vista === 'mis-observaciones' && isDocente && (
+        <div className="card" style={{padding:'20px',border:'1px solid var(--border-color)',background:'var(--bg-card)'}}>
+          {!cicloId ? (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'200px',textAlign:'center',color:'var(--text-secondary)'}}>
+              Selecciona un ciclo académico para ver tus observaciones
+            </div>
+          ) : loadingMisObsLista ? (
+            <div style={{textAlign:'center',padding:'40px',color:'var(--text-secondary)'}}>Cargando observaciones...</div>
+          ) : misObsLista.length === 0 ? (
+            <div style={{textAlign:'center',padding:'40px'}}>
+              <p style={{color:'var(--text-secondary)',marginBottom:'16px'}}>No tienes observaciones registradas en este ciclo</p>
+              <button className="btn-primary" onClick={() => {
+                if (miHorario.length > 0) abrirModalObservaciones(miHorario[0]);
+                else setMsg({ type:'error', text:'No tienes asignaciones para agregar observaciones' });
+              }}>
+                📝 Agregar Observación
+              </button>
+            </div>
+          ) : (
+            <>
+              <div style={{marginBottom:'20px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <h3 style={{fontSize:'16px',fontWeight:'600',color:'var(--text-primary)',margin:0}}>
+                  Mis observaciones ({misObsLista.length})
+                </h3>
+                <button className="btn-primary" onClick={() => {
+                  if (miHorario.length > 0) abrirModalObservaciones(miHorario[0]);
+                  else setMsg({ type:'error', text:'No tienes asignaciones para agregar observaciones' });
+                }}>
+                  📝 Agregar Observación
+                </button>
+              </div>
+              <div className="table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Curso</th>
+                      <th>Tipo</th>
+                      <th>Grupo</th>
+                      <th>Día</th>
+                      <th>Horario</th>
+                      <th>Observación</th>
+                      <th>Estado</th>
+                      <th>Fecha</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {misObsLista.map((obs: any) => (
+                      <tr key={obs.id}>
+                        <td>{obs.curso_codigo} - {obs.curso_nombre}</td>
+                        <td style={{textAlign:'center'}}><span className={`badge-${obs.tipo || 'teoria'}`}>{obs.tipo || 'teoria'}</span></td>
+                        <td style={{textAlign:'center'}}>{obs.numero_grupo}</td>
+                        <td style={{textAlign:'center'}}>{obs.dia || '-'}</td>
+                        <td style={{textAlign:'center'}}>
+                          {obs.hora_inicio && obs.hora_fin ? `${obs.hora_inicio.substring(0,5)} - ${obs.hora_fin.substring(0,5)}` : '-'}
+                        </td>
+                        <td style={{maxWidth:'250px',wordWrap:'break-word'}}>{obs.observaciones}</td>
+                        <td style={{textAlign:'center'}}>
+                          <span className={`badge-${obs.estado === 'validada' ? 'success' : obs.estado === 'rechazada' ? 'danger' : 'warning'}`}
+                            style={{fontSize:'11px',padding:'2px 8px',borderRadius:'9999px',fontWeight:'600',textTransform:'uppercase'}}>
+                            {obs.estado || 'pendiente'}
+                          </span>
+                        </td>
+                        <td style={{fontSize:'12px',color:'var(--text-secondary)'}}>
+                          {new Date(obs.created_at).toLocaleDateString('es-PE')}
+                        </td>
+                        <td>
+                          <button className="btn-secondary" style={{padding:'4px 10px',fontSize:'11px'}}
+                            onClick={() => {
+                              const grupo = gruposObservacion.find(g => g.grupo_id === obs.grupo_id);
+                              if (grupo) {
+                                setCursoObservacionId(`${grupo.curso_codigo}|${grupo.curso_nombre}`);
+                                setGrupoObservacionKey(grupo.key);
+                                setGrupoObservacion(grupo.asignaciones);
+                              }
+                              setObservacionTexto(obs.observaciones || '');
+                              setObservacionEstado(obs.estado || '');
+                              setShowObservacionesModal(true);
+                            }}>
+                            Editar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}

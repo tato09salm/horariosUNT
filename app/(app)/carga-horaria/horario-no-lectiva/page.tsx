@@ -201,6 +201,13 @@ export default function HorarioNoLectivaPage() {
     return () => document.removeEventListener('mouseup', handleMouseUp);
   }, []);
 
+  // Get end time for a block, handling last slot edge case
+  const getBlockEnd = useCallback((lastIdx: number): string => {
+    if (lastIdx + 1 < SLOTS.length) return SLOTS[lastIdx + 1].id;
+    const h = parseInt(SLOTS[lastIdx].id.split(':')[0]) + 1;
+    return String(h).padStart(2, '0') + ':00';
+  }, []);
+
   // Build contiguous blocks for a specific section
   const buildBlocksForSection = useCallback((secKey: string): { dia: string; hora_inicio: string; hora_fin: string; horas: number }[] => {
     const secSlots = slotsPorSeccion[secKey] || new Set<string>();
@@ -214,13 +221,9 @@ export default function HorarioNoLectivaPage() {
           if (start === null || i !== prevIdx + 1) {
             if (start !== null) {
               const startHour = parseInt(start.split(':')[0]);
-              const endHour = parseInt(SLOTS[prevIdx + 1].id.split(':')[0]);
-              blocks.push({
-                dia,
-                hora_inicio: start,
-                hora_fin: SLOTS[prevIdx + 1].id,
-                horas: endHour - startHour,
-              });
+              const blockEnd = getBlockEnd(prevIdx);
+              const endHour = parseInt(blockEnd.split(':')[0]);
+              blocks.push({ dia, hora_inicio: start, hora_fin: blockEnd, horas: endHour - startHour });
             }
             start = SLOTS[i].id;
           }
@@ -229,17 +232,13 @@ export default function HorarioNoLectivaPage() {
       }
       if (start !== null) {
         const startHour = parseInt(start.split(':')[0]);
-        const endHour = parseInt(SLOTS[prevIdx + 1].id.split(':')[0]);
-        blocks.push({
-          dia,
-          hora_inicio: start,
-          hora_fin: SLOTS[prevIdx + 1].id,
-          horas: endHour - startHour,
-        });
+        const blockEnd = getBlockEnd(prevIdx);
+        const endHour = parseInt(blockEnd.split(':')[0]);
+        blocks.push({ dia, hora_inicio: start, hora_fin: blockEnd, horas: endHour - startHour });
       }
     }
     return blocks;
-  }, [slotsPorSeccion]);
+  }, [slotsPorSeccion, getBlockEnd]);
 
   // Build contiguous blocks from selected slots
   const buildBlocks = useCallback((): { dia: string; hora_inicio: string; hora_fin: string }[] => {
