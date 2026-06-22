@@ -17,10 +17,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         d.nombre as docente_nombre,
         d.apellidos as docente_apellidos,
         c.nombre as ciclo_nombre,
-        COALESCE(oa.dia, a.dia) as dia,
+        COALESCE(oa.dia::text, a.dia::text) as dia,
         COALESCE(oa.tipo, a.tipo::text) as tipo,
-        COALESCE(oa.hora_inicio, s.hora_inicio) as hora_inicio,
-        COALESCE(oa.hora_fin, s.hora_fin) as hora_fin,
+        COALESCE(oa.hora_inicio::text, s.hora_inicio::text) as hora_inicio,
+        COALESCE(oa.hora_fin::text, s.hora_fin::text) as hora_fin,
         cu.codigo as curso_codigo,
         cu.nombre as curso_nombre,
         g.numero_grupo
@@ -85,7 +85,40 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-// DELETE - Eliminar observación
+// PATCH - Actualizar estado de observación (secretaria/director)
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session || !['admin', 'secretaria', 'director_escuela'].includes(session.rol)) {
+    return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
+  }
+
+  try {
+    const { id } = await params;
+    const { estado } = await req.json();
+
+    if (!['pendiente', 'validada', 'rechazada'].includes(estado)) {
+      return NextResponse.json({ error: 'Estado inválido' }, { status: 400 });
+    }
+
+    const existente = await queryOne(`SELECT id FROM observaciones_asignaciones WHERE id = $1`, [id]);
+    if (!existente) {
+      return NextResponse.json({ error: 'Observación no encontrada' }, { status: 404 });
+    }
+
+    const result = await queryOne(`
+      UPDATE observaciones_asignaciones
+      SET estado = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+    `, [estado, id]);
+
+    return NextResponse.json({ data: result });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+// DELETE - Eliminar observación (soft delete)
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session || !['admin', 'secretaria', 'docente'].includes(session.rol)) {
@@ -108,7 +141,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
 
     await query(`
-      DELETE FROM observaciones_asignaciones
+      UPDATE observaciones_asignaciones SET estado = 'eliminado', updated_at = NOW()
       WHERE id = $1
     `, [id]);
 

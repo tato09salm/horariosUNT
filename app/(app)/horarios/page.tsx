@@ -89,6 +89,7 @@ export default function HorariosPage() {
   const [grupoObservacionKey, setGrupoObservacionKey] = useState<string>('');
   const [grupoObservacion, setGrupoObservacion] = useState<any[]>([]);
   const [observacionTexto, setObservacionTexto] = useState('');
+  const [observacionEstado, setObservacionEstado] = useState<string>('');
   const [guardandoObservacion, setGuardandoObservacion] = useState(false);
 
   useEffect(() => {
@@ -522,6 +523,7 @@ export default function HorariosPage() {
     setGrupoObservacionKey(grupo?.key || firstGroup?.key || '');
     setGrupoObservacion(grupo?.asignaciones || []);
     setObservacionTexto('');
+    setObservacionEstado('');
     setShowObservacionesModal(true);
 
     if (grupo && grupo.grupo_id) {
@@ -530,6 +532,7 @@ export default function HorariosPage() {
         const data = await res.json();
         if (data.data && data.data.length > 0) {
           setObservacionTexto(data.data[0].observaciones || '');
+          setObservacionEstado(data.data[0].estado || '');
         }
       } catch (e) {
         console.error('Error al cargar observación:', e);
@@ -1368,6 +1371,14 @@ export default function HorariosPage() {
                       <span key={i}>{i > 0 ? ' | ' : ''}{DIAS_LABEL[b.dia]} {b.inicio.substring(0,5)}-{b.fin.substring(0,5)}</span>
                     ))}
                   </div>
+                </div>
+              )}
+              {observacionEstado && (
+                <div style={{marginBottom:'12px', textAlign:'right'}}>
+                  <span className={`badge-${observacionEstado === 'validada' ? 'success' : observacionEstado === 'rechazada' ? 'danger' : 'warning'}`}
+                    style={{fontSize:'11px', padding:'2px 10px', borderRadius:'9999px', fontWeight:'600', textTransform:'uppercase'}}>
+                    {observacionEstado}
+                  </span>
                 </div>
               )}
               <div className="form-group">
