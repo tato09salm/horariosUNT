@@ -7,6 +7,7 @@ module.exports = {
           "CREATE TYPE condicion_docente AS ENUM ('nombrado', 'contratado');",
           "CREATE TYPE tipo_grado AS ENUM ('bachiller', 'licenciado', 'magister', 'doctor');",
           "CREATE TYPE tipo_ambiente AS ENUM ('aula', 'laboratorio', 'auditorio');",
+          "CREATE TYPE tipo_ciclo AS ENUM ('regular', 'extraordinario');",
           "CREATE TYPE dia_semana AS ENUM ('lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado');",
           "CREATE TYPE tipo_sesion AS ENUM ('teoria', 'practica', 'laboratorio');",
           "CREATE TYPE accion_auditoria AS ENUM ('CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'GENERATE_SCHEDULE', 'EXPORT_REPORT', 'ASSIGN', 'UNASSIGN');"
@@ -16,7 +17,7 @@ module.exports = {
         }
       },
       down: async (qi) => {
-        const enums = ['rol_usuario', 'categoria_docente', 'condicion_docente', 'tipo_grado', 'tipo_ambiente', 'dia_semana', 'tipo_sesion', 'accion_auditoria'];
+        const enums = ['rol_usuario', 'categoria_docente', 'condicion_docente', 'tipo_grado', 'tipo_ambiente', 'tipo_ciclo', 'dia_semana', 'tipo_sesion', 'accion_auditoria'];
         for (const e of enums) await qi.sequelize.query(`DROP TYPE IF EXISTS ${e} CASCADE;`);
       }
     };

@@ -11,6 +11,7 @@ interface Ciclo {
   nombre: string;
   año: number;
   semestre: string;
+  tipo: string;
   fecha_inicio: string;
   fecha_fin: string;
   activo: boolean;
@@ -22,6 +23,7 @@ const emptyCiclo: Partial<Ciclo> = {
   nombre: '',
   año: new Date().getFullYear(),
   semestre: 'I',
+  tipo: 'regular',
   fecha_inicio: '',
   fecha_fin: '',
   activo: false,
@@ -120,8 +122,11 @@ export default function CiclosPage() {
   async function guardar() {
     setSaving(true);
     try {
-      if (!editando.nombre || !editando.año || !editando.semestre)
-        throw new Error('Nombre, año y semestre son requeridos');
+      if (!editando.nombre || !editando.año)
+        throw new Error('Nombre y año son requeridos');
+      
+      if (editando.tipo === 'regular' && !editando.semestre)
+        throw new Error('Semestre es requerido para ciclos regulares');
 
       const { activo: _activo, ...payload } = editando;
       const method = editando.id ? 'PUT' : 'POST';
@@ -378,6 +383,7 @@ export default function CiclosPage() {
               <option value="">Todos los semestres</option>
               <option value="I">I</option>
               <option value="II">II</option>
+              <option value="EXT">EXT</option>
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -559,10 +565,36 @@ export default function CiclosPage() {
                   <input type="number" className="form-input" value={editando.año || ''} onChange={e => setEditando(p => ({ ...p, año: parseInt(e.target.value) || 0 }))}/>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Semestre *</label>
-                  <select className="form-input" value={editando.semestre || 'I'} onChange={e => setEditando(p => ({ ...p, semestre: e.target.value }))}>
-                    <option value="I">I</option>
-                    <option value="II">II</option>
+                  <label className="form-label">Tipo ciclo *</label>
+                  <select className="form-input" value={editando.tipo || 'regular'} onChange={e => {
+                    const tipo = e.target.value;
+                    setEditando(p => ({ 
+                      ...p, 
+                      tipo, 
+                      semestre: tipo === 'extraordinario' ? 'EXT' : 'I' 
+                    }));
+                  }}>
+                    <option value="regular">Regular</option>
+                    <option value="extraordinario">Extraordinario</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Semestre {editando.tipo === 'regular' ? '*' : ''}</label>
+                  <select 
+                    className="form-input" 
+                    value={editando.semestre || (editando.tipo === 'extraordinario' ? 'EXT' : 'I')} 
+                    onChange={e => setEditando(p => ({ ...p, semestre: e.target.value }))}
+                    disabled={editando.tipo === 'extraordinario'}
+                    style={{ opacity: editando.tipo === 'extraordinario' ? 0.6 : 1, cursor: editando.tipo === 'extraordinario' ? 'not-allowed' : 'pointer' }}
+                  >
+                    {editando.tipo === 'regular' ? (
+                      <>
+                        <option value="I">I</option>
+                        <option value="II">II</option>
+                      </>
+                    ) : (
+                      <option value="EXT">EXT</option>
+                    )}
                   </select>
                 </div>
                 <div className="form-group">

@@ -48,16 +48,24 @@ CREATE TABLE docentes (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Tipos de ciclo
+CREATE TYPE tipo_ciclo AS ENUM ('regular', 'extraordinario');
+
 -- Ciclos académicos
 CREATE TABLE ciclos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   nombre VARCHAR(50) NOT NULL,
   año INTEGER NOT NULL,
-  semestre VARCHAR(2) NOT NULL CHECK (semestre IN ('I', 'II')),
+  semestre VARCHAR(3) NOT NULL,
+  tipo tipo_ciclo DEFAULT 'regular',
   fecha_inicio DATE,
   fecha_fin DATE,
   activo BOOLEAN DEFAULT false,
-  created_at TIMESTAMP DEFAULT NOW()
+  created_at TIMESTAMP DEFAULT NOW(),
+  CHECK (
+    (tipo = 'regular' AND semestre IN ('I', 'II')) OR
+    (tipo = 'extraordinario' AND semestre IN ('EXT'))
+  )
 );
 
 -- Tipos de ambiente
