@@ -57,6 +57,8 @@ interface CursoAsignado {
   totalHoras: string;
   observaciones?: string;
   estado_observaciones?: string;
+  curriculaId?: string;
+  curriculaNombre?: string;
 }
 
 interface ItemActividad {
@@ -210,12 +212,25 @@ export default function NuevaCargaHorariaPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [confirmCambioOpcion, setConfirmCambioOpcion] = useState<string | null>(null);
   
+  // Curriculas for course selection
+  const [curriculas, setCurriculas] = useState<any[]>([]);
+  const [selectedCurricula, setSelectedCurricula] = useState<string>('');
+  const [curriculaHistory, setCurriculaHistory] = useState<string[]>([]);
+  
+  // Alert state for duplicate course
+  const [showCursoDuplicadoAlert, setShowCursoDuplicadoAlert] = useState(false);
+  const [mensajeCursoDuplicado, setMensajeCursoDuplicado] = useState('');
+  
+  // Acordeón state
+  const [detallesCursoAbierto, setDetallesCursoAbierto] = useState(true);
+  
   // Cursos for search/select modal
   const [cursos, setCursos] = useState<any[]>([]);
+  const [allCursos, setAllCursos] = useState<any[]>([]);
   const [showAgregarCursoModal, setShowAgregarCursoModal] = useState(false);
   const [cursoSearchQuery, setCursoSearchQuery] = useState('');
   const [selectedCurso, setSelectedCurso] = useState<any>(null);
-  const [nuevoCurso, setNuevoCurso] = useState<Omit<CursoAsignado, 'id'>>({
+  const [nuevoCurso, setNuevoCurso] = useState<Omit<CursoAsignado, 'id'> & { curriculaId?: string, curriculaNombre?: string }>({
     curso_id: '',
     codigo: '',
     nombre: '',
@@ -240,21 +255,37 @@ export default function NuevaCargaHorariaPage() {
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [alertType, setAlertType] = useState<'success' | 'error'>('error');
   
-  // Load docentes and cursos
+  // Load docentes and cursos and curriculas
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [docentesRes, cursosRes, ciclosRes] = await Promise.all([
+        const [docentesRes, cursosRes, ciclosRes, curriculasRes] = await Promise.all([
           fetch('/api/docentes?limit=1000'),
           fetch('/api/cursos?reporte=true'),
-          fetch('/api/ciclos?reporte=true')
+          fetch('/api/ciclos?reporte=true'),
+          fetch('/api/curriculas?manage=true')
         ]);
         const docentesData = await docentesRes.json();
         const cursosData = await cursosRes.json();
         const ciclosData = await ciclosRes.json();
+        const curriculasData = await curriculasRes.json();
+        
         setDocentes(docentesData.data || []);
+        setAllCursos(cursosData.data || []);
         setCursos(cursosData.data || []);
         setCiclosAcademicos(ciclosData.data || []);
+        setCurriculas(curriculasData.data || []);
+        
+        // Load curricula history from localStorage
+        const savedHistory = localStorage.getItem('curriculaHistory');
+        if (savedHistory) {
+          setCurriculaHistory(JSON.parse(savedHistory));
+        }
+        
+        // Set default selected curricula to first one available
+        if (curriculasData.data && curriculasData.data.length > 0) {
+          setSelectedCurricula(curriculasData.data[0].id);
+        }
       } catch (e) {
         console.error('Error loading data:', e);
       } finally {
@@ -359,7 +390,9 @@ export default function NuevaCargaHorariaPage() {
               laboratorioGrupos: String(laboratorioGrupos),
               totalHoras: String(total),
               observaciones: curso.observaciones || '',
-              estado_observaciones: curso.estado_observaciones || 'pendiente'
+              estado_observaciones: curso.estado_observaciones || 'pendiente',
+              curriculaId: curso.curricula_id || undefined,
+              curriculaNombre: curso.curricula_nombre || undefined
             };
           });
           newCursosAsignados = convertedCursos;
@@ -787,12 +820,46 @@ const resData = await res.json();
     setIsSearching(false);
   };
 
+  // Function to add curricula to history stack
+  const addToHistory = (curriculaId: string) => {
+    setCurriculaHistory(prev => {
+      // Remove if it already exists to bring to top
+      const filtered = prev.filter(id => id !== curriculaId);
+      const newHistory = [curriculaId, ...filtered];
+      // Save to localStorage
+      localStorage.setItem('curriculaHistory', JSON.stringify(newHistory));
+      return newHistory;
+    });
+  };
+  
+  // Function to remove curricula from history
+  const removeFromHistory = (curriculaId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurriculaHistory(prev => {
+      const newHistory = prev.filter(id => id !== curriculaId);
+      localStorage.setItem('curriculaHistory', JSON.stringify(newHistory));
+      return newHistory;
+    });
+  };
+  
   const handleSeleccionarCurso = (curso: any) => {
     const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
     const tHoras = parseFloat(curso.horas_teoria || 0) * 1;
     const pHoras = parseFloat(curso.horas_practica || 0) * 1;
     const lHoras = parseFloat(curso.horas_laboratorio || 0) * 1;
     const total = (tHoras + pHoras + lHoras).toString();
+    
+    // Obtener nombre de la currícula
+    const curricula = curriculas.find(c => c.id === selectedCurricula);
+    const curriculaNombre = curricula 
+      ? `${curricula.nombre_carrera} - ${curricula.año_curricula} - ${curricula.modalidad_estudios}`
+      : '';
+    
+    // Add the selected curricula to history when selecting a course
+    if (selectedCurricula) {
+      addToHistory(selectedCurricula);
+    }
+    
     setSelectedCurso(curso);
     setNuevoCurso({
       curso_id: curso.id,
@@ -811,10 +878,116 @@ const resData = await res.json();
       laboratorioHoras: String(curso.horas_laboratorio || 0),
       laboratorioGrupos: '1',
       totalHoras: total,
+      curriculaId: selectedCurricula,
+      curriculaNombre: curriculaNombre,
     });
   };
+  
+  // Auto-complete curricula for existing courses when curriculas or cursosAsignados change
+  useEffect(() => {
+    if (curriculas.length > 0 && cursosAsignados.length > 0) {
+      let hasUpdates = false;
+      const updatedCursos = cursosAsignados.map(curso => {
+        // Skip if already has curriculaId
+        if (curso.curriculaId) return curso;
+        
+        // Try to find which curricula this course belongs to
+        for (const curricula of curriculas) {
+          let isInCurricula = false;
+          
+          // Check direct cursos relation (from API)
+          if (curricula.cursos && Array.isArray(curricula.cursos)) {
+            isInCurricula = curricula.cursos.some((c: any) => {
+              const matches = 
+                (c.id && curso.curso_id && c.id === curso.curso_id) || 
+                (c.codigo && curso.codigo && c.codigo === curso.codigo) ||
+                (c.nombre && curso.nombre && c.nombre.toLowerCase() === curso.nombre.toLowerCase());
+              return matches;
+            });
+          }
+          
+          // Also check through mallas relation if available
+          if (!isInCurricula && curricula.mallas && Array.isArray(curricula.mallas)) {
+            isInCurricula = curricula.mallas.some((malla: any) => {
+              const cursoFromMalla = malla.curso;
+              return cursoFromMalla && 
+                ((cursoFromMalla.id && curso.curso_id && cursoFromMalla.id === curso.curso_id) || 
+                 (cursoFromMalla.codigo && curso.codigo && cursoFromMalla.codigo === curso.codigo));
+            });
+          }
+          
+          if (isInCurricula) {
+            hasUpdates = true;
+            return {
+              ...curso,
+              curriculaId: curricula.id,
+              curriculaNombre: `${curricula.nombre_carrera} - ${curricula.año_curricula} - ${curricula.modalidad_estudios}`
+            };
+          }
+        }
+        
+        return curso;
+      });
+      
+      if (hasUpdates) {
+        setCursosAsignados(updatedCursos);
+      }
+    }
+  }, [curriculas, cursosAsignados]);
+  
+  // Filter courses based on selected curricula and search query
+  useEffect(() => {
+    let filteredCursos = [...allCursos];
+    
+    // If a curricula is selected, filter by that curricula's courses
+    if (selectedCurricula) {
+      // Get the curricula object
+      const curricula = curriculas.find(c => c.id === selectedCurricula);
+      let curriculaCourseIds = [];
+      
+      if (curricula) {
+        // First try the direct many-to-many relation
+        if (curricula.cursos && curricula.cursos.length > 0) {
+          curriculaCourseIds = curricula.cursos.map((c: any) => c.id);
+        } 
+        // If not, try through mallas relation
+        else if (curricula.mallas && curricula.mallas.length > 0) {
+          curriculaCourseIds = curricula.mallas.map((malla: any) => malla.curso?.id || malla.curso_id);
+        }
+        
+        if (curriculaCourseIds.length > 0) {
+          filteredCursos = allCursos.filter((c: any) => 
+            curriculaCourseIds.includes(c.id)
+          );
+        }
+      }
+    }
+    
+    // Apply search filter
+    if (cursoSearchQuery) {
+      filteredCursos = filteredCursos.filter(c => 
+        normalizeText(c.nombre).includes(normalizeText(cursoSearchQuery)) ||
+        normalizeText(c.codigo).includes(normalizeText(cursoSearchQuery))
+      );
+    }
+    
+    setCursos(filteredCursos);
+  }, [selectedCurricula, cursoSearchQuery, allCursos, curriculas]);
 
   const handleAgregarCurso = () => {
+    // Verificar si el curso con la misma currícula ya está agregado
+    const cursoYaAgregado = cursosAsignados.some(
+      curso => 
+        curso.curso_id === nuevoCurso.curso_id && 
+        curso.curriculaId === nuevoCurso.curriculaId
+    );
+    
+    if (cursoYaAgregado) {
+      setMensajeCursoDuplicado(`El curso "${nuevoCurso.nombre}" de la currícula "${nuevoCurso.curriculaNombre}" ya está agregado a la carga horaria.`);
+      setShowCursoDuplicadoAlert(true);
+      return;
+    }
+    
     const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
     const id = Date.now().toString();
     setCursosAsignados([...cursosAsignados, { ...nuevoCurso, id }]);
@@ -835,6 +1008,8 @@ const resData = await res.json();
       laboratorioHoras: '0',
       laboratorioGrupos: '1',
       totalHoras: '0',
+      curriculaId: undefined,
+      curriculaNombre: '',
     });
     setShowAgregarCursoModal(false);
   };
@@ -1297,7 +1472,12 @@ const resData = await res.json();
                 {(canEditForm || isDocente) && !lectivaBloqueada && (
                   <button
                     className="btn-primary"
-                    onClick={() => setShowAgregarCursoModal(true)}
+                    onClick={() => {
+                      // Reset states when opening modal
+                      setCursoSearchQuery('');
+                      setSelectedCurso(null);
+                      setShowAgregarCursoModal(true);
+                    }}
                     style={{ padding: '6px 12px', fontSize: '12px' }}
                   >
                     + Agregar Curso
@@ -1319,6 +1499,7 @@ const resData = await res.json();
                     <tr style={{ background: darkMode ? '#1e293b' : '#f1f5f9' }}>
                       <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>CÓDIGO</th>
                       <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>NOMBRE DEL CURSO</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>CURRÍCULA</th>
                       <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>SECCIÓN</th>
                       <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>CURSO</th>
                       <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>Escuela Prof.</th>
@@ -1336,7 +1517,7 @@ const resData = await res.json();
                   <tbody>
                     {cursosAsignados.length === 0 ? (
                       <tr>
-                        <td colSpan={lectivaBloqueada ? 14 : 15} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', border: '1px solid var(--border-color)' }}>
+                        <td colSpan={lectivaBloqueada ? 15 : 16} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', border: '1px solid var(--border-color)' }}>
                           No hay cursos agregados
                         </td>
                       </tr>
@@ -1345,6 +1526,7 @@ const resData = await res.json();
                         <tr key={curso.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>{curso.codigo}</td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>{curso.nombre}</td>
+                          <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)', fontSize: '10px' }}>{curso.curriculaNombre || '-'}</td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
@@ -1617,7 +1799,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('preparacionEvaluacion', item.id, e.target.value)}
-                                disabled={campoBloqueado}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1642,7 +1824,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('preparacionEvaluacion', item.id, e.target.value)}
-                             disabled={campoBloqueado}
+                             disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1685,7 +1867,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('consejeriaTutoria', item.id, e.target.value)}
-                                disabled={campoBloqueado}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1710,7 +1892,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('consejeriaTutoria', item.id, e.target.value)}
-                              disabled={campoBloqueado}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1753,7 +1935,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('investigacion', item.id, e.target.value)}
-                                disabled={campoBloqueado}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1778,7 +1960,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('investigacion', item.id, e.target.value)}
-                              disabled={campoBloqueado}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1821,7 +2003,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('capacitacion', item.id, e.target.value)}
-                                disabled={campoBloqueado}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1846,7 +2028,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('capacitacion', item.id, e.target.value)}
-                              disabled={campoBloqueado}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1889,7 +2071,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('gobierno', item.id, e.target.value)}
-                                disabled={campoBloqueado}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1914,7 +2096,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('gobierno', item.id, e.target.value)}
-                              disabled={campoBloqueado}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -1957,7 +2139,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('administracion', item.id, e.target.value)}
-                                disabled={campoBloqueado}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -1982,7 +2164,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('administracion', item.id, e.target.value)}
-                              disabled={campoBloqueado}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -2025,7 +2207,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('asesoriaTesis', item.id, e.target.value)}
-                                disabled={campoBloqueado}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -2050,7 +2232,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('asesoriaTesis', item.id, e.target.value)}
-                              disabled={campoBloqueado}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -2093,7 +2275,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('responsabilidadSocial', item.id, e.target.value)}
-                                disabled={campoBloqueado}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -2118,7 +2300,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('responsabilidadSocial', item.id, e.target.value)}
-                              disabled={campoBloqueado}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -2161,7 +2343,7 @@ const resData = await res.json();
                                 className="form-input"
                                 value={item.descripcion}
                                 onChange={(e) => handleUpdateItemDescripcion('comitesTecnicos', item.id, e.target.value)}
-                                disabled={campoBloqueado}
+                                disabled={!!item.dia || campoBloqueado}
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                               />
                               {item.dia && (
@@ -2186,7 +2368,7 @@ const resData = await res.json();
                               min="0"
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('comitesTecnicos', item.id, e.target.value)}
-                              disabled={campoBloqueado}
+                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
                             />
@@ -2822,8 +3004,8 @@ const resData = await res.json();
 
       {/* Modal for adding courses */}
       {showAgregarCursoModal && (
-        <div className="modal-overlay" onClick={() => setShowAgregarCursoModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', maxHeight: '80vh', overflow: 'auto' }}>
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: '800px', maxHeight: '85vh', overflow: 'auto' }}>
             <div className="modal-header">
               <h2 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>Seleccionar Curso</h2>
               <button onClick={() => setShowAgregarCursoModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px' }}>
@@ -2831,6 +3013,26 @@ const resData = await res.json();
               </button>
             </div>
             <div className="modal-body">
+              {/* Curricula Selector */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
+                  Currícula
+                </label>
+                <select
+                  className="form-input"
+                  value={selectedCurricula}
+                  onChange={(e) => setSelectedCurricula(e.target.value)}
+                >
+                  <option value="">Todas las currículas</option>
+                  {curriculas.map(curricula => (
+                    <option key={curricula.id} value={curricula.id}>
+                      {curricula.nombre_carrera} - {curricula.año_curricula} - {curricula.modalidad_estudios} ({curricula.estado})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Search Input */}
               <div style={{ marginBottom: '16px' }}>
                 <input
                   className="form-input"
@@ -2839,196 +3041,229 @@ const resData = await res.json();
                   onChange={(e) => setCursoSearchQuery(e.target.value)}
                 />
               </div>
-              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                {cursos
-                  .filter(c => 
-                    normalizeText(c.nombre).includes(normalizeText(cursoSearchQuery)) ||
-                    normalizeText(c.codigo).includes(normalizeText(cursoSearchQuery))
-                  )
-                  .map(curso => (
+              
+              {/* Course List */}
+              <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '16px' }}>
+                {cursos.length === 0 ? (
+                  <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    No se encontraron cursos
+                  </div>
+                ) : (
+                  cursos.map(curso => (
                     <div
                       key={curso.id}
                       onClick={() => handleSeleccionarCurso(curso)}
                       style={{
-                        padding: '12px',
+                        padding: '14px',
                         borderBottom: '1px solid var(--border-color)',
                         cursor: 'pointer',
                         background: selectedCurso?.id === curso.id ? '#eff6ff' : 'transparent'
                       }}
                     >
-                      <div style={{ fontWeight: '600' }}>
+                      <div style={{ fontWeight: '600', fontSize: '14px' }}>
                         {curso.codigo} - {curso.nombre}
                       </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
                         Ciclo: {curso.ciclo_plan} | Escuela: {curso.escuela_nombre || curso.escuela?.nombre || 'N/A'}
                       </div>
                     </div>
-                  ))}
+                  ))
+                )}
               </div>
+              
               {selectedCurso && (
-                <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '24px' }}>
-                  <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>Detalles del Curso</h3>
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                  <div
+                    onClick={() => setDetallesCursoAbierto(!detallesCursoAbierto)}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      padding: '8px 0',
+                      userSelect: 'none'
+                    }}
+                  >
+                    <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>Detalles del Curso</h3>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '28px',
+                      height: '28px',
+                      transition: 'transform 0.2s ease',
+                      transform: detallesCursoAbierto ? 'rotate(180deg)' : 'rotate(0deg)'
+                    }}>
+                      <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Sección</label>
-                      <input
-                        className="form-input"
-                        value={nuevoCurso.seccion}
-                        onChange={(e) => setNuevoCurso(prev => ({ ...prev, seccion: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Número de Alumnos</label>
-                      <input
-                        className="form-input"
-                        type="number"
-                        min="0"
-                        value={nuevoCurso.numeroAlumnos}
-                        onChange={(e) => {
-                          let val = e.target.value;
-                          if (parseFloat(val) < 0) val = '0';
-                          setNuevoCurso(prev => ({ ...prev, numeroAlumnos: val }));
-                        }}
-                        onWheel={(e) => e.preventDefault()}
-                      />
-                    </div>
-                  </div>
+                  {detallesCursoAbierto && (
+                    <div style={{ marginTop: '16px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Sección</label>
+                          <input
+                            className="form-input"
+                            value={nuevoCurso.seccion}
+                            onChange={(e) => setNuevoCurso(prev => ({ ...prev, seccion: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Número de Alumnos</label>
+                          <input
+                            className="form-input"
+                            type="number"
+                            min="0"
+                            value={nuevoCurso.numeroAlumnos}
+                            onChange={(e) => {
+                              let val = e.target.value;
+                              if (parseFloat(val) < 0) val = '0';
+                              setNuevoCurso(prev => ({ ...prev, numeroAlumnos: val }));
+                            }}
+                            onWheel={(e) => e.preventDefault()}
+                          />
+                        </div>
+                      </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Horas Teoría</label>
-                      <input
-                        className="form-input"
-                        type="number"
-                        min="0"
-                        value={nuevoCurso.teoriaHoras}
-                        onChange={(e) => {
-                          let val = e.target.value;
-                          if (parseFloat(val) < 0) val = '0';
-                          const tHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
-                          const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
-                          const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
-                          const total = (tHoras + pHoras + lHoras).toString();
-                          setNuevoCurso(prev => ({ ...prev, teoriaHoras: val, totalHoras: total }));
-                        }}
-                        onWheel={(e) => e.preventDefault()}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Teoría</label>
-                      <input
-                        className="form-input"
-                        type="number"
-                        min="0"
-                        value={nuevoCurso.teoriaGrupos}
-                        onChange={(e) => {
-                          let val = e.target.value;
-                          if (parseFloat(val) < 0) val = '0';
-                          const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(val || '0');
-                          const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
-                          const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
-                          const total = (tHoras + pHoras + lHoras).toString();
-                          setNuevoCurso(prev => ({ ...prev, teoriaGrupos: val, totalHoras: total }));
-                        }}
-                        onWheel={(e) => e.preventDefault()}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Horas Práctica</label>
-                      <input
-                        className="form-input"
-                        type="number"
-                        min="0"
-                        value={nuevoCurso.practicaHoras}
-                        onChange={(e) => {
-                          let val = e.target.value;
-                          if (parseFloat(val) < 0) val = '0';
-                          const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
-                          const pHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
-                          const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
-                          const total = (tHoras + pHoras + lHoras).toString();
-                          setNuevoCurso(prev => ({ ...prev, practicaHoras: val, totalHoras: total }));
-                        }}
-                        onWheel={(e) => e.preventDefault()}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Práctica</label>
-                      <input
-                        className="form-input"
-                        type="number"
-                        min="0"
-                        value={nuevoCurso.practicaGrupos}
-                        onChange={(e) => {
-                          let val = e.target.value;
-                          if (parseFloat(val) < 0) val = '0';
-                          const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
-                          const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(val || '0');
-                          const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
-                          const total = (tHoras + pHoras + lHoras).toString();
-                          setNuevoCurso(prev => ({ ...prev, practicaGrupos: val, totalHoras: total }));
-                        }}
-                        onWheel={(e) => e.preventDefault()}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Horas Laboratorio</label>
-                      <input
-                        className="form-input"
-                        type="number"
-                        min="0"
-                        value={nuevoCurso.laboratorioHoras}
-                        onChange={(e) => {
-                          let val = e.target.value;
-                          if (parseFloat(val) < 0) val = '0';
-                          const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
-                          const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
-                          const lHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
-                          const total = (tHoras + pHoras + lHoras).toString();
-                          setNuevoCurso(prev => ({ ...prev, laboratorioHoras: val, totalHoras: total }));
-                        }}
-                        onWheel={(e) => e.preventDefault()}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Laboratorio</label>
-                      <input
-                        className="form-input"
-                        type="number"
-                        min="0"
-                        value={nuevoCurso.laboratorioGrupos}
-                        onChange={(e) => {
-                          let val = e.target.value;
-                          if (parseFloat(val) < 0) val = '0';
-                          const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
-                          const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
-                          const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(val || '0');
-                          const total = (tHoras + pHoras + lHoras).toString();
-                          setNuevoCurso(prev => ({ ...prev, laboratorioGrupos: val, totalHoras: total }));
-                        }}
-                        onWheel={(e) => e.preventDefault()}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Total Horas</label>
-                      <input
-                        className="form-input"
-                        type="number"
-                        value={nuevoCurso.totalHoras}
-                        disabled
-                      />
-                    </div>
-                  </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Horas Teoría</label>
+                          <input
+                            className="form-input"
+                            type="number"
+                            min="0"
+                            value={nuevoCurso.teoriaHoras}
+                            onChange={(e) => {
+                              let val = e.target.value;
+                              if (parseFloat(val) < 0) val = '0';
+                              const tHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
+                              const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
+                              const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
+                              const total = (tHoras + pHoras + lHoras).toString();
+                              setNuevoCurso(prev => ({ ...prev, teoriaHoras: val, totalHoras: total }));
+                            }}
+                            onWheel={(e) => e.preventDefault()}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Teoría</label>
+                          <input
+                            className="form-input"
+                            type="number"
+                            min="0"
+                            value={nuevoCurso.teoriaGrupos}
+                            onChange={(e) => {
+                              let val = e.target.value;
+                              if (parseFloat(val) < 0) val = '0';
+                              const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(val || '0');
+                              const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
+                              const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
+                              const total = (tHoras + pHoras + lHoras).toString();
+                              setNuevoCurso(prev => ({ ...prev, teoriaGrupos: val, totalHoras: total }));
+                            }}
+                            onWheel={(e) => e.preventDefault()}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Horas Práctica</label>
+                          <input
+                            className="form-input"
+                            type="number"
+                            min="0"
+                            value={nuevoCurso.practicaHoras}
+                            onChange={(e) => {
+                              let val = e.target.value;
+                              if (parseFloat(val) < 0) val = '0';
+                              const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
+                              const pHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
+                              const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
+                              const total = (tHoras + pHoras + lHoras).toString();
+                              setNuevoCurso(prev => ({ ...prev, practicaHoras: val, totalHoras: total }));
+                            }}
+                            onWheel={(e) => e.preventDefault()}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Práctica</label>
+                          <input
+                            className="form-input"
+                            type="number"
+                            min="0"
+                            value={nuevoCurso.practicaGrupos}
+                            onChange={(e) => {
+                              let val = e.target.value;
+                              if (parseFloat(val) < 0) val = '0';
+                              const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
+                              const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(val || '0');
+                              const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
+                              const total = (tHoras + pHoras + lHoras).toString();
+                              setNuevoCurso(prev => ({ ...prev, practicaGrupos: val, totalHoras: total }));
+                            }}
+                            onWheel={(e) => e.preventDefault()}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Horas Laboratorio</label>
+                          <input
+                            className="form-input"
+                            type="number"
+                            min="0"
+                            value={nuevoCurso.laboratorioHoras}
+                            onChange={(e) => {
+                              let val = e.target.value;
+                              if (parseFloat(val) < 0) val = '0';
+                              const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
+                              const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
+                              const lHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
+                              const total = (tHoras + pHoras + lHoras).toString();
+                              setNuevoCurso(prev => ({ ...prev, laboratorioHoras: val, totalHoras: total }));
+                            }}
+                            onWheel={(e) => e.preventDefault()}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Laboratorio</label>
+                          <input
+                            className="form-input"
+                            type="number"
+                            min="0"
+                            value={nuevoCurso.laboratorioGrupos}
+                            onChange={(e) => {
+                              let val = e.target.value;
+                              if (parseFloat(val) < 0) val = '0';
+                              const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
+                              const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
+                              const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(val || '0');
+                              const total = (tHoras + pHoras + lHoras).toString();
+                              setNuevoCurso(prev => ({ ...prev, laboratorioGrupos: val, totalHoras: total }));
+                            }}
+                            onWheel={(e) => e.preventDefault()}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Total Horas</label>
+                          <input
+                            className="form-input"
+                            type="number"
+                            value={nuevoCurso.totalHoras}
+                            disabled
+                          />
+                        </div>
+                      </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                    <button className="btn-secondary" onClick={() => setShowAgregarCursoModal(false)}>
-                      Cancelar
-                    </button>
-                    <button className="btn-primary" onClick={handleAgregarCurso}>
-                      Agregar Curso
-                    </button>
-                  </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                        <button className="btn-secondary" onClick={() => setShowAgregarCursoModal(false)}>
+                          Cancelar
+                        </button>
+                        <button className="btn-primary" onClick={handleAgregarCurso}>
+                          Agregar Curso
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -3109,6 +3344,67 @@ const resData = await res.json();
                   fontWeight: '500'
                 }}
                 onClick={() => setAlertMessage(null)}
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Alert for duplicate course */}
+      {showCursoDuplicadoAlert && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: '420px' }}>
+            <div className="modal-header" style={{ paddingBottom: '12px', marginBottom: '12px', borderBottom: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  backgroundColor: '#fef3c7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#d97706',
+                  fontSize: '20px'
+                }}>
+                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
+                  Atención
+                </h3>
+              </div>
+              <button onClick={() => setShowCursoDuplicadoAlert(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px' }}>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <p style={{
+              margin: 0,
+              marginBottom: '20px',
+              fontSize: '14px',
+              color: '#4b5563',
+              lineHeight: '1.5'
+            }}>
+              {mensajeCursoDuplicado}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                style={{
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                onClick={() => setShowCursoDuplicadoAlert(false)}
               >
                 Aceptar
               </button>

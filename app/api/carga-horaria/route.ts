@@ -85,7 +85,9 @@ export async function GET(req: NextRequest) {
           practica_grupos: c.practica_grupos ?? 1,
           laboratorio_grupos: c.laboratorio_grupos ?? 1,
           observaciones: c.observaciones || null,
-          estado_observaciones: c.estado_observaciones || 'pendiente'
+          estado_observaciones: c.estado_observaciones || 'pendiente',
+          curricula_id: c.curricula_id,
+          curricula_nombre: c.curricula_nombre
         }));
       } catch (err) {
         console.error('Error loading courses:', err);
@@ -177,9 +179,18 @@ if (session.rol === 'docente') {
 
   try {
     // Ensure all required columns exist on carga_horaria_cursos
-    const cursoColumns = ['teoria_grupos', 'practica_grupos', 'laboratorio_grupos', 'observaciones', 'estado_observaciones'];
+    const cursoColumns = ['teoria_grupos', 'practica_grupos', 'laboratorio_grupos', 'observaciones', 'estado_observaciones', 'curricula_id', 'curricula_nombre'];
     for (const col of cursoColumns) {
-      const colType = col === 'observaciones' ? 'TEXT' : col === 'estado_observaciones' ? 'VARCHAR(20) DEFAULT \'pendiente\'' : 'INTEGER DEFAULT 1';
+      let colType = 'INTEGER DEFAULT 1';
+      if (col === 'observaciones') {
+        colType = 'TEXT';
+      } else if (col === 'estado_observaciones') {
+        colType = 'VARCHAR(20) DEFAULT \'pendiente\'';
+      } else if (col === 'curricula_id') {
+        colType = 'UUID REFERENCES curriculas(id) ON DELETE SET NULL';
+      } else if (col === 'curricula_nombre') {
+        colType = 'TEXT';
+      }
       try {
         await query(`
           DO $$ BEGIN
@@ -329,8 +340,9 @@ if (session.rol === 'docente') {
           `INSERT INTO carga_horaria_cursos (
             carga_horaria_id, curso_id, seccion, escuela, num_alumnos, 
             hrs_teo, hrs_pra, hrs_lab, total_hrs,
-            teoria_grupos, practica_grupos, laboratorio_grupos, observaciones
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+            teoria_grupos, practica_grupos, laboratorio_grupos, observaciones,
+            curricula_id, curricula_nombre
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
           [
             cargaHorariaId,
             curso.curso_id,
@@ -344,7 +356,9 @@ if (session.rol === 'docente') {
             curso.teoriaGrupos,
             curso.practicaGrupos,
             curso.laboratorioGrupos,
-            curso.observaciones || null
+            curso.observaciones || null,
+            curso.curriculaId || null,
+            curso.curriculaNombre || null
           ]
         );
       }

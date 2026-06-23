@@ -42,6 +42,22 @@ export async function GET(req: NextRequest) {
 
     const curriculas = await db.Curriculas.findAll({
       where,
+      include: [
+        {
+          model: db.Cursos,
+          as: 'cursos'
+        },
+        {
+          model: db.MallaCurricular,
+          as: 'mallas',
+          include: [
+            {
+              model: db.Cursos,
+              as: 'curso'
+            }
+          ]
+        }
+      ],
       order: [
         [db.sequelize.literal(`
           CASE "estado"

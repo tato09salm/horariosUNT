@@ -75,9 +75,17 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const ciclo = await queryOne(
-      `INSERT INTO ciclos (nombre, año, semestre, fecha_inicio, fecha_fin, activo)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [body.nombre, body.año, body.semestre, body.fecha_inicio || null, body.fecha_fin || null, body.activo || false]
+      `INSERT INTO ciclos (nombre, año, semestre, tipo, fecha_inicio, fecha_fin, activo)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [
+        body.nombre, 
+        body.año, 
+        body.semestre, 
+        body.tipo || 'regular', 
+        body.fecha_inicio || null, 
+        body.fecha_fin || null, 
+        body.activo || false
+      ]
     );
 
     const mappedCiclo = ciclo ? { ...ciclo, estado: ciclo.activo ? 'activo' : 'pendiente' } : null;
@@ -92,6 +100,47 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ data: mappedCiclo }, { status: 201 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+}
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session || !['admin', 'director_escuela'].includes(session.rol)) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    
+    const ciclo = await queryOne(
+      `UPDATE ciclos 
+       SET nombre = $1, año = $2, semestre = $3, tipo = $4, fecha_inicio = $5, fecha_fin = $6, activo = $7
+       WHERE id = $8
+       RETURNING *`,
+      [
+        body.nombre, 
+        body.año, 
+        body.semestre, 
+        body.tipo || 'regular', 
+        body.fecha_inicio || null, 
+        body.fecha_fin || null, 
+        body.activo || false,
+        id
+      ]
+    );
+
+    const mappedCiclo = ciclo ? { ...ciclo, estado: ciclo.activo ? 'activo' : 'pendiente' } : null;
+
+    await registrarAuditoria({
+      usuario_id: session.id,
+      accion: 'UPDATE',
+      tabla_afectada: 'ciclos',
+      registro_id: ciclo?.id,
+      datos_nuevos: mappedCiclo,
+      descripcion: `Ciclo actualizado: ${ciclo?.nombre}`,
+    });
+
+    return NextResponse.json({ data: mappedCiclo }, { status: 200 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

@@ -51,6 +51,7 @@ export default function ConfigurarCurriculaPage() {
   const [editingCursoId, setEditingCursoId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Backup para Optimistic UI
   const [cursosBackup, setCursosBackup] = useState<Curso[]>([]);
@@ -258,13 +259,7 @@ export default function ConfigurarCurriculaPage() {
     }
   };
 
-  const handlePublicar = async () => {
-    if (cursos.length === 0) {
-      setToast({ type: 'error', text: 'No puedes publicar una currícula sin cursos.' });
-      return;
-    }
-    if (!confirm('¿Estás seguro de publicar esta currícula? Pasará a ser la currícula ACTIVA y la anterior pasará a EN EXTINCIÓN.')) return;
-    
+  const confirmarPublicar = async () => {
     setSaving(true);
     try {
       const res = await fetch(`/api/curriculas/${id}`, {
@@ -275,12 +270,21 @@ export default function ConfigurarCurriculaPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
+      setShowConfirm(false);
       setToast({ type: 'success', text: 'Currícula publicada correctamente' });
       setTimeout(() => router.push('/curriculas'), 1500);
     } catch (error: any) {
       setToast({ type: 'error', text: error.message });
       setSaving(false);
     }
+  };
+
+  const handlePublicar = async () => {
+    if (cursos.length === 0) {
+      setToast({ type: 'error', text: 'No puedes publicar una currícula sin cursos.' });
+      return;
+    }
+    setShowConfirm(true);
   };
 
   if (loading) return <div className="page-container"><p>Cargando...</p></div>;
@@ -658,6 +662,149 @@ export default function ConfigurarCurriculaPage() {
           -moz-appearance: textfield;
         }
       `}</style>
+
+      {/* Modal de Confirmación Publicar */}
+      {showConfirm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }} onClick={(e) => {
+          // Prevenir cerrar al hacer click fuera
+          e.stopPropagation();
+        }}>
+          <div style={{
+            background: 'var(--bg-card)',
+            borderRadius: '12px',
+            padding: '24px',
+            width: '100%',
+            maxWidth: '500px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            border: '1px solid var(--border-color)',
+            position: 'relative',
+          }} onClick={(e) => e.stopPropagation()}>
+            <button 
+              onClick={() => setShowConfirm(false)}
+              style={{
+                position: 'absolute',
+                top: '12px',
+                right: '12px',
+                background: 'none',
+                border: 'none',
+                fontSize: '24px',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                lineHeight: '1',
+                padding: '0',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '6px',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-card-hover)';
+                e.currentTarget.style.color = 'var(--text-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'none';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+              }}
+            >
+              ×
+            </button>
+
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}>
+              <div style={{
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'flex-start',
+              }}>
+                <div style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  background: 'rgba(251, 191, 36, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <span style={{ fontSize: '28px' }}>⚠️</span>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}>
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: '18px',
+                    fontWeight: 700,
+                    color: 'var(--text-primary)',
+                    lineHeight: '1.3',
+                  }}>
+                    ¿Estás seguro?
+                  </h3>
+                  <p style={{
+                    margin: 0,
+                    fontSize: '14px',
+                    color: 'var(--text-secondary)',
+                    lineHeight: '1.5',
+                  }}>
+                    ¿Estás seguro de publicar esta currícula? Pasará a ser la currícula ACTIVA y la anterior pasará a EN EXTINCIÓN.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                gap: '12px',
+                justifyContent: 'flex-end',
+                marginTop: '8px',
+              }}>
+                <button 
+                  onClick={() => setShowConfirm(false)}
+                  className="btn-secondary"
+                  style={{
+                    padding: '10px 20px',
+                    fontSize: '14px',
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={confirmarPublicar}
+                  className="btn-primary"
+                  style={{
+                    background: '#059669',
+                    borderColor: '#059669',
+                    padding: '10px 20px',
+                    fontSize: '14px',
+                  }}
+                >
+                  {saving ? 'Publicando...' : 'Publicar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

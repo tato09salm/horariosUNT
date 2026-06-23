@@ -22,8 +22,13 @@ class Ciclos extends Sequelize.Model {
       allowNull: false
     },
     semestre: {
-      type: DataTypes.STRING(2),
+      type: DataTypes.STRING(3),
       allowNull: false
+    },
+    tipo: {
+      type: DataTypes.ENUM('regular', 'extraordinario'),
+      allowNull: false,
+      defaultValue: 'regular'
     },
     fecha_inicio: {
       type: DataTypes.DATEONLY,
