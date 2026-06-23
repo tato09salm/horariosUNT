@@ -50,7 +50,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
       if (asignaciones.length > 0) {
         const adicionales = await getCargaAdicionalDocente(id, ciclo_id);
-        return NextResponse.json({ asignaciones: [...asignaciones, ...adicionales] });
+        return NextResponse.json({ data: [...asignaciones, ...adicionales] });
       }
 
       // Second try: use programacion.config.asignaciones

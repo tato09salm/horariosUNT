@@ -1550,10 +1550,30 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
         }
       }
       totalNoLectiva += hr;
-      const horarioEntradas = s.field ? (noLectivaLookup.get(s.field) || []) : [];
+      // Build horario entries from the section data (which has dia/hora_inicio/hora_fin from the grid)
+      let horarioEntradas: { dia: string; hora_inicio: string; hora_fin: string }[] = [];
+      if (s.field && secciones[s.field]) {
+        const secData = secciones[s.field];
+        if (Array.isArray(secData)) {
+          horarioEntradas = secData
+            .filter((item: any) => item.dia && item.hora_inicio)
+            .map((item: any) => ({
+              dia: item.dia,
+              hora_inicio: (item.hora_inicio || '').slice(0, 5),
+              hora_fin: (item.hora_fin || '').slice(0, 5),
+            }));
+        } else if (secData.items && Array.isArray(secData.items)) {
+          horarioEntradas = secData.items
+            .filter((item: any) => item.dia && item.hora_inicio)
+            .map((item: any) => ({
+              dia: item.dia,
+              hora_inicio: (item.hora_inicio || '').slice(0, 5),
+              hora_fin: (item.hora_fin || '').slice(0, 5),
+            }));
+        }
+      }
       const horarioStr = formatHorarioNoLectiva(horarioEntradas);
-      const aulasSet = new Set(horarioEntradas.map(e => e.aula));
-      const aulaStr = aulasSet.size > 0 ? [...aulasSet].join(', ') : 'CUBICULO';
+      const aulaStr = horarioEntradas.length > 0 ? 'CUBICULO' : 'CUBICULO';
       const lugarStr = horarioEntradas.length > 0 ? 'OA' : lugarDisplay;
       chnlRows.push([
         { content: horarioStr, styles: { ...cellStyle, halign: 'center' as const, fontSize: 6 } },

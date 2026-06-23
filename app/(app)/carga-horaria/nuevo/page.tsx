@@ -7,6 +7,18 @@ import { useUser } from '@/app/(app)/layout';
 
 const DIAS_LABEL: Record<string, string> = { lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue', viernes: 'Vie', sabado: 'Sáb' };
 
+const SECCION_RESET_MAP: Record<string, string> = {
+  preparacionEvaluacion: 'preparacion',
+  consejeriaTutoria: 'consejeria',
+  investigacion: 'investigacion',
+  capacitacion: 'capacitacion',
+  gobierno: 'gobierno',
+  administracion: 'administracion',
+  asesoriaTesis: 'asesoria',
+  responsabilidadSocial: 'rsu',
+  comitesTecnicos: 'comites',
+};
+
 interface Docente {
   id: string;
   nombre: string;
@@ -1136,6 +1148,50 @@ const resData = await res.json();
     }));
   };
 
+  const handleResetSeccion = async (seccionKey: keyof Secciones) => {
+    if (!cargaHorariaId) {
+      setAlertType('error');
+      setAlertMessage('No hay carga horaria guardada aún. Guarda primero para usar esta opción.');
+      return;
+    }
+    const sectionName = seccionKey.replace(/([A-Z])/g, ' $1').trim();
+    if (!window.confirm(`¿Reiniciar "${sectionName}"? Se eliminarán todos los horarios asignados y deberás volver a programarlos.`)) return;
+
+    try {
+      const apiKey = SECCION_RESET_MAP[seccionKey];
+      const body: any = {
+        carga_horaria_id: cargaHorariaId,
+        docente_id: docenteSeleccionado?.id,
+      };
+      body[apiKey] = { items: [] };
+
+      const res = await fetch('/api/carga-horaria/no-lectiva', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al reiniciar');
+      }
+
+      const defaultId = `${seccionKey}-${Date.now()}`;
+      setSecciones(prev => ({
+        ...prev,
+        [seccionKey]: {
+          items: [{ id: defaultId, descripcion: '', horas: '0' }],
+          horas: '0',
+        },
+      }));
+      setAlertType('success');
+      setAlertMessage(`${sectionName} reiniciada correctamente`);
+    } catch (e: any) {
+      setAlertType('error');
+      setAlertMessage('Error: ' + e.message);
+    }
+  };
+
   const handleUpdateItemHoras = (seccionKey: keyof Secciones, itemId: string, value: string) => {
     let processedValue = value;
     const numValue = parseFloat(value);
@@ -1714,10 +1770,17 @@ const resData = await res.json();
               {/* 2. PREPARACIÓN Y EVALUACIÓN */}
 
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     2. PREPARACIÓN Y EVALUACIÓN (Max 50% de Trabajo Lectivo)
                   </h3>
+                  {(secciones.preparacionEvaluacion.items.length > 1 || secciones.preparacionEvaluacion.items.some(i => i.dia)) && !campoBloqueado && (
+                    <button onClick={() => handleResetSeccion('preparacionEvaluacion')} style={{
+                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                      whiteSpace: 'nowrap'
+                    }} title="Reiniciar sección">↺ Reset</button>
+                  )}
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -1772,13 +1835,20 @@ const resData = await res.json();
                   </table>
                 </div>
               </div>
-
               {/* 3. CONSEJERÍA Y TUTORÍA */}
+
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     3. CONSEJERÍA Y TUTORÍA (Como mínimo 01 hora semanal)
                   </h3>
+                  {(secciones.consejeriaTutoria.items.length > 1 || secciones.consejeriaTutoria.items.some(i => i.dia)) && !campoBloqueado && (
+                    <button onClick={() => handleResetSeccion('consejeriaTutoria')} style={{
+                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                      whiteSpace: 'nowrap'
+                    }} title="Reiniciar sección">↺ Reset</button>
+                  )}
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -1833,13 +1903,20 @@ const resData = await res.json();
                   </table>
                 </div>
               </div>
-
               {/* 4. INVESTIGACIÓN */}
+
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     4. INVESTIGACIÓN (Como mínimo 04 y 05 horas semanales, según modalidad)
                   </h3>
+                  {(secciones.investigacion.items.length > 1 || secciones.investigacion.items.some(i => i.dia)) && !campoBloqueado && (
+                    <button onClick={() => handleResetSeccion('investigacion')} style={{
+                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                      whiteSpace: 'nowrap'
+                    }} title="Reiniciar sección">↺ Reset</button>
+                  )}
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -1894,13 +1971,20 @@ const resData = await res.json();
                   </table>
                 </div>
               </div>
-
               {/* 5. CAPACITACIÓN */}
+
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     5. CAPACITACIÓN (Como máximo 05 semanales)
                   </h3>
+                  {(secciones.capacitacion.items.length > 1 || secciones.capacitacion.items.some(i => i.dia)) && !campoBloqueado && (
+                    <button onClick={() => handleResetSeccion('capacitacion')} style={{
+                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                      whiteSpace: 'nowrap'
+                    }} title="Reiniciar sección">↺ Reset</button>
+                  )}
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -1955,13 +2039,20 @@ const resData = await res.json();
                   </table>
                 </div>
               </div>
-
               {/* 6. ACTIVIDADES DE GOBIERNO */}
+
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     6. ACTIVIDADES DE GOBIERNO
                   </h3>
+                  {(secciones.gobierno.items.length > 1 || secciones.gobierno.items.some(i => i.dia)) && !campoBloqueado && (
+                    <button onClick={() => handleResetSeccion('gobierno')} style={{
+                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                      whiteSpace: 'nowrap'
+                    }} title="Reiniciar sección">↺ Reset</button>
+                  )}
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -2016,13 +2107,20 @@ const resData = await res.json();
                   </table>
                 </div>
               </div>
-
               {/* 7. ADMINISTRACIÓN */}
+
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     7. ADMINISTRACIÓN
                   </h3>
+                  {(secciones.administracion.items.length > 1 || secciones.administracion.items.some(i => i.dia)) && !campoBloqueado && (
+                    <button onClick={() => handleResetSeccion('administracion')} style={{
+                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                      whiteSpace: 'nowrap'
+                    }} title="Reiniciar sección">↺ Reset</button>
+                  )}
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -2077,13 +2175,20 @@ const resData = await res.json();
                   </table>
                 </div>
               </div>
-
               {/* 8. ASESORÍA DE TESIS */}
+
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     8. ASESORÍA DE TESIS
                   </h3>
+                  {(secciones.asesoriaTesis.items.length > 1 || secciones.asesoriaTesis.items.some(i => i.dia)) && !campoBloqueado && (
+                    <button onClick={() => handleResetSeccion('asesoriaTesis')} style={{
+                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                      whiteSpace: 'nowrap'
+                    }} title="Reiniciar sección">↺ Reset</button>
+                  )}
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -2138,13 +2243,20 @@ const resData = await res.json();
                   </table>
                 </div>
               </div>
-
               {/* 9. RESPONSABILIDAD SOCIAL UNIVERSITARIA */}
+
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     9. RESPONSABILIDAD SOCIAL UNIVERSITARIA
                   </h3>
+                  {(secciones.responsabilidadSocial.items.length > 1 || secciones.responsabilidadSocial.items.some(i => i.dia)) && !campoBloqueado && (
+                    <button onClick={() => handleResetSeccion('responsabilidadSocial')} style={{
+                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                      whiteSpace: 'nowrap'
+                    }} title="Reiniciar sección">↺ Reset</button>
+                  )}
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -2199,13 +2311,20 @@ const resData = await res.json();
                   </table>
                 </div>
               </div>
-
               {/* 10. COMITÉS TÉCNICOS */}
+
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     10. COMITÉS TÉCNICOS
                   </h3>
+                  {(secciones.comitesTecnicos.items.length > 1 || secciones.comitesTecnicos.items.some(i => i.dia)) && !campoBloqueado && (
+                    <button onClick={() => handleResetSeccion('comitesTecnicos')} style={{
+                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                      whiteSpace: 'nowrap'
+                    }} title="Reiniciar sección">↺ Reset</button>
+                  )}
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
