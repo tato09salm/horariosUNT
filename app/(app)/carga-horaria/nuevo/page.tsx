@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from '@/lib/theme';
 import { useUser } from '@/app/(app)/layout';
@@ -30,11 +30,11 @@ interface Docente {
   activo: boolean;
   facultad: string;
   dpto_academico: string;
+  modalidad?: string;
   es_escuela_configurada?: boolean;
 }
 
 interface DocenteSeleccionado extends Docente {
-  modalidad: string;
 }
 
 interface CursoAsignado {
@@ -165,8 +165,8 @@ export default function NuevaCargaHorariaPage() {
   // Initial state for secciones (each with 1 default item)
   const initialSecciones: Secciones = {
     preparacionEvaluacion: { items: [{ id: 'prep-1', descripcion: '', horas: '0' }], horas: '0' },
-    consejeriaTutoria: { items: [{ id: 'consej-1', descripcion: '', horas: '0' }], horas: '0' },
-    investigacion: { items: [{ id: 'invest-1', descripcion: '', horas: '0' }], horas: '0' },
+    consejeriaTutoria: { items: [{ id: 'consej-1', descripcion: 'Tutoría', horas: '1' }], horas: '1' },
+    investigacion: { items: [{ id: 'invest-1', descripcion: '', horas: '5' }], horas: '5' },
     capacitacion: { items: [{ id: 'cap-1', descripcion: '', horas: '0' }], horas: '0' },
     gobierno: { items: [{ id: 'gob-1', descripcion: '', horas: '0' }], horas: '0' },
     administracion: { items: [{ id: 'admin-1', descripcion: '', horas: '0' }], horas: '0' },
@@ -204,6 +204,39 @@ export default function NuevaCargaHorariaPage() {
   const [mostrarExito, setMostrarExito] = useState(false);
   const [cargaHorariaId, setCargaHorariaId] = useState<string | null>(null);
   const [formatosGenerados, setFormatosGenerados] = useState<boolean>(false);
+
+  // Modal de horario no lectivo
+  const [showModalHorario, setShowModalHorario] = useState(false);
+  const [nlSection, setNlSection] = useState('preparacion');
+  const [nlSlots, setNlSlots] = useState<Record<string, Set<string>>>({});
+  const [nlBlocked, setNlBlocked] = useState<Set<string>>(new Set());
+  const [nlSaving, setNlSaving] = useState(false);
+  const [nlMsg, setNlMsg] = useState<string | null>(null);
+  const nlMouseDown = useRef(false);
+  const SECCIONES_NL = [
+    { key: 'preparacion', num: '2', title: 'Preparación y Evaluación', color: '#3b82f6' },
+    { key: 'consejeria', num: '3', title: 'Consejería y Tutoría', color: '#10b981' },
+    { key: 'investigacion', num: '4', title: 'Investigación', color: '#8b5cf6' },
+    { key: 'capacitacion', num: '5', title: 'Capacitación', color: '#f59e0b' },
+    { key: 'gobierno', num: '6', title: 'Gobierno', color: '#ef4444' },
+    { key: 'administracion', num: '7', title: 'Administración', color: '#6366f1' },
+    { key: 'asesoria', num: '8', title: 'Asesoría de Tesis', color: '#ec4899' },
+    { key: 'rsu', num: '9', title: 'Responsabilidad Social', color: '#14b8a6' },
+    { key: 'comites', num: '10', title: 'Comités Técnicos', color: '#84cc16' },
+  ];
+  const NL_SLOTS = Array.from({ length: 14 }, (_, i) => ({ id: `${String(7 + i).padStart(2, '0')}:00`, label: `${String(7 + i).padStart(2, '0')}:00 - ${String(8 + i).padStart(2, '0')}:00` }));
+  const NL_DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+  const NL_DIAS_LABEL: Record<string, string> = { lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue', viernes: 'Vie', sabado: 'Sáb' };
+  const nlSlotKey = (d: string, h: string) => `${d}|${h}`;
+  const SECCION_KEY_TO_NL: Record<string, string> = {
+    preparacionEvaluacion: 'preparacion', consejeriaTutoria: 'consejeria', investigacion: 'investigacion',
+    capacitacion: 'capacitacion', gobierno: 'gobierno', administracion: 'administracion',
+    asesoriaTesis: 'asesoria', responsabilidadSocial: 'rsu', comitesTecnicos: 'comites',
+  };
+  const openNlModal = (secKey: string) => {
+    setNlSection(SECCION_KEY_TO_NL[secKey] || 'preparacion');
+    setShowModalHorario(true);
+  };
   const campoBloqueado = (formatosGenerados && isDocente && !canWrite);
   const esPropiaVistaDocente = isDocente && initialDocenteId === user?.docente_id;
   const lectivaBloqueada = campoBloqueado || isDocente;
@@ -311,11 +344,12 @@ export default function NuevaCargaHorariaPage() {
     
     // Now set new docente
     setDocenteSeleccionado(docente);
+    setModalidad(docente.modalidad || '');
     
     // First set default values from docente
     let newFacultad = docente.facultad || '';
     let newDptoAcademico = docente.dpto_academico || '';
-    let newModalidad = '';
+    let newModalidad = docente.modalidad || '';
     let newCursosAsignados: CursoAsignado[] = [];
     let newSecciones = initialSecciones;
     let loadedChId: string | null = null;
@@ -346,9 +380,9 @@ export default function NuevaCargaHorariaPage() {
             }
             setFormatosGenerados(!!combinedCh?.formatos_generados);
             
-          newFacultad = combinedCh.facultad || docente.facultad || '';
-          newDptoAcademico = combinedCh.dpto_academico || docente.dpto_academico || '';
-          newModalidad = combinedCh.modalidad || '';
+          newFacultad = docente.facultad || combinedCh.facultad || '';
+          newDptoAcademico = docente.dpto_academico || combinedCh.dpto_academico || '';
+          newModalidad = docente.modalidad || combinedCh.modalidad || '';
           
           if (combinedCh.adicional) {
             try {
@@ -398,16 +432,16 @@ export default function NuevaCargaHorariaPage() {
           newCursosAsignados = convertedCursos;
           
           // Helper to parse sections that come as arrays
-          const parseSeccion = (data: any, descField: string) => {
+          const parseSeccion = (data: any, descField: string, defaultHoras = '0', defaultDesc = '') => {
             if (!data || !Array.isArray(data) || data.length === 0) {
               // Legacy object fallback
               if (data && !Array.isArray(data)) {
                 return {
-                  items: [{ id: `item-${Date.now()}-0`, descripcion: data[descField] || '', horas: String(data.horas || 0) }],
-                  horas: String(data.horas || 0)
+                  items: [{ id: `item-${Date.now()}-0`, descripcion: data[descField] || defaultDesc, horas: String(data.horas || defaultHoras) }],
+                  horas: String(data.horas || defaultHoras)
                 };
               }
-              return { items: [{ id: `item-${Date.now()}-0`, descripcion: '', horas: '0' }], horas: '0' };
+              return { items: [{ id: `item-${Date.now()}-0`, descripcion: defaultDesc, horas: defaultHoras }], horas: defaultHoras };
             }
             const totalHoras = data.reduce((sum: number, item: any) => sum + (item.horas || 0), 0);
             const items = data.map((item: any, index: number) => ({
@@ -421,17 +455,17 @@ export default function NuevaCargaHorariaPage() {
             return { items, horas: String(totalHoras) };
           };
 
-          // Convert secciones
+          // Convert secciones — preserve initial defaults when API data is empty
           newSecciones = {
-            preparacionEvaluacion: parseSeccion(combinedCh.preparacion, 'descripcion'),
-            consejeriaTutoria: parseSeccion(combinedCh.consejeria, 'detalles'),
-            investigacion: parseSeccion(combinedCh.investigacion, 'proyecto'),
-            capacitacion: parseSeccion(combinedCh.capacitacion, 'detalles'),
-            gobierno: parseSeccion(combinedCh.gobierno, 'detalles'),
-            administracion: parseSeccion(combinedCh.administracion, 'detalles'),
-            asesoriaTesis: parseSeccion(combinedCh.asesoria, 'detalles'),
-            responsabilidadSocial: parseSeccion(combinedCh.rsu, 'plan'),
-            comitesTecnicos: parseSeccion(combinedCh.comites, 'detalles')
+            preparacionEvaluacion: parseSeccion(combinedCh.preparacion, 'descripcion', initialSecciones.preparacionEvaluacion.horas, ''),
+            consejeriaTutoria: parseSeccion(combinedCh.consejeria, 'detalles', initialSecciones.consejeriaTutoria.horas, initialSecciones.consejeriaTutoria.items[0]?.descripcion || ''),
+            investigacion: parseSeccion(combinedCh.investigacion, 'proyecto', initialSecciones.investigacion.horas, ''),
+            capacitacion: parseSeccion(combinedCh.capacitacion, 'detalles', initialSecciones.capacitacion.horas, ''),
+            gobierno: parseSeccion(combinedCh.gobierno, 'detalles', initialSecciones.gobierno.horas, ''),
+            administracion: parseSeccion(combinedCh.administracion, 'detalles', initialSecciones.administracion.horas, ''),
+            asesoriaTesis: parseSeccion(combinedCh.asesoria, 'detalles', initialSecciones.asesoriaTesis.horas, ''),
+            responsabilidadSocial: parseSeccion(combinedCh.rsu, 'plan', initialSecciones.responsabilidadSocial.horas, ''),
+            comitesTecnicos: parseSeccion(combinedCh.comites, 'detalles', initialSecciones.comitesTecnicos.horas, '')
           };
         }
       } catch (e) {
@@ -439,6 +473,13 @@ export default function NuevaCargaHorariaPage() {
       }
     }
     
+    // Set default investigacion hours based on modalidad (TP=4, TC/DE=5)
+    const reg = mapModalidad(newModalidad);
+    if (reg === 'TP') {
+      const investDefault = { id: 'invest-1', descripcion: '', horas: '4' };
+      newSecciones.investigacion = { items: [investDefault], horas: '4' };
+    }
+
     // Set all state at once
     setFacultad(newFacultad);
     setDptoAcademico(newDptoAcademico);
@@ -532,6 +573,30 @@ setDeclaracionJuradaOpcion(opcionSugerida);
     const cursosSinAlumnos = validCursos.filter(c => parseFloat(c.numeroAlumnos) <= 0);
     if (cursosSinAlumnos.length > 0) {
       setAlertType('error'); setAlertMessage('Todos los cursos deben tener al menos 1 alumno');
+      return;
+    }
+
+    const prepHoras = parseFloat(secciones.preparacionEvaluacion.horas || '0');
+    const consejHoras = parseFloat(secciones.consejeriaTutoria.horas || '0');
+    const investHoras = parseFloat(secciones.investigacion.horas || '0');
+    const capacHoras = parseFloat(secciones.capacitacion.horas || '0');
+    const regimen = mapModalidad(modalidad);
+    const investMin = regimen === 'TC' ? 5 : 4;
+
+    if (prepHoras > totalTrabajoLectivo * 0.5) {
+      setAlertType('error'); setAlertMessage(`Preparación y Evaluación (${prepHoras}h) excede el 50% del Trabajo Lectivo (${(totalTrabajoLectivo * 0.5).toFixed(1)}h)`);
+      return;
+    }
+    if (consejHoras < 1) {
+      setAlertType('error'); setAlertMessage('Consejería y Tutoría debe tener al menos 1 hora semanal');
+      return;
+    }
+    if (investHoras < investMin) {
+      setAlertType('error'); setAlertMessage(`Investigación debe tener al menos ${investMin} horas semanales según modalidad (${modalidad.replace(/(\d+)\s*H/, '$1 Hr')})`);
+      return;
+    }
+    if (capacHoras > 5) {
+      setAlertType('error'); setAlertMessage(`Capacitación (${capacHoras}h) excede el máximo de 5 horas semanales`);
       return;
     }
 
@@ -663,7 +728,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
     });
   };
 
-  const handleGuardar = async () => {
+  const handleGuardar = async (noRedirect = false) => {
     if (!docenteSeleccionado || !cicloAcademicoSeleccionado) {
       setAlertType('error'); setAlertMessage('Por favor seleccione un docente y ciclo académico');
       return;
@@ -692,6 +757,30 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       setAlertMessage(`Las horas totales (${totalHoras}h) no coinciden con las horas establecidas para la modalidad ${modalidad} (${horasEsperadas}h). ${diffHoras > 0 ? `Excede por ${diffHoras}h.` : `Faltan ${Math.abs(diffHoras)}h.`} Ajuste las horas lectivas o no lectivas.`);
       return;
     }
+
+    const prepHoras = parseFloat(secciones.preparacionEvaluacion.horas || '0');
+    const consejHoras = parseFloat(secciones.consejeriaTutoria.horas || '0');
+    const investHoras = parseFloat(secciones.investigacion.horas || '0');
+    const capacHoras = parseFloat(secciones.capacitacion.horas || '0');
+    const regimen = mapModalidad(modalidad);
+    const investMin = regimen === 'TC' ? 5 : 4;
+
+    if (prepHoras > totalTrabajoLectivo * 0.5) {
+      setAlertType('error'); setAlertMessage(`Preparación y Evaluación (${prepHoras}h) excede el 50% del Trabajo Lectivo (${(totalTrabajoLectivo * 0.5).toFixed(1)}h)`);
+      return;
+    }
+    if (consejHoras < 1) {
+      setAlertType('error'); setAlertMessage('Consejería y Tutoría debe tener al menos 1 hora semanal');
+      return;
+    }
+    if (investHoras < investMin) {
+      setAlertType('error'); setAlertMessage(`Investigación debe tener al menos ${investMin} horas semanales según modalidad (${modalidad.replace(/(\d+)\s*H/, '$1 Hr')})`);
+      return;
+    }
+    if (capacHoras > 5) {
+      setAlertType('error'); setAlertMessage(`Capacitación (${capacHoras}h) excede el máximo de 5 horas semanales`);
+      return;
+    }
     
     // Check that all cursos have numeroAlumnos > 0
     const cursosSinAlumnos = validCursos.filter(c => parseFloat(c.numeroAlumnos) <= 0);
@@ -708,10 +797,14 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       total_horas_adicional: String(validAdicionalCursos.reduce((sum, c) => sum + parseFloat(c.total_horas || '0'), 0))
     };
     
+    // Compute ciclo_plan from courses (minimum ciclo, or 0 if no courses)
+    const computedCicloPlan = validCursos.length > 0
+      ? Math.min(...validCursos.map(c => parseInt(c.curso) || 1))
+      : 0;
     const bodyToSend = {
           docente_id: docenteSeleccionado.id,
           ciclo_academico_id: cicloAcademicoSeleccionado,
-          ciclo_plan: 1,
+          ciclo_plan: computedCicloPlan,
           modalidad,
           facultad,
           dpto_academico: dptoAcademico,
@@ -746,17 +839,18 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
         return;
       }
 
-const resData = await res.json();
+      const resData = await res.json();
       setMostrarExito(true);
-      setTimeout(() => {
-        const chId = resData?.data?.[0]?.id || cargaHorariaId;
+      const chId = resData?.data?.[0]?.id || cargaHorariaId;
+      setCargaHorariaId(chId);
+      if (!noRedirect) {
+        await new Promise(r => setTimeout(r, 500));
         if (docenteSeleccionado.es_escuela_configurada === false) {
-          // RF-10: docente externo, solo se le asignan cursos, no necesita horario no lectivo
           router.push('/carga-horaria');
         } else {
           router.push(`/carga-horaria/horario-no-lectiva?docenteId=${docenteSeleccionado.id}&cicloAcademico=${cicloAcademicoSeleccionado}&cargaHorariaId=${chId}`);
         }
-      }, 2000);
+      }
     } catch (e) {
       console.error('Error guardando:', e);
       setAlertType('error'); setAlertMessage('Error guardando la carga horaria');
@@ -1192,11 +1286,131 @@ const resData = await res.json();
     }
   };
 
+  const getSeccionLimits = (key: keyof Secciones, regimen: string, trabajoLectivo: number): { min: number; max: number } => {
+    switch (key) {
+      case 'preparacionEvaluacion': return { min: 0, max: Math.max(0, trabajoLectivo * 0.5) };
+      case 'consejeriaTutoria': return { min: 1, max: 99 };
+      case 'investigacion': return { min: regimen === 'TC' ? 5 : 4, max: 99 };
+      case 'capacitacion': return { min: 0, max: 5 };
+      default: return { min: 0, max: 99 };
+    }
+  };
+
+  const seccionLimits = (key: keyof Secciones) => getSeccionLimits(key, mapModalidad(modalidad), totalTrabajoLectivo);
+
+  // Modal horario no lectivo — build nlSlots from current secciones state + server data
+  useEffect(() => {
+    if (!showModalHorario || !docenteSeleccionado?.id || !cicloAcademicoSeleccionado) return;
+    const secToNl: Record<keyof Secciones, string> = {
+      preparacionEvaluacion: 'preparacion', consejeriaTutoria: 'consejeria', investigacion: 'investigacion',
+      capacitacion: 'capacitacion', gobierno: 'gobierno', administracion: 'administracion',
+      asesoriaTesis: 'asesoria', responsabilidadSocial: 'rsu', comitesTecnicos: 'comites',
+    };
+    // 1. Reconstruct from current secciones state (in-memory)
+    const loaded: Record<string, Set<string>> = {};
+    SECCIONES_NL.forEach(s => loaded[s.key] = new Set<string>());
+    (Object.entries(secToNl) as [keyof Secciones, string][]).forEach(([secKey, nlKey]) => {
+      (secciones[secKey]?.items || []).forEach((item: any) => {
+        if (item.dia && item.hora_inicio) {
+          const startH = parseInt(item.hora_inicio.split(':')[0]);
+          const endH = item.hora_fin ? parseInt(item.hora_fin.split(':')[0]) : startH + 1;
+          for (let h = startH; h < endH; h++) loaded[nlKey].add(nlSlotKey(item.dia, `${String(h).padStart(2, '0')}:00`));
+        }
+      });
+    });
+    // 2. Blocked slots from server (lectiva only)
+    fetch(`/api/docentes/${docenteSeleccionado.id}/horario?ciclo_id=${cicloAcademicoSeleccionado}`)
+      .then(r => r.json()).catch(() => ({})).then((hData: any) => {
+        const blocked = new Set<string>();
+        (hData?.data || []).filter((a: any) => a.tipo !== 'no_lectiva').forEach((a: any) => {
+          if (a.dia && a.hora_inicio) blocked.add(nlSlotKey(a.dia, a.hora_inicio.slice(0, 5)));
+        });
+        setNlBlocked(blocked);
+      });
+    setNlSlots(loaded);
+    setNlMsg(null);
+  }, [showModalHorario]);
+
+  // Reset drag flag on mouseup anywhere
+  useEffect(() => {
+    const up = () => { nlMouseDown.current = false; };
+    document.addEventListener('mouseup', up);
+    return () => document.removeEventListener('mouseup', up);
+  }, []);
+
+  const nlIsBlocked = (dia: string, h: string) => nlBlocked.has(nlSlotKey(dia, h));
+  const nlToggle = (dia: string, h: string) => {
+    if (nlIsBlocked(dia, h)) return;
+    const key = nlSlotKey(dia, h);
+    setNlSlots(prev => {
+      const next = { ...prev };
+      const cur = next[nlSection] || new Set<string>();
+      if (cur.has(key)) { const s = new Set(cur); s.delete(key); next[nlSection] = s; }
+      else {
+        SECCIONES_NL.forEach(s => { if (s.key !== nlSection && next[s.key]?.has(key)) { const ns = new Set(next[s.key]); ns.delete(key); next[s.key] = ns; } });
+        const sz = cur.size;
+        const seccionKeyMap: Record<string, keyof Secciones> = { preparacion: 'preparacionEvaluacion', consejeria: 'consejeriaTutoria', investigacion: 'investigacion', capacitacion: 'capacitacion', gobierno: 'gobierno', administracion: 'administracion', asesoria: 'asesoriaTesis', rsu: 'responsabilidadSocial', comites: 'comitesTecnicos' };
+        const secKey = seccionKeyMap[nlSection];
+        const limit = parseInt(secciones[secKey]?.horas || '0');
+        if (sz < limit) { const s = new Set(cur); s.add(key); next[nlSection] = s; }
+        else setNlMsg(`Límite de ${limit}h alcanzado`);
+      }
+      return next;
+    });
+  };
+
+  const nlGuardar = (section: string) => {
+    try {
+      const seccionKeyMap: Record<string, keyof Secciones> = { preparacion: 'preparacionEvaluacion', consejeria: 'consejeriaTutoria', investigacion: 'investigacion', capacitacion: 'capacitacion', gobierno: 'gobierno', administracion: 'administracion', asesoria: 'asesoriaTesis', rsu: 'responsabilidadSocial', comites: 'comitesTecnicos' };
+      const secKey = seccionKeyMap[section];
+      if (!secKey) return;
+      const selectedSlots = nlSlots[section] || new Set();
+      const byDay: Record<string, number[]> = {};
+      selectedSlots.forEach(slotKey => {
+        const [dia, hora] = slotKey.split('|');
+        const hInt = parseInt(hora.split(':')[0]);
+        if (!byDay[dia]) byDay[dia] = [];
+        byDay[dia].push(hInt);
+      });
+      const items: { id: string; descripcion: string; horas: string; dia: string; hora_inicio: string; hora_fin: string }[] = [];
+      let idx = 0;
+      Object.entries(byDay).forEach(([dia, hours]) => {
+        hours.sort((a, b) => a - b);
+        let start = hours[0], prev = hours[0];
+        for (let i = 1; i <= hours.length; i++) {
+          if (i < hours.length && hours[i] === prev + 1) { prev = hours[i]; continue; }
+          items.push({
+            id: `nl-${Date.now()}-${idx++}`,
+            descripcion: secciones[secKey]?.items[0]?.descripcion || '',
+            horas: String(prev - start + 1),
+            dia,
+            hora_inicio: `${String(start).padStart(2, '0')}:00`,
+            hora_fin: `${String(prev + 1).padStart(2, '0')}:00`
+          });
+          if (i < hours.length) { start = hours[i]; prev = hours[i]; }
+        }
+      });
+      const totalHoras = String(items.reduce((s, it) => s + parseInt(it.horas), 0));
+      setSecciones(prev => ({ ...prev, [secKey]: { items, horas: totalHoras } }));
+      setShowModalHorario(false);
+      setNlMsg(null);
+    } catch (e) {
+      console.error('nlGuardar error:', e);
+    }
+  };
+
   const handleUpdateItemHoras = (seccionKey: keyof Secciones, itemId: string, value: string) => {
     let processedValue = value;
     const numValue = parseFloat(value);
+    const limits = seccionLimits(seccionKey);
     if (isNaN(numValue) || numValue < 0) {
       processedValue = '0';
+    }
+    if (numValue > limits.max) {
+      processedValue = String(limits.max);
+    }
+    if (numValue >= 0 && numValue < limits.min) {
+      processedValue = String(limits.min);
     }
     
     setSecciones(prev => {
@@ -1381,31 +1595,21 @@ const resData = await res.json();
               </div>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px' }}>
-<div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', width: '160px' }}>
                     FACULTAD:
                   </label>
-                  <input
-                    className="form-input"
-                    placeholder="Ingeniería"
-                    value={facultad}
-                    onChange={(e) => setFacultad(e.target.value)}
-                    disabled={campoBloqueado}
-                    style={{ flex: 1, padding: '6px 8px', fontSize: '12px' }}
-                  />
+                  <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', textTransform: 'uppercase' }}>
+                    {facultad || '—'}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', width: '160px' }}>
                     DPTO. ACADÉMICO:
                   </label>
-                  <input
-                    className="form-input"
-                    placeholder="Dpto. de Ingeniería de Sistemas"
-                    value={dptoAcademico}
-                    onChange={(e) => setDptoAcademico(e.target.value)}
-                    disabled={campoBloqueado}
-                    style={{ flex: 1, padding: '6px 8px', fontSize: '12px' }}
-                  />
+                  <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', textTransform: 'uppercase' }}>
+                    {dptoAcademico || '—'}
+                  </span>
                 </div>
               </div>
 
@@ -1436,22 +1640,8 @@ const resData = await res.json();
                       <td style={{ textTransform: 'uppercase', padding: '12px', border: '1px solid var(--border-color)' }}>
                         {docenteSeleccionado.categoria || ''}
                       </td>
-                      <td style={{ padding: '12px', border: '1px solid var(--border-color)' }}>
-                      <select
-                          className="form-input"
-                          value={modalidad}
-                          onChange={(e) => setModalidad(e.target.value)}
-                          disabled={campoBloqueado}
-                          style={{ padding: '6px 10px', fontSize: '13px' }}
-                        >
-                          <option value="">Seleccionar modalidad...</option>
-                          <option value="TIEMPO PARCIAL 8 H" style={{ color: '#1f2937' }}>Tiempo Parcial 8 Hr</option>
-                          <option value="TIEMPO PARCIAL 10 H" style={{ color: '#1f2937' }}>Tiempo Parcial 10 Hr</option>
-                          <option value="TIEMPO PARCIAL 12 H" style={{ color: '#1f2937' }}>Tiempo Parcial 12 Hr</option>
-                          <option value="TIEMPO PARCIAL 16 H" style={{ color: '#1f2937' }}>Tiempo Parcial 16 Hr</option>
-                          <option value="TIEMPO PARCIAL 20 H" style={{ color: '#1f2937' }}>Tiempo Parcial 20 Hr</option>
-                          <option value="TIEMPO COMPLETO 40 H" style={{ color: '#1f2937' }}>Tiempo Completo 40 Hr</option>
-                        </select>
+                      <td style={{ textTransform: 'uppercase', padding: '12px', border: '1px solid var(--border-color)' }}>
+                        {modalidad ? modalidad.replace(/(\d+)\s*H/, '$1 Hr') : 'No definido'}
                       </td>
                     </tr>
                   </tbody>
@@ -1686,7 +1876,7 @@ const resData = await res.json();
                           .length === 0 && !esPropiaVistaDocente ? (
                           <tr>
                             <td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '12px' }}>
-                              Ningún docente ha agregado observaciones
+                              El o la docente NO ha registrado observaciones
                             </td>
                           </tr>
                         ) : (
@@ -1770,17 +1960,26 @@ const resData = await res.json();
               {/* 2. PREPARACIÓN Y EVALUACIÓN */}
 
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     2. PREPARACIÓN Y EVALUACIÓN (Max 50% de Trabajo Lectivo)
                   </h3>
-                  {(secciones.preparacionEvaluacion.items.length > 1 || secciones.preparacionEvaluacion.items.some(i => i.dia)) && !campoBloqueado && (
-                    <button onClick={() => handleResetSeccion('preparacionEvaluacion')} style={{
-                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
-                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
-                      whiteSpace: 'nowrap'
-                    }} title="Reiniciar sección">↺ Reset</button>
-                  )}
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {!campoBloqueado && (
+                      <button onClick={() => openNlModal('preparacionEvaluacion')} style={{
+                        background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
+                        color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Programar horario no lectivo">🕐 Horario</button>
+                    )}
+                    {(secciones.preparacionEvaluacion.items.length > 1 || secciones.preparacionEvaluacion.items.some(i => i.dia)) && !campoBloqueado && (
+                      <button onClick={() => handleResetSeccion('preparacionEvaluacion')} style={{
+                        background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                        color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Reiniciar sección">↺ Reset</button>
+                    )}
+                  </div>
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -1821,7 +2020,8 @@ const resData = await res.json();
                             <input
                               className="form-input"
                               type="number"
-                              min="0"
+                              min={seccionLimits('preparacionEvaluacion').min}
+                              max={seccionLimits('preparacionEvaluacion').max}
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('preparacionEvaluacion', item.id, e.target.value)}
                              disabled={!!item.dia || campoBloqueado}
@@ -1838,17 +2038,26 @@ const resData = await res.json();
               {/* 3. CONSEJERÍA Y TUTORÍA */}
 
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     3. CONSEJERÍA Y TUTORÍA (Como mínimo 01 hora semanal)
                   </h3>
-                  {(secciones.consejeriaTutoria.items.length > 1 || secciones.consejeriaTutoria.items.some(i => i.dia)) && !campoBloqueado && (
-                    <button onClick={() => handleResetSeccion('consejeriaTutoria')} style={{
-                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
-                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
-                      whiteSpace: 'nowrap'
-                    }} title="Reiniciar sección">↺ Reset</button>
-                  )}
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {!campoBloqueado && (
+                      <button onClick={() => openNlModal('consejeriaTutoria')} style={{
+                        background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
+                        color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Programar horario no lectivo">🕐 Horario</button>
+                    )}
+                    {(secciones.consejeriaTutoria.items.length > 1 || secciones.consejeriaTutoria.items.some(i => i.dia)) && !campoBloqueado && (
+                      <button onClick={() => handleResetSeccion('consejeriaTutoria')} style={{
+                        background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                        color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Reiniciar sección">↺ Reset</button>
+                    )}
+                  </div>
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -1889,7 +2098,8 @@ const resData = await res.json();
                             <input
                               className="form-input"
                               type="number"
-                              min="0"
+                              min={seccionLimits('consejeriaTutoria').min}
+                              max={seccionLimits('consejeriaTutoria').max}
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('consejeriaTutoria', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
@@ -1906,17 +2116,26 @@ const resData = await res.json();
               {/* 4. INVESTIGACIÓN */}
 
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     4. INVESTIGACIÓN (Como mínimo 04 y 05 horas semanales, según modalidad)
                   </h3>
-                  {(secciones.investigacion.items.length > 1 || secciones.investigacion.items.some(i => i.dia)) && !campoBloqueado && (
-                    <button onClick={() => handleResetSeccion('investigacion')} style={{
-                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
-                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
-                      whiteSpace: 'nowrap'
-                    }} title="Reiniciar sección">↺ Reset</button>
-                  )}
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {!campoBloqueado && (
+                      <button onClick={() => openNlModal('investigacion')} style={{
+                        background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
+                        color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Programar horario no lectivo">🕐 Horario</button>
+                    )}
+                    {(secciones.investigacion.items.length > 1 || secciones.investigacion.items.some(i => i.dia)) && !campoBloqueado && (
+                      <button onClick={() => handleResetSeccion('investigacion')} style={{
+                        background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                        color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Reiniciar sección">↺ Reset</button>
+                    )}
+                  </div>
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -1957,7 +2176,8 @@ const resData = await res.json();
                             <input
                               className="form-input"
                               type="number"
-                              min="0"
+                              min={seccionLimits('investigacion').min}
+                              max={seccionLimits('investigacion').max}
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('investigacion', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
@@ -1974,17 +2194,26 @@ const resData = await res.json();
               {/* 5. CAPACITACIÓN */}
 
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     5. CAPACITACIÓN (Como máximo 05 semanales)
                   </h3>
-                  {(secciones.capacitacion.items.length > 1 || secciones.capacitacion.items.some(i => i.dia)) && !campoBloqueado && (
-                    <button onClick={() => handleResetSeccion('capacitacion')} style={{
-                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
-                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
-                      whiteSpace: 'nowrap'
-                    }} title="Reiniciar sección">↺ Reset</button>
-                  )}
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {!campoBloqueado && (
+                      <button onClick={() => openNlModal('capacitacion')} style={{
+                        background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
+                        color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Programar horario no lectivo">🕐 Horario</button>
+                    )}
+                    {(secciones.capacitacion.items.length > 1 || secciones.capacitacion.items.some(i => i.dia)) && !campoBloqueado && (
+                      <button onClick={() => handleResetSeccion('capacitacion')} style={{
+                        background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                        color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Reiniciar sección">↺ Reset</button>
+                    )}
+                  </div>
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -2025,7 +2254,8 @@ const resData = await res.json();
                             <input
                               className="form-input"
                               type="number"
-                              min="0"
+                              min={seccionLimits('capacitacion').min}
+                              max={seccionLimits('capacitacion').max}
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('capacitacion', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
@@ -2042,17 +2272,26 @@ const resData = await res.json();
               {/* 6. ACTIVIDADES DE GOBIERNO */}
 
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     6. ACTIVIDADES DE GOBIERNO
                   </h3>
-                  {(secciones.gobierno.items.length > 1 || secciones.gobierno.items.some(i => i.dia)) && !campoBloqueado && (
-                    <button onClick={() => handleResetSeccion('gobierno')} style={{
-                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
-                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
-                      whiteSpace: 'nowrap'
-                    }} title="Reiniciar sección">↺ Reset</button>
-                  )}
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {!campoBloqueado && (
+                      <button onClick={() => openNlModal('gobierno')} style={{
+                        background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
+                        color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Programar horario no lectivo">🕐 Horario</button>
+                    )}
+                    {(secciones.gobierno.items.length > 1 || secciones.gobierno.items.some(i => i.dia)) && !campoBloqueado && (
+                      <button onClick={() => handleResetSeccion('gobierno')} style={{
+                        background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                        color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Reiniciar sección">↺ Reset</button>
+                    )}
+                  </div>
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -2093,7 +2332,8 @@ const resData = await res.json();
                             <input
                               className="form-input"
                               type="number"
-                              min="0"
+                              min={seccionLimits('gobierno').min}
+                              max={seccionLimits('gobierno').max}
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('gobierno', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
@@ -2110,17 +2350,26 @@ const resData = await res.json();
               {/* 7. ADMINISTRACIÓN */}
 
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     7. ADMINISTRACIÓN
                   </h3>
-                  {(secciones.administracion.items.length > 1 || secciones.administracion.items.some(i => i.dia)) && !campoBloqueado && (
-                    <button onClick={() => handleResetSeccion('administracion')} style={{
-                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
-                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
-                      whiteSpace: 'nowrap'
-                    }} title="Reiniciar sección">↺ Reset</button>
-                  )}
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {!campoBloqueado && (
+                      <button onClick={() => openNlModal('administracion')} style={{
+                        background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
+                        color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Programar horario no lectivo">🕐 Horario</button>
+                    )}
+                    {(secciones.administracion.items.length > 1 || secciones.administracion.items.some(i => i.dia)) && !campoBloqueado && (
+                      <button onClick={() => handleResetSeccion('administracion')} style={{
+                        background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                        color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Reiniciar sección">↺ Reset</button>
+                    )}
+                  </div>
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -2161,7 +2410,8 @@ const resData = await res.json();
                             <input
                               className="form-input"
                               type="number"
-                              min="0"
+                              min={seccionLimits('administracion').min}
+                              max={seccionLimits('administracion').max}
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('administracion', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
@@ -2178,17 +2428,26 @@ const resData = await res.json();
               {/* 8. ASESORÍA DE TESIS */}
 
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     8. ASESORÍA DE TESIS
                   </h3>
-                  {(secciones.asesoriaTesis.items.length > 1 || secciones.asesoriaTesis.items.some(i => i.dia)) && !campoBloqueado && (
-                    <button onClick={() => handleResetSeccion('asesoriaTesis')} style={{
-                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
-                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
-                      whiteSpace: 'nowrap'
-                    }} title="Reiniciar sección">↺ Reset</button>
-                  )}
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {!campoBloqueado && (
+                      <button onClick={() => openNlModal('asesoriaTesis')} style={{
+                        background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
+                        color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Programar horario no lectivo">🕐 Horario</button>
+                    )}
+                    {(secciones.asesoriaTesis.items.length > 1 || secciones.asesoriaTesis.items.some(i => i.dia)) && !campoBloqueado && (
+                      <button onClick={() => handleResetSeccion('asesoriaTesis')} style={{
+                        background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                        color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Reiniciar sección">↺ Reset</button>
+                    )}
+                  </div>
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -2229,7 +2488,8 @@ const resData = await res.json();
                             <input
                               className="form-input"
                               type="number"
-                              min="0"
+                              min={seccionLimits('asesoriaTesis').min}
+                              max={seccionLimits('asesoriaTesis').max}
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('asesoriaTesis', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
@@ -2246,17 +2506,26 @@ const resData = await res.json();
               {/* 9. RESPONSABILIDAD SOCIAL UNIVERSITARIA */}
 
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     9. RESPONSABILIDAD SOCIAL UNIVERSITARIA
                   </h3>
-                  {(secciones.responsabilidadSocial.items.length > 1 || secciones.responsabilidadSocial.items.some(i => i.dia)) && !campoBloqueado && (
-                    <button onClick={() => handleResetSeccion('responsabilidadSocial')} style={{
-                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
-                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
-                      whiteSpace: 'nowrap'
-                    }} title="Reiniciar sección">↺ Reset</button>
-                  )}
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {!campoBloqueado && (
+                      <button onClick={() => openNlModal('responsabilidadSocial')} style={{
+                        background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
+                        color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Programar horario no lectivo">🕐 Horario</button>
+                    )}
+                    {(secciones.responsabilidadSocial.items.length > 1 || secciones.responsabilidadSocial.items.some(i => i.dia)) && !campoBloqueado && (
+                      <button onClick={() => handleResetSeccion('responsabilidadSocial')} style={{
+                        background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                        color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Reiniciar sección">↺ Reset</button>
+                    )}
+                  </div>
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -2297,7 +2566,8 @@ const resData = await res.json();
                             <input
                               className="form-input"
                               type="number"
-                              min="0"
+                              min={seccionLimits('responsabilidadSocial').min}
+                              max={seccionLimits('responsabilidadSocial').max}
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('responsabilidadSocial', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
@@ -2314,17 +2584,26 @@ const resData = await res.json();
               {/* 10. COMITÉS TÉCNICOS */}
 
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
                     10. COMITÉS TÉCNICOS
                   </h3>
-                  {(secciones.comitesTecnicos.items.length > 1 || secciones.comitesTecnicos.items.some(i => i.dia)) && !campoBloqueado && (
-                    <button onClick={() => handleResetSeccion('comitesTecnicos')} style={{
-                      background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
-                      color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
-                      whiteSpace: 'nowrap'
-                    }} title="Reiniciar sección">↺ Reset</button>
-                  )}
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {!campoBloqueado && (
+                      <button onClick={() => openNlModal('comitesTecnicos')} style={{
+                        background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
+                        color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Programar horario no lectivo">🕐 Horario</button>
+                    )}
+                    {(secciones.comitesTecnicos.items.length > 1 || secciones.comitesTecnicos.items.some(i => i.dia)) && !campoBloqueado && (
+                      <button onClick={() => handleResetSeccion('comitesTecnicos')} style={{
+                        background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
+                        color: '#dc2626', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
+                        whiteSpace: 'nowrap'
+                      }} title="Reiniciar sección">↺ Reset</button>
+                    )}
+                  </div>
                 </div>
                 <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="data-table" style={{ fontSize: '11px', borderCollapse: 'collapse', width: '100%' }}>
@@ -2365,7 +2644,8 @@ const resData = await res.json();
                             <input
                               className="form-input"
                               type="number"
-                              min="0"
+                              min={seccionLimits('comitesTecnicos').min}
+                              max={seccionLimits('comitesTecnicos').max}
                               value={item.horas || '0'}
                               onChange={(e) => handleUpdateItemHoras('comitesTecnicos', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
@@ -2407,7 +2687,7 @@ const resData = await res.json();
 
 {/* CONTINUAR BUTTON */}
               {(canEditForm || isDocente) && (
-                <div style={{ marginTop: '32px', display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <div style={{ marginTop: '16px', display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                   <button 
                     className="btn-secondary"
                     onClick={() => router.push('/carga-horaria')}
@@ -2448,36 +2728,31 @@ const resData = await res.json();
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
         <div>
           <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>FACULTAD</label>
-          <input className="form-input" value={adicionalData.facultad} disabled style={{ width: '100%', padding: '6px 8px', fontSize: '12px', background: darkMode ? '#0f172a' : '#f1f5f9' }} />
+          <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'block', padding: '6px 8px', background: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: '4px' }}>{adicionalData.facultad || '—'}</span>
         </div>
         <div>
           <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>DEPARTAMENTO ACADÉMICO</label>
-          <input className="form-input" value={adicionalData.dpto_academico} disabled style={{ width: '100%', padding: '6px 8px', fontSize: '12px', background: darkMode ? '#0f172a' : '#f1f5f9' }} />
+          <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'block', padding: '6px 8px', background: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: '4px' }}>{adicionalData.dpto_academico || '—'}</span>
         </div>
         <div>
           <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>APELLIDOS Y NOMBRES</label>
-          <input className="form-input" value={adicionalData.nombre_docente} disabled style={{ width: '100%', padding: '6px 8px', fontSize: '12px', background: darkMode ? '#0f172a' : '#f1f5f9' }} />
+          <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', display: 'block', padding: '6px 8px', background: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: '4px' }}>{adicionalData.nombre_docente || '—'}</span>
         </div>
         <div>
           <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>CONDICIÓN</label>
-          <input className="form-input" value={adicionalData.condicion} disabled style={{ width: '100%', padding: '6px 8px', fontSize: '12px', background: darkMode ? '#0f172a' : '#f1f5f9' }} />
+          <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'block', padding: '6px 8px', background: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: '4px' }}>{adicionalData.condicion || '—'}</span>
         </div>
         <div>
           <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>CATEGORÍA</label>
-          <input className="form-input" value={adicionalData.categoria} disabled style={{ width: '100%', padding: '6px 8px', fontSize: '12px', background: darkMode ? '#0f172a' : '#f1f5f9' }} />
+          <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'block', padding: '6px 8px', background: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: '4px' }}>{adicionalData.categoria || '—'}</span>
         </div>
         <div>
           <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>RÉGIMEN DE DEDICACIÓN</label>
-          <input
-            className="form-input"
-            value={
-              adicionalData.regimen_dedicacion === 'DE' ? 'Dedicación Exclusiva' :
-              adicionalData.regimen_dedicacion === 'TC' ? 'Tiempo Completo' :
-              adicionalData.regimen_dedicacion === 'TP' ? `Tiempo Parcial${getTPHours(modalidad) ? ' ' + getTPHours(modalidad) : ''}` : ''
-            }
-            disabled
-            style={{ width: '100%', padding: '6px 8px', fontSize: '12px', background: darkMode ? '#0f172a' : '#f1f5f9' }}
-          />
+          <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', display: 'block', padding: '6px 8px', background: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: '4px' }}>
+            {adicionalData.regimen_dedicacion === 'DE' ? 'Dedicación Exclusiva' :
+             adicionalData.regimen_dedicacion === 'TC' ? 'Tiempo Completo' :
+             adicionalData.regimen_dedicacion === 'TP' ? `Tiempo Parcial${getTPHours(modalidad) ? ' ' + getTPHours(modalidad) : ''}` : '—'}
+          </span>
         </div>
       </div>
     </div>
@@ -2677,115 +2952,40 @@ const resData = await res.json();
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                      FACULTAD
-                    </label>
-                    <input
-                      className="form-input"
-                      value={adicionalData.facultad}
-                      onChange={e => setAdicionalData(prev => ({ ...prev, facultad: e.target.value }))}
-                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
-                    />
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>FACULTAD</label>
+                    <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'block', padding: '6px 8px', background: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: '4px' }}>{adicionalData.facultad || '—'}</span>
                   </div>
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                      DEPARTAMENTO ACADÉMICO
-                    </label>
-                    <input
-                      className="form-input"
-                      value={adicionalData.dpto_academico}
-                      onChange={e => setAdicionalData(prev => ({ ...prev, dpto_academico: e.target.value }))}
-                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
-                    />
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>DEPARTAMENTO ACADÉMICO</label>
+                    <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'block', padding: '6px 8px', background: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: '4px' }}>{adicionalData.dpto_academico || '—'}</span>
                   </div>
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                      APELLIDOS Y NOMBRES
-                    </label>
-                    <input
-                      className="form-input"
-                      value={adicionalData.nombre_docente}
-                      onChange={e => setAdicionalData(prev => ({ ...prev, nombre_docente: e.target.value }))}
-                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
-                    />
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>APELLIDOS Y NOMBRES</label>
+                    <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', display: 'block', padding: '6px 8px', background: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: '4px' }}>{adicionalData.nombre_docente || '—'}</span>
                   </div>
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                      CÓDIGO
-                    </label>
-                    <input
-                      className="form-input"
-                      value={adicionalData.codigo_docente}
-                      onChange={e => setAdicionalData(prev => ({ ...prev, codigo_docente: e.target.value }))}
-                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
-                    />
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>CÓDIGO</label>
+                    <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', display: 'block', padding: '6px 8px', background: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: '4px' }}>{adicionalData.codigo_docente || '—'}</span>
                   </div>
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                      D.N.I.
-                    </label>
-                    <input
-                      className="form-input"
-                      value={adicionalData.dni_docente}
-                      onChange={e => setAdicionalData(prev => ({ ...prev, dni_docente: e.target.value }))}
-                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
-                    />
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>D.N.I.</label>
+                    <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', display: 'block', padding: '6px 8px', background: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: '4px' }}>{adicionalData.dni_docente || '—'}</span>
                   </div>
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                      CONDICIÓN
-                    </label>
-                    <input
-                      className="form-input"
-                      value={adicionalData.condicion.toUpperCase()}
-                      onChange={e => setAdicionalData(prev => ({ ...prev, condicion: e.target.value.toUpperCase() }))}
-                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
-                    />
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>CONDICIÓN</label>
+                    <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'block', padding: '6px 8px', background: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: '4px' }}>{adicionalData.condicion || '—'}</span>
                   </div>
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                      CATEGORÍA
-                    </label>
-                    <input
-                      className="form-input"
-                      value={adicionalData.categoria.toUpperCase()}
-                      onChange={e => setAdicionalData(prev => ({ ...prev, categoria: e.target.value.toUpperCase() }))}
-                      style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
-                    />
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>CATEGORÍA</label>
+                    <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'block', padding: '6px 8px', background: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: '4px' }}>{adicionalData.categoria || '—'}</span>
                   </div>
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                      RÉGIMEN DE DEDICACIÓN
-                    </label>
-                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginTop: '6px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer' }}>
-                        <input
-                          type="radio"
-                          name="regimen"
-                          checked={adicionalData.regimen_dedicacion === 'DE'}
-                          onChange={() => setAdicionalData(prev => ({ ...prev, regimen_dedicacion: 'DE' }))}
-                        />
-                        D.E.
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer' }}>
-                        <input
-                          type="radio"
-                          name="regimen"
-                          checked={adicionalData.regimen_dedicacion === 'TC'}
-                          onChange={() => setAdicionalData(prev => ({ ...prev, regimen_dedicacion: 'TC' }))}
-                        />
-                        T.C.
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer' }}>
-                        <input
-                          type="radio"
-                          name="regimen"
-                          checked={adicionalData.regimen_dedicacion === 'TP'}
-                          onChange={() => setAdicionalData(prev => ({ ...prev, regimen_dedicacion: 'TP' }))}
-                        />
-                        T.P. {getTPHours(modalidad) && `(${getTPHours(modalidad)})`}
-                      </label>
-                    </div>
+                    <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>RÉGIMEN DE DEDICACIÓN</label>
+                    <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', display: 'block', padding: '6px 8px', background: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: '4px' }}>
+                      {adicionalData.regimen_dedicacion === 'DE' ? 'D.E.' :
+                       adicionalData.regimen_dedicacion === 'TC' ? 'T.C.' :
+                       adicionalData.regimen_dedicacion === 'TP' ? `T.P.${getTPHours(modalidad) ? ' (' + getTPHours(modalidad) + ')' : ''}` : '—'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -2972,28 +3172,12 @@ const resData = await res.json();
                     Atrás
                   </button>
                   <button 
-                    className="btn-secondary"
-                    onClick={() => router.push('/carga-horaria')}
-                    style={{ padding: '10px 24px' }}
-                  >
-                    Cancelar
-                  </button>
-                  {cargaHorariaId && (
-                    <button
-                      className="btn-secondary"
-                      onClick={() => router.push(`/carga-horaria/horario-no-lectiva?docenteId=${docenteSeleccionado.id}&cicloAcademico=${cicloAcademicoSeleccionado}&cargaHorariaId=${cargaHorariaId}`)}
-                      style={{ padding: '10px 24px', backgroundColor: '#e2e8f0', color: '#334155' }}
-                    >
-                      Programar Horario No Lectivo
-                    </button>
-                  )}
-                  <button 
                     className="btn-primary"
-                    onClick={handleGuardar}
+                    onClick={() => handleGuardar()}
                     disabled={guardando || (formatosGenerados && isDocente && !canWrite)}
                     style={{ padding: '10px 24px' }}
                   >
-                    {guardando ? 'Guardando...' : (formatosGenerados && isDocente && !canWrite) ? 'Bloqueado' : 'Guardar y Programar Horario'}
+                    {guardando ? 'Guardando...' : (formatosGenerados && isDocente && !canWrite) ? 'Bloqueado' : 'Guardar y Ver Horario No Lectivo'}
                   </button>
                 </div>
               )}
@@ -3429,6 +3613,88 @@ const resData = await res.json();
           >
             Continuar
           </button>
+        </div>
+      )}
+
+      {/* Modal horario no lectivo */}
+      {showModalHorario && (
+        <div className="modal-overlay" onClick={() => setShowModalHorario(false)}>
+          <div className="modal" style={{ maxWidth: '1000px', width: '95%', maxHeight: '90vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 style={{fontSize:'16px',fontWeight:700,margin:0}}>Programar Horario No Lectivo</h2>
+              <button onClick={() => setShowModalHorario(false)} style={{background:'none',border:'none',fontSize:'22px',cursor:'pointer',color:'var(--text-secondary)'}}>×</button>
+            </div>
+            <div style={{padding:'16px'}}>
+              <p style={{fontSize:'13px',color:'var(--text-secondary)',marginBottom:'12px'}}>
+                {docenteSeleccionado?.apellidos}, {docenteSeleccionado?.nombre}
+              </p>
+
+              {/* Current section info — only the section being edited */}
+              {(() => {
+                const s = SECCIONES_NL.find(x => x.key === nlSection);
+                if (!s) return null;
+                const secKey = ({preparacion:'preparacionEvaluacion',consejeria:'consejeriaTutoria',investigacion:'investigacion',capacitacion:'capacitacion',gobierno:'gobierno',administracion:'administracion',asesoria:'asesoriaTesis',rsu:'responsabilidadSocial',comites:'comitesTecnicos'} as Record<string,keyof Secciones>)[nlSection];
+                const maxH = parseInt(secciones[secKey]?.horas || '0');
+                return (
+                  <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px',padding:'8px 12px',borderRadius:'8px',background:s.color+'15',border:`1px solid ${s.color}30`}}>
+                    <span style={{width:'10px',height:'10px',borderRadius:'50%',background:s.color,display:'inline-block'}} />
+                    <span style={{fontSize:'14px',fontWeight:700,color:s.color}}>{s.num}. {s.title}</span>
+                    <span style={{fontSize:'12px',color:'var(--text-secondary)'}}>
+                      — {(nlSlots[nlSection]||new Set()).size}/{maxH}h
+                    </span>
+                  </div>
+                );
+              })()}
+
+              {/* Grid */}
+              <div style={{display:'grid',gridTemplateColumns:'80px repeat(6,1fr)',border:'1px solid var(--border-color)',borderRadius:'8px',overflow:'hidden',fontSize:'11px',userSelect:'none'}}
+                onMouseUp={() => { nlMouseDown.current = false; }}
+                onMouseLeave={() => { nlMouseDown.current = false; }}>
+                <div style={{background:'linear-gradient(135deg,#1a3a5c,#1e3a5f)',color:'white',padding:'8px 4px',fontWeight:700,textAlign:'center'}}>Hora</div>
+                {NL_DIAS.map(d => (
+                  <div key={d} style={{background:'linear-gradient(135deg,#1a3a5c,#1e3a5f)',color:'white',padding:'8px 4px',fontWeight:700,textAlign:'center',borderLeft:'1px solid rgba(255,255,255,0.1)'}}>{NL_DIAS_LABEL[d]}</div>
+                ))}
+                {NL_SLOTS.map((slot, si) => (
+                  <React.Fragment key={`row-${slot.id}`}>
+                    <div style={{background:'var(--bg-card-hover)',color:'var(--text-secondary)',padding:'6px 4px',fontSize:'10px',display:'flex',alignItems:'center',justifyContent:'center',textAlign:'center',borderRight:'1px solid var(--border-color)',borderBottom:'1px solid var(--border-color)',minHeight:'36px',fontWeight:600}}>{slot.label}</div>
+                    {NL_DIAS.map(d => {
+                      const key = nlSlotKey(d, slot.id);
+                      const blocked = nlIsBlocked(d, slot.id);
+                      const occSec = SECCIONES_NL.find(s => nlSlots[s.key]?.has(key));
+                      const isCur = occSec?.key === nlSection;
+                      return (
+                        <div key={key}
+                          onMouseDown={() => { if (!blocked) { nlMouseDown.current = true; nlToggle(d, slot.id); } }}
+                          onMouseEnter={() => { if (nlMouseDown.current && !blocked) nlToggle(d, slot.id); }}
+                          style={{
+                            minHeight:'36px',borderBottom:'1px solid var(--border-color)',
+                            borderLeft: si === 0 ? 'none' : '1px solid var(--border-color)',
+                            cursor:blocked?'not-allowed':(occSec && !isCur)?'default':'pointer',
+                            background:blocked?'var(--bg-card-hover)':occSec?occSec.color:'var(--bg-card)',
+                            opacity:blocked?0.4:(occSec && !isCur)?0.6:1,
+                            display:'flex',alignItems:'center',justifyContent:'center',
+                            fontSize:'10px',color:occSec?'#fff':'var(--text-muted)',
+                            fontWeight:blocked?500:(occSec?600:400),
+                            transition:'all 0.1s',
+                          }}
+                        >
+                          {blocked?'No disponible':occSec?(isCur?'✓':occSec.num):''}
+                        </div>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </div>
+
+              <p style={{fontSize:'11px',color:'var(--text-secondary)',marginTop:'12px',marginBottom:0}}>
+                Haz clic o arrastra sobre la cuadrícula para marcar/desmarcar horas. Celdas tenues = ocupadas por otras actividades.
+              </p>
+            </div>
+            <div className="modal-footer" style={{display:'flex',justifyContent:'flex-end',gap:'8px',padding:'12px 16px',borderTop:'1px solid var(--border-color)'}}>
+              <button className="btn-secondary" onClick={() => setShowModalHorario(false)} style={{padding:'8px 16px',fontSize:'13px'}}>Cancelar</button>
+              <button className="btn-primary" onClick={() => nlGuardar(nlSection)} style={{padding:'8px 16px',fontSize:'13px'}}>Guardar</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

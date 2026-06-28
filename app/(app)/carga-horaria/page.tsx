@@ -97,6 +97,8 @@ interface Docente {
   condicion?: string;
   categoria?: string;
   modalidad?: string;
+  facultad?: string;
+  dpto_academico?: string;
   horas_max_semana?: number;
 }
 
@@ -560,11 +562,11 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     const dniDocente = adicional?.dni_docente || docenteCompleto?.dni || '';
     const condStr = (adicional?.condicion || docenteCompleto?.condicion || 'NOMBRADO').toUpperCase();
     const catStr = (adicional?.categoria || docenteCompleto?.categoria || 'ASOCIADO').toUpperCase();
-    const dpto = adicional?.dpto_academico || primeraCarga?.docente_dpto_academico || primeraCarga?.dpto_academico || 'DEPARTAMENTO ACADÉMICO';
-    const facultad = adicional?.facultad || primeraCarga?.docente_facultad || primeraCarga?.facultad || 'FACULTAD';
+    const dpto = adicional?.dpto_academico || docenteCompleto?.dpto_academico || primeraCarga?.docente_dpto_academico || primeraCarga?.dpto_academico || '—';
+    const facultad = adicional?.facultad || docenteCompleto?.facultad || primeraCarga?.docente_facultad || primeraCarga?.facultad || '—';
 
     let regStr = (adicional?.regimen_dedicacion || '').toUpperCase();
-    const modalidad = primeraCarga?.modalidad || docenteCompleto?.modalidad || '';
+    const modalidad = docenteCompleto?.modalidad || primeraCarga?.modalidad || '';
     if (!regStr) {
       if (modalidad.includes('COMPLETO')) regStr = 'TC';
       else if (modalidad.includes('PARCIAL')) regStr = 'TP';
@@ -826,9 +828,9 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     
     const condicion = docenteCompleto?.condicion ? docenteCompleto.condicion.toUpperCase() : 'NOMBRADO';
     const categoria = docenteCompleto?.categoria ? docenteCompleto.categoria.toUpperCase() : 'ASOCIADO';
-    const modalidad = primeraCarga?.modalidad || docenteCompleto?.modalidad || 'TIEMPO COMPLETO 40 H';
-    const facultad = primeraCarga?.docente_facultad || primeraCarga?.facultad || 'Ingeniería';
-    const dptoAcademico = primeraCarga?.docente_dpto_academico || primeraCarga?.dpto_academico || 'Dpto. de Ingeniería de Sistemas';
+    const modalidad = docenteCompleto?.modalidad || primeraCarga?.modalidad || 'TIEMPO COMPLETO 40 H';
+    const facultad = docenteCompleto?.facultad || primeraCarga?.docente_facultad || primeraCarga?.facultad || '—';
+    const dptoAcademico = docenteCompleto?.dpto_academico || primeraCarga?.docente_dpto_academico || primeraCarga?.dpto_academico || '—';
     
     // Obtener nombre del ciclo académico
     const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
@@ -1130,8 +1132,8 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     const nombreDocente = (adicional?.nombre_docente ||
       `${primeraCarga.docente_apellidos}, ${primeraCarga.docente_nombre}`).toUpperCase();
     const dniDocente = adicional?.dni_docente || docenteCompleto?.dni || '...........';
-    const dptoAcademico = adicional?.dpto_academico || primeraCarga?.dpto_academico || primeraCarga?.docente_dpto_academico || '...............';
-    const facultad = adicional?.facultad || primeraCarga?.facultad || primeraCarga?.docente_facultad || '...............';
+    const dptoAcademico = adicional?.dpto_academico || docenteCompleto?.dpto_academico || primeraCarga?.dpto_academico || primeraCarga?.docente_dpto_academico || '—';
+    const facultad = adicional?.facultad || docenteCompleto?.facultad || primeraCarga?.facultad || primeraCarga?.docente_facultad || '—';
 
     // Determinar opción seleccionada
     const opcionSeleccionada = adicional?.declaracion_jurada_opcion || '';
@@ -1291,7 +1293,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     const dni = dAny?.dni || '—';
     const categoria = dAny?.categoria?.toUpperCase() || '—';
     const condicionDisplay = dAny?.condicion === 'nombrado' ? 'TC' : dAny?.condicion === 'contratado' ? 'TP' : 'TC';
-    const facultad = (primeraCarga as any)?.facultad || (primeraCarga as any)?.docente_facultad || 'Ingeniería';
+    const facultad = dAny?.facultad || (primeraCarga as any)?.facultad || (primeraCarga as any)?.docente_facultad || '—';
     const lugarLegendCode: Record<string, string> = {
       F01: 'CC. Agropecuarias', F02: 'CC. Biológicas', F03: 'CC. Económicas',
       F04: 'CC. Físicas y Matemáticas', F05: 'CC. Sociales', F06: 'Derecho y Ciencias Políticas',
@@ -1688,8 +1690,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
   cargaHoraria.forEach((ch, index) => {
     console.log(`🔹 Processing cargaHoraria index ${index}:`, ch);
     // Add carga horaria to its ciclo_plan group (even if no cursos)
-    const cp = ch.ciclo_plan || 1;
-    console.log(`🔹 cp (ciclo_plan) is:`, cp);
+    const cp = ch.ciclo_plan > 0 ? ch.ciclo_plan : 0;
     if (!cargaPorCiclo[cp]) {
       cargaPorCiclo[cp] = [];
     }
@@ -1977,6 +1978,28 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                   <div className="card" style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
                     {filtroSinAsignacion ? 'Todos los ciclos tienen asignación' : 'No hay ciclos disponibles'}
                   </div>
+                ) : (cargaPorCiclo[0] || []).length > 0 ? (
+                  <div className="card" style={{ marginBottom: '16px', border: '1px solid #dbeafe' }}>
+                    <div style={{ padding: '12px 16px', background: '#eff6ff', borderBottom: '1px solid #dbeafe', fontWeight: 700, fontSize: '14px', color: '#1e40af' }}>
+                      Sin Ciclo — Actividades no lectivas
+                    </div>
+                    <table className="data-table" style={{ fontSize: '13px', borderCollapse: 'collapse', width: '100%' }}>
+                      <tbody>
+                        {(cargaPorCiclo[0] || []).map(ch => (
+                          <tr key={ch.id}>
+                            <td style={{ padding: '10px 12px', verticalAlign: 'middle', fontWeight: 600 }}>{ch.docente_apellidos}, {ch.docente_nombre}</td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>Act. no lectivas</td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600 }}>{ch.horas_asignadas}h</td>
+                            <td style={{ padding: '10px 12px' }}>
+                              <button className="btn-secondary" style={{ padding: '4px 12px', fontSize: '12px' }} onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}>
+                                <Edit2 size={12} style={{ marginRight: 4 }} /> Editar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 ) : ciclosFiltrados.map(ciclo => {
                   const cargasEnCiclo = cargaPorCiclo[ciclo] || [];
                   const cursosEnCiclo = cursoCicloMap[ciclo] || [];
@@ -2153,19 +2176,25 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                                      if ((cursoCicloMap[ciclo] || []).some(c => c.cargaHoraria.id === ch.id)) {
                                        return null;
                                      }
-                                     return (
-                                       <tr key={`${ch.id}-no-course`}>
-                                         <td style={{ verticalAlign: 'middle' }}>
-                                           {getRomanNumeral(ciclo)}
-                                         </td>
-                                         <td style={{ color: '#94a3b8' }}>Sin cursos asignados</td>
-                                         <td style={{ verticalAlign: 'middle' }}>
-                                           {ch.docente_apellidos}, {ch.docente_nombre}
-                                         </td>
-                                         <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
-                                         <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
-                                         <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
-                                         <td style={{ textAlign: 'center', fontWeight: 600 }}>{ch.horas_asignadas}h</td>
+                                      return (
+                                        <tr key={`${ch.id}-no-course`} style={{ opacity: 0.7 }}>
+                                          <td style={{ verticalAlign: 'middle' }}>
+                                            {getRomanNumeral(ciclo)}
+                                          </td>
+                                          <td style={{ color: '#94a3b8', fontSize: '12px' }}>
+                                            {(() => {
+                                              const secs = ['preparacion','consejeria','investigacion','capacitacion','gobierno','administracion','asesoria','rsu','comites'] as const;
+                                              const items = secs.map(k => { const d = ch[k]; if (!d) return null; if (Array.isArray(d)) return d.reduce((s: number, i: any) => s + (i.horas||0), 0); return d.horas||0; }).filter((v): v is number => v !== null && v > 0);
+                                              return items.length > 0 ? `Act. no lectivas: ${items.join('+')}h` : 'Sin cursos asignados';
+                                            })()}
+                                          </td>
+                                          <td style={{ verticalAlign: 'middle' }}>
+                                            {ch.docente_apellidos}, {ch.docente_nombre}
+                                          </td>
+                                          <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
+                                          <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
+                                          <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
+                                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{ch.horas_asignadas}h</td>
 <td style={{ verticalAlign: 'middle' }}>
                                         {(canManageCarga || (isDocente && user?.docente_id === ch.docente_id)) && (
                                           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>

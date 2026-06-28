@@ -19,8 +19,9 @@ export async function GET(req: NextRequest) {
              d.nombre as docente_nombre, 
              d.apellidos as docente_apellidos,
              d.dni as docente_dni,
-             d.facultad as docente_facultad,
-             d.dpto_academico as docente_dpto_academico,
+      d.facultad as docente_facultad,
+      d.dpto_academico as docente_dpto_academico,
+      d.modalidad as docente_modalidad,
              ca.nombre as ciclo_academico_nombre
       FROM carga_horaria ch
       JOIN docentes d ON ch.docente_id = d.id

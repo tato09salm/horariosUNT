@@ -17,6 +17,7 @@ interface Docente {
   facultad: string;
   dpto_academico: string;
   es_escuela_configurada: boolean;
+  modalidad: string;
 }
 
 const emptyDocente: Partial<Docente> = {
@@ -24,6 +25,7 @@ const emptyDocente: Partial<Docente> = {
   categoria: 'auxiliar', condicion: 'contratado', fecha_ingreso: '',
   grado_academico: 'licenciado', horas_max_semana: 20, activo: true,
   facultad: '', dpto_academico: '', es_escuela_configurada: true,
+  modalidad: 'TIEMPO COMPLETO 40 H',
 };
 
 interface FormErrors {
@@ -626,6 +628,22 @@ export default function DocentesPage() {
                     onChange={e => campo('dpto_academico', e.target.value.toUpperCase() as any)}
                     placeholder="Nombre del departamento académico"
                   />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Modalidad</label>
+                  <select
+                    style={inputStyle()}
+                    value={editando.modalidad || 'TIEMPO COMPLETO 40 H'}
+                    onChange={e => campo('modalidad', e.target.value as any)}
+                  >
+                    <option value="TIEMPO COMPLETO 40 H">Tiempo Completo — 40 Hr</option>
+                    <option value="TIEMPO PARCIAL 20 H">Tiempo Parcial — 20 Hr</option>
+                    <option value="TIEMPO PARCIAL 16 H">Tiempo Parcial — 16 Hr</option>
+                    <option value="TIEMPO PARCIAL 12 H">Tiempo Parcial — 12 Hr</option>
+                    <option value="TIEMPO PARCIAL 10 H">Tiempo Parcial — 10 Hr</option>
+                    <option value="TIEMPO PARCIAL 8 H">Tiempo Parcial — 8 Hr</option>
+                  </select>
                 </div>
 
                 <div className="form-group" style={{gridColumn: '1 / -1'}}>
