@@ -85,17 +85,21 @@ export async function GET(req: NextRequest) {
           teoria_grupos: c.teoria_grupos ?? 1,
           practica_grupos: c.practica_grupos ?? 1,
           laboratorio_grupos: c.laboratorio_grupos ?? 1,
-          observaciones: c.observaciones || null,
+          observaciones: c.observaciones || '',
           estado_observaciones: c.estado_observaciones || 'pendiente',
           curricula_id: c.curricula_id,
-          curricula_nombre: c.curricula_nombre
+          curricula_nombre: c.curricula_nombre,
+          dia: c.dia,
+          hora_inicio: c.hora_inicio,
+          hora_fin: c.hora_fin,
+          horario_slots: c.horario_slots
         }));
       } catch (err) {
         console.error('Error loading courses:', err);
         cargaHoraria[i].cursos = [];
       }
       
-      // Add sections - return all rows for multi-item support
+      // Add sections - return all rows for multi-item support and include _horarioSlots
       const sections = ['preparacion', 'consejeria', 'investigacion', 'capacitacion', 'gobierno', 'administracion', 'asesoria', 'rsu', 'comites'] as const;
       for (const section of sections) {
         const table = `carga_horaria_${section}`;
@@ -103,9 +107,37 @@ export async function GET(req: NextRequest) {
           const rows = await query(`
             SELECT * FROM ${table} WHERE carga_horaria_id = $1 ORDER BY orden ASC, id ASC
           `, [ch.id]);
-          cargaHoraria[i][section] = rows.length > 0 ? rows : null;
+          
+          if (rows.length > 0) {
+            // Map DB rows to frontend's expected format
+            const totalHoras = rows.reduce((sum, row) => sum + (parseInt(row.horas) || 0), 0);
+            const sectionData: any = {
+              items: rows.map(row => ({
+                id: row.id,
+                descripcion: row.descripcion || row.detalles || row.proyecto || row.plan || '',
+                horas: String(row.horas || 0),
+                dia: row.dia,
+                hora_inicio: row.hora_inicio,
+                hora_fin: row.hora_fin
+              })),
+              horas: String(totalHoras),
+              _horarioSlots: rows[0]?.horario_slots // Get horario_slots from first row (since we store it on first item)
+            };
+            cargaHoraria[i][section] = sectionData;
+          } else {
+            // Initial state for empty sections
+            cargaHoraria[i][section] = {
+              items: [{ id: `${section}-1`, descripcion: '', horas: '0' }],
+              horas: '0'
+            };
+          }
         } catch (err) {
-          cargaHoraria[i][section] = null;
+          console.error('Error loading section:', section, err);
+          // Fallback to initial state
+          cargaHoraria[i][section] = {
+            items: [{ id: `${section}-1`, descripcion: '', horas: '0' }],
+            horas: '0'
+          };
         }
       }
     }
@@ -180,34 +212,36 @@ if (session.rol === 'docente') {
 
   try {
     // Ensure all required columns exist on carga_horaria_cursos
-    const cursoColumns = ['teoria_grupos', 'practica_grupos', 'laboratorio_grupos', 'observaciones', 'estado_observaciones', 'curricula_id', 'curricula_nombre'];
+    const cursoColumns = [
+      { name: 'teoria_grupos', type: 'INTEGER DEFAULT 1' },
+      { name: 'practica_grupos', type: 'INTEGER DEFAULT 1' },
+      { name: 'laboratorio_grupos', type: 'INTEGER DEFAULT 1' },
+      { name: 'observaciones', type: 'TEXT' },
+      { name: 'estado_observaciones', type: 'VARCHAR(20) DEFAULT \'pendiente\'' },
+      { name: 'curricula_id', type: 'UUID REFERENCES curriculas(id) ON DELETE SET NULL' },
+      { name: 'curricula_nombre', type: 'TEXT' },
+      { name: 'dia', type: 'TEXT' },
+      { name: 'hora_inicio', type: 'TEXT' },
+      { name: 'hora_fin', type: 'TEXT' },
+      { name: 'horario_slots', type: 'JSONB' }
+    ];
     for (const col of cursoColumns) {
-      let colType = 'INTEGER DEFAULT 1';
-      if (col === 'observaciones') {
-        colType = 'TEXT';
-      } else if (col === 'estado_observaciones') {
-        colType = 'VARCHAR(20) DEFAULT \'pendiente\'';
-      } else if (col === 'curricula_id') {
-        colType = 'UUID REFERENCES curriculas(id) ON DELETE SET NULL';
-      } else if (col === 'curricula_nombre') {
-        colType = 'TEXT';
-      }
       try {
         await query(`
           DO $$ BEGIN
             IF NOT EXISTS (
               SELECT 1 FROM information_schema.columns 
               WHERE table_name = 'carga_horaria_cursos' 
-              AND column_name = '${col}'
+              AND column_name = '${col.name}'
             ) THEN
-              EXECUTE 'ALTER TABLE carga_horaria_cursos ADD COLUMN ${col} ${colType}';
+              EXECUTE 'ALTER TABLE carga_horaria_cursos ADD COLUMN ${col.name} ${col.type}';
             END IF;
           END $$;
         `);
       } catch (_) {}
     }
 
-    // Add time columns (dia, hora_inicio, hora_fin, orden) to all section tables if missing
+    // Add time columns (dia, hora_inicio, hora_fin, orden) and horario_slots to all section tables if missing
     const sectionTables = [
       'carga_horaria_preparacion', 'carga_horaria_consejeria', 
       'carga_horaria_investigacion', 'carga_horaria_capacitacion',
@@ -220,6 +254,7 @@ if (session.rol === 'docente') {
       ['hora_inicio', 'TEXT'],
       ['hora_fin', 'TEXT'],
       ['orden', 'INTEGER DEFAULT 0'],
+      ['horario_slots', 'JSONB'],
     ];
     for (const tbl of sectionTables) {
       for (const [col, colType] of sectionCols) {
@@ -336,14 +371,20 @@ if (session.rol === 'docente') {
       await client.query('DELETE FROM carga_horaria_cursos WHERE carga_horaria_id = $1', [cargaHorariaId]);
       
       for (const curso of sanitizedCursos) {
+        // Get custom schedule fields
+        const dia = curso.dia || null;
+        const hora_inicio = curso.hora_inicio || null;
+        const hora_fin = curso.hora_fin || null;
+        const horario_slots = curso._horarioSlots || null;
 
         await client.query(
           `INSERT INTO carga_horaria_cursos (
             carga_horaria_id, curso_id, seccion, escuela, num_alumnos, 
             hrs_teo, hrs_pra, hrs_lab, total_hrs,
             teoria_grupos, practica_grupos, laboratorio_grupos, observaciones,
-            curricula_id, curricula_nombre
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+            curricula_id, curricula_nombre,
+            dia, hora_inicio, hora_fin, horario_slots
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
           [
             cargaHorariaId,
             curso.curso_id,
@@ -359,7 +400,11 @@ if (session.rol === 'docente') {
             curso.laboratorioGrupos,
             curso.observaciones || null,
             curso.curriculaId || null,
-            curso.curriculaNombre || null
+            curso.curriculaNombre || null,
+            dia,
+            hora_inicio,
+            hora_fin,
+            horario_slots ? JSON.stringify(horario_slots) : null
           ]
         );
       }
@@ -385,6 +430,9 @@ if (session.rol === 'docente') {
         `, [tableName]);
         const existingColumns = new Set(columnsResult.rows.map((row: any) => row.column_name));
 
+        // Get _horarioSlots from section data
+        const sectionHorarioSlots = data._horarioSlots || null;
+
         const items = data.items || [];
         if (items.length > 0) {
           for (let i = 0; i < items.length; i++) {
@@ -395,6 +443,7 @@ if (session.rol === 'docente') {
             const hora_inicio = existingColumns.has('hora_inicio') ? (item.hora_inicio || null) : null;
             const hora_fin = existingColumns.has('hora_fin') ? (item.hora_fin || null) : null;
             const orden = existingColumns.has('orden') ? i : 0;
+            const horario_slots = existingColumns.has('horario_slots') ? (i === 0 && sectionHorarioSlots ? sectionHorarioSlots : null) : null;
 
             if (horas > 0 || descripcion) {
               // Build INSERT query dynamically
@@ -417,6 +466,10 @@ if (session.rol === 'docente') {
               if (existingColumns.has('orden')) {
                 insertColumns.push('orden');
                 insertValues.push(orden);
+              }
+              if (existingColumns.has('horario_slots')) {
+                insertColumns.push('horario_slots');
+                insertValues.push(horario_slots ? JSON.stringify(horario_slots) : null);
               }
 
               const placeholders = insertColumns.map((_, idx) => `$${idx + 1}`).join(', ');
@@ -450,6 +503,10 @@ if (session.rol === 'docente') {
             if (existingColumns.has('orden')) {
               insertColumns.push('orden');
               insertValues.push(0);
+            }
+            if (existingColumns.has('horario_slots')) {
+              insertColumns.push('horario_slots');
+              insertValues.push(sectionHorarioSlots ? JSON.stringify(sectionHorarioSlots) : null);
             }
 
             const placeholders = insertColumns.map((_, idx) => `$${idx + 1}`).join(', ');

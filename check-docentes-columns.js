@@ -12,13 +12,23 @@ const pool = new Pool({
 
 async function main() {
   try {
-    const cols = await pool.query(`
-      SELECT column_name, data_type FROM information_schema.columns 
-      WHERE table_name = 'docentes' ORDER BY ordinal_position
+    console.log('=== Checking docentes table columns ===');
+    const columnsResult = await pool.query(`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'docentes'
     `);
-    console.log('Docentes columns:', cols.rows);
-  } catch (err) {
-    console.error('Error:', err);
+    console.log('Columns:', columnsResult.rows.map(r => r.column_name));
+
+    // Now get the docente again without 'codigo'!
+    console.log('\n=== Checking SÁNCHEZ docente ===');
+    const result = await pool.query(`
+      SELECT id, nombre, apellidos, dni, activo 
+      FROM docentes 
+      WHERE apellidos ILIKE '%SÁNCHEZ%'
+    `);
+    console.log('Result:', result.rows);
+  } catch (e) {
+    console.error('Error:', e);
   } finally {
     await pool.end();
   }

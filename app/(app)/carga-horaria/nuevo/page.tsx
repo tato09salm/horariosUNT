@@ -205,7 +205,16 @@ export default function NuevaCargaHorariaPage() {
   const [cargaHorariaId, setCargaHorariaId] = useState<string | null>(null);
   const [formatosGenerados, setFormatosGenerados] = useState<boolean>(false);
 
-  // Modal de horario no lectivo
+  // Modal de selección y leyenda de horario
+  const [showModalHorarioSeleccion, setShowModalHorarioSeleccion] = useState(false);
+  const [elementoSeleccionado, setElementoSeleccionado] = useState<any>(null);
+  const [elementoFiltro, setElementoFiltro] = useState<any>(null);
+  const [asignaciones, setAsignaciones] = useState<Record<string, any>>({});
+  // Track hours used per element
+  const [horasUsadas, setHorasUsadas] = useState<Record<string, number>>({});
+  const [warningMessage, setWarningMessage] = useState<string | null>(null);
+  
+  // Modal de horario no lectivo (antiguo)
   const [showModalHorario, setShowModalHorario] = useState(false);
   const [nlSection, setNlSection] = useState('preparacion');
   const [nlSlots, setNlSlots] = useState<Record<string, Set<string>>>({});
@@ -426,23 +435,30 @@ export default function NuevaCargaHorariaPage() {
               observaciones: curso.observaciones || '',
               estado_observaciones: curso.estado_observaciones || 'pendiente',
               curriculaId: curso.curricula_id || undefined,
-              curriculaNombre: curso.curricula_nombre || undefined
+              curriculaNombre: curso.curricula_nombre || undefined,
+              dia: curso.dia,
+              hora_inicio: curso.hora_inicio,
+              hora_fin: curso.hora_fin,
+              horario_slots: curso.horario_slots,
+              _horarioSlots: curso.horario_slots // Also set _horarioSlots for consistency
             };
           });
           newCursosAsignados = convertedCursos;
           
-          // Helper to parse sections that come as arrays
+          // Helper to parse sections that come as arrays or objects with _horarioSlots
           const parseSeccion = (data: any, descField: string, defaultHoras = '0', defaultDesc = '') => {
-            if (!data || !Array.isArray(data) || data.length === 0) {
-              // Legacy object fallback
-              if (data && !Array.isArray(data)) {
-                return {
-                  items: [{ id: `item-${Date.now()}-0`, descripcion: data[descField] || defaultDesc, horas: String(data.horas || defaultHoras) }],
-                  horas: String(data.horas || defaultHoras)
-                };
-              }
+            if (!data) {
               return { items: [{ id: `item-${Date.now()}-0`, descripcion: defaultDesc, horas: defaultHoras }], horas: defaultHoras };
             }
+            // If data is an object with _horarioSlots (from new backend format)
+            if (!Array.isArray(data)) {
+              return {
+                ...data,
+                items: data.items || [{ id: `item-${Date.now()}-0`, descripcion: data[descField] || defaultDesc, horas: String(data.horas || defaultHoras) }],
+                horas: data.horas || String(data.items?.reduce((sum: number, item: any) => sum + parseInt(item.horas || 0), 0) || defaultHoras)
+              };
+            }
+            // If data is an array (legacy format)
             const totalHoras = data.reduce((sum: number, item: any) => sum + (item.horas || 0), 0);
             const items = data.map((item: any, index: number) => ({
               id: `item-${Date.now()}-${index}`,
@@ -452,7 +468,11 @@ export default function NuevaCargaHorariaPage() {
               hora_inicio: item.hora_inicio || '',
               hora_fin: item.hora_fin || ''
             }));
-            return { items, horas: String(totalHoras) };
+            return { 
+              items, 
+              horas: String(totalHoras),
+              _horarioSlots: data[0]?.horario_slots // Get _horarioSlots from first item's horario_slots
+            };
           };
 
           // Convert secciones — preserve initial defaults when API data is empty
@@ -728,7 +748,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
     });
   };
 
-  const handleGuardar = async (noRedirect = false) => {
+  const handleGuardar = async (goToMainPage = false) => {
     if (!docenteSeleccionado || !cicloAcademicoSeleccionado) {
       setAlertType('error'); setAlertMessage('Por favor seleccione un docente y ciclo académico');
       return;
@@ -843,13 +863,13 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       setMostrarExito(true);
       const chId = resData?.data?.[0]?.id || cargaHorariaId;
       setCargaHorariaId(chId);
-      if (!noRedirect) {
-        await new Promise(r => setTimeout(r, 500));
-        if (docenteSeleccionado.es_escuela_configurada === false) {
-          router.push('/carga-horaria');
-        } else {
-          router.push(`/carga-horaria/horario-no-lectiva?docenteId=${docenteSeleccionado.id}&cicloAcademico=${cicloAcademicoSeleccionado}&cargaHorariaId=${chId}`);
-        }
+      await new Promise(r => setTimeout(r, 500));
+      if (goToMainPage) {
+        router.push('/carga-horaria');
+      } else if (docenteSeleccionado.es_escuela_configurada === false) {
+        router.push('/carga-horaria');
+      } else {
+        router.push(`/carga-horaria/horario-no-lectiva?docenteId=${docenteSeleccionado.id}&cicloAcademico=${cicloAcademicoSeleccionado}&cargaHorariaId=${chId}`);
       }
     } catch (e) {
       console.error('Error guardando:', e);
@@ -1109,7 +1129,40 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
   };
 
   const handleEliminarCurso = (id: string) => {
+    // First find the course before filtering
+    const curso = cursosAsignados.find(c => c.id === id);
+    
+    // Remove from cursosAsignados
     setCursosAsignados(cursosAsignados.filter(c => c.id !== id));
+    
+    // Also remove any slots assigned to this course from the modal state
+    if (curso) {
+      // Check for all possible course types
+      const possibleKeys = [
+        `curso-${id}-teoria`,
+        `curso-${id}-practica`,
+        `curso-${id}-laboratorio`,
+        `curso-${id}-default`
+      ];
+      
+      setAsignaciones(prev => {
+        const newAsignaciones = { ...prev };
+        for (const [key, element] of Object.entries(newAsignaciones)) {
+          if (element.tipo === 'curso' && element.id === id) {
+            delete newAsignaciones[key];
+          }
+        }
+        return newAsignaciones;
+      });
+      
+      setHorasUsadas(prev => {
+        const newHorasUsadas = { ...prev };
+        for (const key of possibleKeys) {
+          delete newHorasUsadas[key];
+        }
+        return newHorasUsadas;
+      });
+    }
   };
 
   const handleUpdateCursoField = (id: string, field: keyof CursoAsignado, value: string) => {
@@ -1338,22 +1391,53 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
     return () => document.removeEventListener('mouseup', up);
   }, []);
 
-  const nlIsBlocked = (dia: string, h: string) => nlBlocked.has(nlSlotKey(dia, h));
-  const nlToggle = (dia: string, h: string) => {
-    if (nlIsBlocked(dia, h)) return;
+  const nlIsBlocked = (dia: string, h: string) => {
     const key = nlSlotKey(dia, h);
+    if (nlBlocked.has(key)) return true;
+    // Verificar si la hora está ocupada por otra sección
+    for (const s of SECCIONES_NL) {
+      if (s.key !== nlSection && nlSlots[s.key]?.has(key)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const nlToggle = (dia: string, h: string) => {
+    const key = nlSlotKey(dia, h);
+    // Verificar si la hora está ocupada por otra sección
+    let ocupadaPor = null;
+    for (const s of SECCIONES_NL) {
+      if (s.key !== nlSection && nlSlots[s.key]?.has(key)) {
+        ocupadaPor = s;
+        break;
+      }
+    }
+    if (ocupadaPor) {
+      setNlMsg(`Horario ya ocupado por "${ocupadaPor.title}". Por favor elige otro horario.`);
+      return;
+    }
+    if (nlBlocked.has(key)) return;
+    
     setNlSlots(prev => {
       const next = { ...prev };
       const cur = next[nlSection] || new Set<string>();
-      if (cur.has(key)) { const s = new Set(cur); s.delete(key); next[nlSection] = s; }
-      else {
-        SECCIONES_NL.forEach(s => { if (s.key !== nlSection && next[s.key]?.has(key)) { const ns = new Set(next[s.key]); ns.delete(key); next[s.key] = ns; } });
+      if (cur.has(key)) { 
+        const s = new Set(cur); 
+        s.delete(key); 
+        next[nlSection] = s; 
+      } else {
         const sz = cur.size;
         const seccionKeyMap: Record<string, keyof Secciones> = { preparacion: 'preparacionEvaluacion', consejeria: 'consejeriaTutoria', investigacion: 'investigacion', capacitacion: 'capacitacion', gobierno: 'gobierno', administracion: 'administracion', asesoria: 'asesoriaTesis', rsu: 'responsabilidadSocial', comites: 'comitesTecnicos' };
         const secKey = seccionKeyMap[nlSection];
         const limit = parseInt(secciones[secKey]?.horas || '0');
-        if (sz < limit) { const s = new Set(cur); s.add(key); next[nlSection] = s; }
-        else setNlMsg(`Límite de ${limit}h alcanzado`);
+        if (sz < limit) { 
+          const s = new Set(cur); 
+          s.add(key); 
+          next[nlSection] = s; 
+        } else {
+          setNlMsg(`Límite de ${limit}h alcanzado`);
+        }
       }
       return next;
     });
@@ -1400,24 +1484,23 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
   };
 
   const handleUpdateItemHoras = (seccionKey: keyof Secciones, itemId: string, value: string) => {
-    let processedValue = value;
-    const numValue = parseFloat(value);
-    const limits = seccionLimits(seccionKey);
-    if (isNaN(numValue) || numValue < 0) {
-      processedValue = '0';
-    }
-    if (numValue > limits.max) {
-      processedValue = String(limits.max);
-    }
-    if (numValue >= 0 && numValue < limits.min) {
-      processedValue = String(limits.min);
+    // Permitir que el campo esté vacío mientras el usuario escribe
+    // Filtrar solo dígitos
+    let filteredValue = value.replace(/[^0-9]/g, '');
+    // Eliminar ceros a la izquierda, pero si es solo cero, dejarlo
+    if (filteredValue.length > 0) {
+      filteredValue = String(parseInt(filteredValue, 10));
     }
     
     setSecciones(prev => {
       const updatedItems = prev[seccionKey].items.map(item => 
-        item.id === itemId ? { ...item, horas: processedValue } : item
+        item.id === itemId ? { ...item, horas: filteredValue } : item
       );
-      const newTotalHoras = updatedItems.reduce((sum, item) => sum + parseFloat(item.horas || '0'), 0);
+      // Calcular total solo con valores numéricos válidos
+      const newTotalHoras = updatedItems.reduce((sum, item) => {
+        const horasNum = parseInt(item.horas);
+        return sum + (isNaN(horasNum) ? 0 : horasNum);
+      }, 0);
       return {
         ...prev,
         [seccionKey]: {
@@ -1426,6 +1509,200 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
         }
       };
     });
+  };
+
+  // Nueva función para validar cuando el usuario termine de editar
+  const handleBlurItemHoras = (seccionKey: keyof Secciones, itemId: string, value: string) => {
+    // Asegurarse de que solo sea un entero
+    let processedValue = value;
+    const numValue = parseInt(value);
+    const limits = seccionLimits(seccionKey);
+    
+    if (value === '' || isNaN(numValue) || numValue < 0) {
+      processedValue = '0';
+    } else if (numValue > limits.max) {
+      processedValue = String(limits.max);
+    } else if (numValue >= 0 && numValue < limits.min) {
+      processedValue = String(limits.min);
+    } else {
+      processedValue = String(numValue);
+    }
+    
+    setSecciones(prev => {
+      const updatedItems = prev[seccionKey].items.map(item => 
+        item.id === itemId ? { ...item, horas: processedValue } : item
+      );
+      const newTotalHoras = updatedItems.reduce((sum, item) => {
+        const horasNum = parseInt(item.horas);
+        return sum + (isNaN(horasNum) ? 0 : horasNum);
+      }, 0);
+      return {
+        ...prev,
+        [seccionKey]: {
+          items: updatedItems,
+          horas: String(newTotalHoras)
+        }
+      };
+    });
+  };
+
+  // Helper function to get total hours for an element
+  const getTotalHoursForElement = (element: any) => {
+    if (element.tipo === 'curso') {
+      // Get total hours for specific course type
+      switch (element.cursoType) {
+        case 'teoria': {
+          const tHoras = parseInt(element.teoriaHoras) || 0;
+          const tGrupos = parseInt(element.teoriaGrupos) || 1;
+          return tHoras * tGrupos;
+        }
+        case 'practica': {
+          const pHoras = parseInt(element.practicaHoras) || 0;
+          const pGrupos = parseInt(element.practicaGrupos) || 1;
+          return pHoras * pGrupos;
+        }
+        case 'laboratorio': {
+          const lHoras = parseInt(element.laboratorioHoras) || 0;
+          const lGrupos = parseInt(element.laboratorioGrupos) || 1;
+          return lHoras * lGrupos;
+        }
+        default: {
+          // Fallback for old course elements without type
+          const tHoras = parseInt(element.teoriaHoras) || 0;
+          const tGrupos = parseInt(element.teoriaGrupos) || 1;
+          const pHoras = parseInt(element.practicaHoras) || 0;
+          const pGrupos = parseInt(element.practicaGrupos) || 1;
+          const lHoras = parseInt(element.laboratorioHoras) || 0;
+          const lGrupos = parseInt(element.laboratorioGrupos) || 1;
+          return (tHoras * tGrupos) + (pHoras * pGrupos) + (lHoras * lGrupos);
+        }
+      }
+    } else {
+      const keyMap: Record<string, keyof Secciones> = {
+        preparacion: 'preparacionEvaluacion',
+        consejeria: 'consejeriaTutoria',
+        investigacion: 'investigacion',
+        capacitacion: 'capacitacion',
+        gobierno: 'gobierno',
+        administracion: 'administracion',
+        asesoria: 'asesoriaTesis',
+        responsabilidad: 'responsabilidadSocial',
+        comites: 'comitesTecnicos'
+      };
+      const seccionKey = keyMap[element.key];
+      if (!seccionKey) return 0;
+      return secciones[seccionKey].items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0);
+    }
+  };
+
+  // Helper function to get element key
+  const getElementKey = (element: any) => {
+    if (element.tipo === 'curso') {
+      return `curso-${element.id}-${element.cursoType || 'default'}`;
+    } else {
+      return `nol-${element.key}`;
+    }
+  };
+
+  const handleGuardarHorario = () => {
+    // Group asignaciones by element
+    const asignacionesPorElemento: Record<string, { element: any, slots: { dia: string, hora: number }[] }> = {};
+    
+    for (const [key, element] of Object.entries(asignaciones)) {
+      const [dia, horaStr] = key.split('-');
+      const hora = parseInt(horaStr);
+      const elementKey = getElementKey(element);
+      if (!asignacionesPorElemento[elementKey]) {
+        asignacionesPorElemento[elementKey] = { element, slots: [] };
+      }
+      asignacionesPorElemento[elementKey].slots.push({ dia, hora });
+    }
+
+    // Update non-lectiva sections
+    const newSecciones = { ...secciones };
+    const sectionMap: Record<string, keyof Secciones> = {
+      'preparacion': 'preparacionEvaluacion',
+      'consejeria': 'consejeriaTutoria',
+      'investigacion': 'investigacion',
+      'capacitacion': 'capacitacion',
+      'gobierno': 'gobierno',
+      'administracion': 'administracion',
+      'asesoria': 'asesoriaTesis',
+      'responsabilidad': 'responsabilidadSocial',
+      'comites': 'comitesTecnicos'
+    };
+
+    for (const [elementKey, data] of Object.entries(asignacionesPorElemento)) {
+      if (elementKey.startsWith('nol-')) {
+        const sectionKey = sectionMap[data.element.key];
+        if (sectionKey) {
+          // Group all slots into one item with total horas
+          const totalHoras = String(data.slots.length);
+          // Keep only one item (like initial state)
+          const items = [{
+            id: `item-${Date.now()}`,
+            descripcion: data.element.titulo || '',
+            horas: totalHoras,
+            // We can leave dia/hora as undefined or keep track of all, but the UI will just show the total!
+            dia: undefined,
+            hora_inicio: undefined,
+            hora_fin: undefined
+          }];
+          
+          // Store all slots for re-opening the modal
+          const _horarioSlots = data.slots.map(slot => ({ dia: slot.dia, hora: slot.hora }));
+          
+          newSecciones[sectionKey] = {
+            items,
+            horas: totalHoras,
+            _horarioSlots
+          };
+        }
+      }
+    }
+
+    // Update Cursos Lectivos - group by course ID
+    const newCursos = cursosAsignados.map(curso => {
+      // Collect slots for all course types for this course
+      const allCourseSlots: Array<{ dia: string, hora: number, type: string }> = [];
+      
+      // Check all possible course types
+      const types = ['teoria', 'practica', 'laboratorio'];
+      for (const type of types) {
+        const elementKey = `curso-${curso.id}-${type}`;
+        const courseTypeData = asignacionesPorElemento[elementKey];
+        if (courseTypeData) {
+          for (const slot of courseTypeData.slots) {
+            allCourseSlots.push({ ...slot, type });
+          }
+        }
+      }
+      
+      if (allCourseSlots.length > 0) {
+        return {
+          ...curso,
+          _horarioSlots: allCourseSlots,
+          // Also set first slot for compatibility
+          dia: allCourseSlots[0]?.dia,
+          hora_inicio: allCourseSlots[0] ? `${allCourseSlots[0].hora}:00` : undefined,
+          hora_fin: allCourseSlots[0] ? `${allCourseSlots[0].hora + 1}:00` : undefined
+        };
+      }
+      
+      return curso;
+    });
+    
+    // Update state
+    setSecciones(newSecciones);
+    setCursosAsignados(newCursos);
+    
+    // Close the modal
+    setShowModalHorarioSeleccion(false);
+    
+    // Show success alert
+    setAlertType('success');
+    setAlertMessage('Horario guardado correctamente');
+    setTimeout(() => setAlertMessage(null), 3000);
   };
 
   // Calculate total horas: includes Trabajo Lectivo + other sections
@@ -1854,8 +2131,8 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                 </table>
               </div>
 
-              {/* OBSERVACIONES POR CURSO */}
-              {(esPropiaVistaDocente || canEditForm) && cursosAsignados.length > 0 && (
+              {/* OBSERVACIONES POR CURSO */} 
+              {/* {(esPropiaVistaDocente || canEditForm) && cursosAsignados.length > 0 && (
                 <div style={{ marginTop: '20px', marginBottom: '24px' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 12px 0', color: 'var(--text-secondary)' }}>
                     Observaciones por Curso
@@ -1950,13 +2227,130 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     </table>
                   </div>
                 </div>
-              )}
+              )}*/}
             </div>
           )}
 
           {/* SECCIONES 2 A 10 */}
           {step === 1 && docenteSeleccionado && (
             <div style={{ marginTop: '32px' }}>
+              <div style={{ marginBottom: '16px', display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', width: '100%', gap: '12px' }}>
+                <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: 'var(--text-secondary)' }}>
+                  II. CARGA HORARIA NO LECTIVA (CHNL)
+                </h3>
+                {!campoBloqueado && (
+                  <button 
+                    className="btn-primary"
+                    onClick={() => {
+                      // Initialize asignaciones and horasUsadas from current secciones and cursos
+                      const initialAsignaciones: Record<string, any> = {};
+                      const initialHorasUsadas: Record<string, number> = {};
+                      
+                      // Map section key to element info
+                      const sectionElementMap: Record<string, { key: string, tipo: string, titulo: string, color: string }> = {
+                        preparacionEvaluacion: { key: 'preparacion', tipo: 'no-lectiva', titulo: '2. Preparación y Evaluación', color: '#3b82f6' },
+                        consejeriaTutoria: { key: 'consejeria', tipo: 'no-lectiva', titulo: '3. Consejería y Tutoría', color: '#10b981' },
+                        investigacion: { key: 'investigacion', tipo: 'no-lectiva', titulo: '4. Investigación', color: '#8b5cf6' },
+                        capacitacion: { key: 'capacitacion', tipo: 'no-lectiva', titulo: '5. Capacitación', color: '#f59e0b' },
+                        gobierno: { key: 'gobierno', tipo: 'no-lectiva', titulo: '6. Gobierno', color: '#ef4444' },
+                        administracion: { key: 'administracion', tipo: 'no-lectiva', titulo: '7. Administración', color: '#6366f1' },
+                        asesoriaTesis: { key: 'asesoria', tipo: 'no-lectiva', titulo: '8. Asesoría de Tesis', color: '#ec4899' },
+                        responsabilidadSocial: { key: 'responsabilidad', tipo: 'no-lectiva', titulo: '9. Responsabilidad Social', color: '#14b8a6' },
+                        comitesTecnicos: { key: 'comites', tipo: 'no-lectiva', titulo: '10. Comités Técnicos', color: '#84cc16' },
+                      };
+                      
+                      // Process each section
+                      for (const [secKey, secData] of Object.entries(secciones)) {
+                        const elementInfo = sectionElementMap[secKey];
+                        if (elementInfo) {
+                          // First check for _horarioSlots array (better)
+                          const horarioSlots = (secData as any)._horarioSlots;
+                          if (horarioSlots && Array.isArray(horarioSlots)) {
+                            for (const slot of horarioSlots) {
+                              const key = `${slot.dia}-${slot.hora}`;
+                              initialAsignaciones[key] = elementInfo;
+                              const elKey = getElementKey(elementInfo);
+                              initialHorasUsadas[elKey] = (initialHorasUsadas[elKey] || 0) + 1;
+                            }
+                          }
+                          // Fallback to items array
+                          else if (secData.items) {
+                            for (const item of secData.items) {
+                              if (item.dia && item.hora_inicio) {
+                                const hora = parseInt(item.hora_inicio.split(':')[0]);
+                                const key = `${item.dia}-${hora}`;
+                                initialAsignaciones[key] = elementInfo;
+                                const elKey = getElementKey(elementInfo);
+                                initialHorasUsadas[elKey] = (initialHorasUsadas[elKey] || 0) + 1;
+                              }
+                            }
+                          }
+                        }
+                      }
+                      
+                      // Process each curso
+                      for (const curso of cursosAsignados) {
+                        // Check if curso has horario_slots array
+                        const horarioSlots = (curso as any).horario_slots || (curso as any)._horarioSlots;
+                        if (horarioSlots && Array.isArray(horarioSlots)) {
+                          for (const slot of horarioSlots) {
+                            // Determine course type color
+                            let color = '#2563eb';
+                            let label = '';
+                            switch (slot.type) {
+                              case 'teoria':
+                                color = '#1d4ed8';
+                                label = 'Teoría';
+                                break;
+                              case 'practica':
+                                color = '#16a34a';
+                                label = 'Práctica';
+                                break;
+                              case 'laboratorio':
+                                color = '#d97706';
+                                label = 'Laboratorio';
+                                break;
+                            }
+                            
+                            const cursoElement = { 
+                              ...curso, 
+                              tipo: 'curso',
+                              cursoType: slot.type,
+                              nombre: `${curso.codigo} - ${curso.nombre} - ${label}`,
+                              color 
+                            };
+                            
+                            const key = `${slot.dia}-${slot.hora}`;
+                            initialAsignaciones[key] = cursoElement;
+                            const elementKey = getElementKey(cursoElement);
+                            initialHorasUsadas[elementKey] = (initialHorasUsadas[elementKey] || 0) + 1;
+                          }
+                        } 
+                        // Fallback to single dia/hora_inicio if no horario_slots
+                        else if ((curso as any).dia && (curso as any).hora_inicio) {
+                          const cursoElement = { ...curso, tipo: 'curso', cursoType: 'teoria', nombre: `${curso.codigo} - ${curso.nombre} - Teoría`, color: '#1d4ed8' };
+                          const hora = parseInt((curso as any).hora_inicio.split(':')[0]);
+                          const key = `${(curso as any).dia}-${hora}`;
+                          initialAsignaciones[key] = cursoElement;
+                          const elementKey = getElementKey(cursoElement);
+                          initialHorasUsadas[elementKey] = (initialHorasUsadas[elementKey] || 0) + 1;
+                        }
+                      }
+                      
+                      setAsignaciones(initialAsignaciones);
+                      setHorasUsadas(initialHorasUsadas);
+                      setElementoSeleccionado(null);
+                      setWarningMessage(null);
+                      
+                      setShowModalHorarioSeleccion(true);
+                    }}
+                    style={{ padding: '6px 12px', fontSize: '12px' }}
+                  >
+                    🕐 Horario
+                  </button>
+                )}
+                <div></div>
+              </div>
               {/* 2. PREPARACIÓN Y EVALUACIÓN */}
 
               <div style={{ marginBottom: '24px' }}>
@@ -1965,13 +2359,13 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     2. PREPARACIÓN Y EVALUACIÓN (Max 50% de Trabajo Lectivo)
                   </h3>
                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {!campoBloqueado && (
+                    {/* {!campoBloqueado && (
                       <button onClick={() => openNlModal('preparacionEvaluacion')} style={{
                         background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
                         color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
                         whiteSpace: 'nowrap'
                       }} title="Programar horario no lectivo">🕐 Horario</button>
-                    )}
+                    )}*/}
                     {(secciones.preparacionEvaluacion.items.length > 1 || secciones.preparacionEvaluacion.items.some(i => i.dia)) && !campoBloqueado && (
                       <button onClick={() => handleResetSeccion('preparacionEvaluacion')} style={{
                         background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
@@ -2019,11 +2413,10 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
-                              type="number"
-                              min={seccionLimits('preparacionEvaluacion').min}
-                              max={seccionLimits('preparacionEvaluacion').max}
-                              value={item.horas || '0'}
+                              type="text"
+                              value={item.horas || ''}
                               onChange={(e) => handleUpdateItemHoras('preparacionEvaluacion', item.id, e.target.value)}
+                              onBlur={(e) => handleBlurItemHoras('preparacionEvaluacion', item.id, e.target.value)}
                              disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
@@ -2043,13 +2436,13 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     3. CONSEJERÍA Y TUTORÍA (Como mínimo 01 hora semanal)
                   </h3>
                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {!campoBloqueado && (
+                    {/* {!campoBloqueado && (
                       <button onClick={() => openNlModal('consejeriaTutoria')} style={{
                         background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
                         color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
                         whiteSpace: 'nowrap'
                       }} title="Programar horario no lectivo">🕐 Horario</button>
-                    )}
+                    )}*/}
                     {(secciones.consejeriaTutoria.items.length > 1 || secciones.consejeriaTutoria.items.some(i => i.dia)) && !campoBloqueado && (
                       <button onClick={() => handleResetSeccion('consejeriaTutoria')} style={{
                         background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
@@ -2097,11 +2490,10 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
-                              type="number"
-                              min={seccionLimits('consejeriaTutoria').min}
-                              max={seccionLimits('consejeriaTutoria').max}
-                              value={item.horas || '0'}
+                              type="text"
+                              value={item.horas || ''}
                               onChange={(e) => handleUpdateItemHoras('consejeriaTutoria', item.id, e.target.value)}
+                              onBlur={(e) => handleBlurItemHoras('consejeriaTutoria', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
@@ -2121,13 +2513,13 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     4. INVESTIGACIÓN (Como mínimo 04 y 05 horas semanales, según modalidad)
                   </h3>
                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {!campoBloqueado && (
+                    {/* {!campoBloqueado && (
                       <button onClick={() => openNlModal('investigacion')} style={{
                         background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
                         color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
                         whiteSpace: 'nowrap'
                       }} title="Programar horario no lectivo">🕐 Horario</button>
-                    )}
+                    )}*/}
                     {(secciones.investigacion.items.length > 1 || secciones.investigacion.items.some(i => i.dia)) && !campoBloqueado && (
                       <button onClick={() => handleResetSeccion('investigacion')} style={{
                         background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
@@ -2175,11 +2567,10 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
-                              type="number"
-                              min={seccionLimits('investigacion').min}
-                              max={seccionLimits('investigacion').max}
-                              value={item.horas || '0'}
+                              type="text"
+                              value={item.horas || ''}
                               onChange={(e) => handleUpdateItemHoras('investigacion', item.id, e.target.value)}
+                              onBlur={(e) => handleBlurItemHoras('investigacion', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
@@ -2199,13 +2590,13 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     5. CAPACITACIÓN (Como máximo 05 semanales)
                   </h3>
                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {!campoBloqueado && (
+                    {/* {!campoBloqueado && (
                       <button onClick={() => openNlModal('capacitacion')} style={{
                         background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
                         color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
                         whiteSpace: 'nowrap'
                       }} title="Programar horario no lectivo">🕐 Horario</button>
-                    )}
+                    )}*/}
                     {(secciones.capacitacion.items.length > 1 || secciones.capacitacion.items.some(i => i.dia)) && !campoBloqueado && (
                       <button onClick={() => handleResetSeccion('capacitacion')} style={{
                         background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
@@ -2253,11 +2644,10 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
-                              type="number"
-                              min={seccionLimits('capacitacion').min}
-                              max={seccionLimits('capacitacion').max}
-                              value={item.horas || '0'}
+                              type="text"
+                              value={item.horas || ''}
                               onChange={(e) => handleUpdateItemHoras('capacitacion', item.id, e.target.value)}
+                              onBlur={(e) => handleBlurItemHoras('capacitacion', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
@@ -2277,13 +2667,13 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     6. ACTIVIDADES DE GOBIERNO
                   </h3>
                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {!campoBloqueado && (
+                    {/* {!campoBloqueado && (
                       <button onClick={() => openNlModal('gobierno')} style={{
                         background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
                         color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
                         whiteSpace: 'nowrap'
                       }} title="Programar horario no lectivo">🕐 Horario</button>
-                    )}
+                    )}*/}
                     {(secciones.gobierno.items.length > 1 || secciones.gobierno.items.some(i => i.dia)) && !campoBloqueado && (
                       <button onClick={() => handleResetSeccion('gobierno')} style={{
                         background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
@@ -2331,11 +2721,10 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
-                              type="number"
-                              min={seccionLimits('gobierno').min}
-                              max={seccionLimits('gobierno').max}
-                              value={item.horas || '0'}
+                              type="text"
+                              value={item.horas || ''}
                               onChange={(e) => handleUpdateItemHoras('gobierno', item.id, e.target.value)}
+                              onBlur={(e) => handleBlurItemHoras('gobierno', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
@@ -2355,13 +2744,13 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     7. ADMINISTRACIÓN
                   </h3>
                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {!campoBloqueado && (
+                    {/* {!campoBloqueado && (
                       <button onClick={() => openNlModal('administracion')} style={{
                         background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
                         color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
                         whiteSpace: 'nowrap'
                       }} title="Programar horario no lectivo">🕐 Horario</button>
-                    )}
+                    )}*/}
                     {(secciones.administracion.items.length > 1 || secciones.administracion.items.some(i => i.dia)) && !campoBloqueado && (
                       <button onClick={() => handleResetSeccion('administracion')} style={{
                         background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
@@ -2409,11 +2798,10 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
-                              type="number"
-                              min={seccionLimits('administracion').min}
-                              max={seccionLimits('administracion').max}
-                              value={item.horas || '0'}
+                              type="text"
+                              value={item.horas || ''}
                               onChange={(e) => handleUpdateItemHoras('administracion', item.id, e.target.value)}
+                              onBlur={(e) => handleBlurItemHoras('administracion', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
@@ -2433,13 +2821,13 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     8. ASESORÍA DE TESIS
                   </h3>
                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {!campoBloqueado && (
+                    {/* {!campoBloqueado && (
                       <button onClick={() => openNlModal('asesoriaTesis')} style={{
                         background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
                         color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
                         whiteSpace: 'nowrap'
                       }} title="Programar horario no lectivo">🕐 Horario</button>
-                    )}
+                    )}*/}
                     {(secciones.asesoriaTesis.items.length > 1 || secciones.asesoriaTesis.items.some(i => i.dia)) && !campoBloqueado && (
                       <button onClick={() => handleResetSeccion('asesoriaTesis')} style={{
                         background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
@@ -2487,11 +2875,10 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
-                              type="number"
-                              min={seccionLimits('asesoriaTesis').min}
-                              max={seccionLimits('asesoriaTesis').max}
-                              value={item.horas || '0'}
+                              type="text"
+                              value={item.horas || ''}
                               onChange={(e) => handleUpdateItemHoras('asesoriaTesis', item.id, e.target.value)}
+                              onBlur={(e) => handleBlurItemHoras('asesoriaTesis', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
@@ -2511,13 +2898,13 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     9. RESPONSABILIDAD SOCIAL UNIVERSITARIA
                   </h3>
                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {!campoBloqueado && (
+                    {/* {!campoBloqueado && (
                       <button onClick={() => openNlModal('responsabilidadSocial')} style={{
                         background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
                         color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
                         whiteSpace: 'nowrap'
                       }} title="Programar horario no lectivo">🕐 Horario</button>
-                    )}
+                    )}*/}
                     {(secciones.responsabilidadSocial.items.length > 1 || secciones.responsabilidadSocial.items.some(i => i.dia)) && !campoBloqueado && (
                       <button onClick={() => handleResetSeccion('responsabilidadSocial')} style={{
                         background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
@@ -2565,11 +2952,10 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
-                              type="number"
-                              min={seccionLimits('responsabilidadSocial').min}
-                              max={seccionLimits('responsabilidadSocial').max}
-                              value={item.horas || '0'}
+                              type="text"
+                              value={item.horas || ''}
                               onChange={(e) => handleUpdateItemHoras('responsabilidadSocial', item.id, e.target.value)}
+                              onBlur={(e) => handleBlurItemHoras('responsabilidadSocial', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
@@ -2589,13 +2975,13 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     10. COMITÉS TÉCNICOS
                   </h3>
                   <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {!campoBloqueado && (
+                    {/* {!campoBloqueado && (
                       <button onClick={() => openNlModal('comitesTecnicos')} style={{
                         background: 'none', border: '1px solid #3b82f6', borderRadius: '4px',
                         color: '#3b82f6', cursor: 'pointer', fontSize: '11px', padding: '2px 8px',
                         whiteSpace: 'nowrap'
                       }} title="Programar horario no lectivo">🕐 Horario</button>
-                    )}
+                    )}*/}
                     {(secciones.comitesTecnicos.items.length > 1 || secciones.comitesTecnicos.items.some(i => i.dia)) && !campoBloqueado && (
                       <button onClick={() => handleResetSeccion('comitesTecnicos')} style={{
                         background: 'none', border: '1px solid #fca5a5', borderRadius: '4px',
@@ -2643,11 +3029,10 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <input
                               className="form-input"
-                              type="number"
-                              min={seccionLimits('comitesTecnicos').min}
-                              max={seccionLimits('comitesTecnicos').max}
-                              value={item.horas || '0'}
+                              type="text"
+                              value={item.horas || ''}
                               onChange={(e) => handleUpdateItemHoras('comitesTecnicos', item.id, e.target.value)}
+                              onBlur={(e) => handleBlurItemHoras('comitesTecnicos', item.id, e.target.value)}
                               disabled={!!item.dia || campoBloqueado}
                               onWheel={(e) => e.preventDefault()}
                               style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
@@ -3003,7 +3388,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     <input
                       className="form-input"
                       value={adicionalData.periodo_academico}
-                      onChange={e => setAdicionalData(prev => ({ ...prev, periodo_academico: e.target.value }))}
+                      disabled
                       style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
                     />
                   </div>
@@ -3015,7 +3400,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                       className="form-input"
                       type="date"
                       value={adicionalData.fecha_inicio_periodo}
-                      onChange={e => handlePeriodoInicioChange(e.target.value)}
+                      disabled
                       style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
                     />
                   </div>
@@ -3027,7 +3412,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                       className="form-input"
                       type="date"
                       value={adicionalData.fecha_termino_periodo}
-                      onChange={e => handlePeriodoTerminoChange(e.target.value)}
+                      disabled
                       style={{ width: '100%', padding: '6px 8px', fontSize: '12px' }}
                     />
                   </div>
@@ -3173,11 +3558,11 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                   </button>
                   <button 
                     className="btn-primary"
-                    onClick={() => handleGuardar()}
+                    onClick={() => handleGuardar(true)}
                     disabled={guardando || (formatosGenerados && isDocente && !canWrite)}
                     style={{ padding: '10px 24px' }}
                   >
-                    {guardando ? 'Guardando...' : (formatosGenerados && isDocente && !canWrite) ? 'Bloqueado' : 'Guardar y Ver Horario No Lectivo'}
+                    {guardando ? 'Guardando...' : (formatosGenerados && isDocente && !canWrite) ? 'Bloqueado' : 'Guardar'}
                   </button>
                 </div>
               )}
@@ -3257,197 +3642,14 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
               
               {selectedCurso && (
                 <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-                  <div
-                    onClick={() => setDetallesCursoAbierto(!detallesCursoAbierto)}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      cursor: 'pointer',
-                      padding: '8px 0',
-                      userSelect: 'none'
-                    }}
-                  >
-                    <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>Detalles del Curso</h3>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '28px',
-                      height: '28px',
-                      transition: 'transform 0.2s ease',
-                      transform: detallesCursoAbierto ? 'rotate(180deg)' : 'rotate(0deg)'
-                    }}>
-                      <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                    <button className="btn-secondary" onClick={() => setShowAgregarCursoModal(false)}>
+                      Cancelar
+                    </button>
+                    <button className="btn-primary" onClick={handleAgregarCurso}>
+                      Agregar Curso
+                    </button>
                   </div>
-                  
-                  {detallesCursoAbierto && (
-                    <div style={{ marginTop: '16px' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                        <div>
-                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Sección</label>
-                          <input
-                            className="form-input"
-                            value={nuevoCurso.seccion}
-                            onChange={(e) => setNuevoCurso(prev => ({ ...prev, seccion: e.target.value }))}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Número de Alumnos</label>
-                          <input
-                            className="form-input"
-                            type="number"
-                            min="0"
-                            value={nuevoCurso.numeroAlumnos}
-                            onChange={(e) => {
-                              let val = e.target.value;
-                              if (parseFloat(val) < 0) val = '0';
-                              setNuevoCurso(prev => ({ ...prev, numeroAlumnos: val }));
-                            }}
-                            onWheel={(e) => e.preventDefault()}
-                          />
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                        <div>
-                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Horas Teoría</label>
-                          <input
-                            className="form-input"
-                            type="number"
-                            min="0"
-                            value={nuevoCurso.teoriaHoras}
-                            onChange={(e) => {
-                              let val = e.target.value;
-                              if (parseFloat(val) < 0) val = '0';
-                              const tHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
-                              const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
-                              const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
-                              const total = (tHoras + pHoras + lHoras).toString();
-                              setNuevoCurso(prev => ({ ...prev, teoriaHoras: val, totalHoras: total }));
-                            }}
-                            onWheel={(e) => e.preventDefault()}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Teoría</label>
-                          <input
-                            className="form-input"
-                            type="number"
-                            min="0"
-                            value={nuevoCurso.teoriaGrupos}
-                            onChange={(e) => {
-                              let val = e.target.value;
-                              if (parseFloat(val) < 0) val = '0';
-                              const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(val || '0');
-                              const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
-                              const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
-                              const total = (tHoras + pHoras + lHoras).toString();
-                              setNuevoCurso(prev => ({ ...prev, teoriaGrupos: val, totalHoras: total }));
-                            }}
-                            onWheel={(e) => e.preventDefault()}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Horas Práctica</label>
-                          <input
-                            className="form-input"
-                            type="number"
-                            min="0"
-                            value={nuevoCurso.practicaHoras}
-                            onChange={(e) => {
-                              let val = e.target.value;
-                              if (parseFloat(val) < 0) val = '0';
-                              const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
-                              const pHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
-                              const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
-                              const total = (tHoras + pHoras + lHoras).toString();
-                              setNuevoCurso(prev => ({ ...prev, practicaHoras: val, totalHoras: total }));
-                            }}
-                            onWheel={(e) => e.preventDefault()}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Práctica</label>
-                          <input
-                            className="form-input"
-                            type="number"
-                            min="0"
-                            value={nuevoCurso.practicaGrupos}
-                            onChange={(e) => {
-                              let val = e.target.value;
-                              if (parseFloat(val) < 0) val = '0';
-                              const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
-                              const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(val || '0');
-                              const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
-                              const total = (tHoras + pHoras + lHoras).toString();
-                              setNuevoCurso(prev => ({ ...prev, practicaGrupos: val, totalHoras: total }));
-                            }}
-                            onWheel={(e) => e.preventDefault()}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Horas Laboratorio</label>
-                          <input
-                            className="form-input"
-                            type="number"
-                            min="0"
-                            value={nuevoCurso.laboratorioHoras}
-                            onChange={(e) => {
-                              let val = e.target.value;
-                              if (parseFloat(val) < 0) val = '0';
-                              const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
-                              const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
-                              const lHoras = parseFloat(val || '0') * parseFloat(nuevoCurso.laboratorioGrupos || '0');
-                              const total = (tHoras + pHoras + lHoras).toString();
-                              setNuevoCurso(prev => ({ ...prev, laboratorioHoras: val, totalHoras: total }));
-                            }}
-                            onWheel={(e) => e.preventDefault()}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Grupos Laboratorio</label>
-                          <input
-                            className="form-input"
-                            type="number"
-                            min="0"
-                            value={nuevoCurso.laboratorioGrupos}
-                            onChange={(e) => {
-                              let val = e.target.value;
-                              if (parseFloat(val) < 0) val = '0';
-                              const tHoras = parseFloat(nuevoCurso.teoriaHoras || '0') * parseFloat(nuevoCurso.teoriaGrupos || '0');
-                              const pHoras = parseFloat(nuevoCurso.practicaHoras || '0') * parseFloat(nuevoCurso.practicaGrupos || '0');
-                              const lHoras = parseFloat(nuevoCurso.laboratorioHoras || '0') * parseFloat(val || '0');
-                              const total = (tHoras + pHoras + lHoras).toString();
-                              setNuevoCurso(prev => ({ ...prev, laboratorioGrupos: val, totalHoras: total }));
-                            }}
-                            onWheel={(e) => e.preventDefault()}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Total Horas</label>
-                          <input
-                            className="form-input"
-                            type="number"
-                            value={nuevoCurso.totalHoras}
-                            disabled
-                          />
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                        <button className="btn-secondary" onClick={() => setShowAgregarCursoModal(false)}>
-                          Cancelar
-                        </button>
-                        <button className="btn-primary" onClick={handleAgregarCurso}>
-                          Agregar Curso
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -3597,22 +3799,508 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
         </div>
       )}
 
-      {/* Botones de Guardar y Cancelar */}
-{/* Botones de Guardar y Cancelar */}
-      {step === 1 && docenteSeleccionado && (canEditForm || isDocente) && !campoBloqueado && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
-          <button
-            className="btn-secondary"
-            onClick={() => router.push('/carga-horaria')}
-          >
-            Cancelar
-          </button>
-          <button
-            className="btn-primary"
-            onClick={handleContinuar}
-          >
-            Continuar
-          </button>
+
+
+      {/* Modal de horario con grid y leyenda */}
+      {showModalHorarioSeleccion && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: '1400px', width: '98%', maxHeight: '95vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-header">
+              <h2 style={{fontSize:'18px',fontWeight:700,margin:0}}>Programar Horario</h2>
+              <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
+                        <button 
+                          onClick={() => {
+                            // Reset modal state
+                            setAsignaciones({});
+                            setHorasUsadas({});
+                            setElementoSeleccionado(null);
+                            setElementoFiltro(null);
+                            setWarningMessage(null);
+                            
+                            // Reset secciones (non-lectiva)
+                            const resetSecciones: Secciones = {
+                              preparacionEvaluacion: { items: [], horas: '0' },
+                              consejeriaTutoria: { items: [], horas: '0' },
+                              investigacion: { items: [], horas: '0' },
+                              capacitacion: { items: [], horas: '0' },
+                              gobierno: { items: [], horas: '0' },
+                              administracion: { items: [], horas: '0' },
+                              asesoriaTesis: { items: [], horas: '0' },
+                              responsabilidadSocial: { items: [], horas: '0' },
+                              comitesTecnicos: { items: [], horas: '0' }
+                            };
+                            setSecciones(resetSecciones);
+                            
+                            // Reset cursosAsignados horarios
+                            const resetCursos = cursosAsignados.map(curso => ({
+                              ...curso,
+                              dia: undefined,
+                              hora_inicio: undefined,
+                              hora_fin: undefined,
+                              horario_slots: undefined,
+                              _horarioSlots: undefined
+                            }));
+                            setCursosAsignados(resetCursos);
+                          }}
+                          style={{
+                            background:'none',
+                            border:'1px solid var(--border-color)',
+                            padding:'6px 12px',
+                            borderRadius:'6px',
+                            fontSize:'13px',
+                            cursor:'pointer',
+                            color:'var(--text-secondary)',
+                            fontWeight:'500'
+                          }}
+                        >
+                          Limpiar
+                        </button>
+                        <button onClick={() => setShowModalHorarioSeleccion(false)} style={{background:'none',border:'none',fontSize:'24px',cursor:'pointer',color:'var(--text-secondary)'}}>×</button>
+                      </div>
+            </div>
+
+            {warningMessage && (
+              <div style={{ padding: '12px 20px', background: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
+                <p style={{ color: '#dc2626', margin: 0, fontSize: '14px', fontWeight: 500 }}>
+                  ⚠️ {warningMessage}
+                </p>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '20px', padding: '20px', flex: 1, minHeight: '500px' }}>
+              {/* Columna Izquierda: Leyenda/Opciones */}
+              <div style={{ width: '300px', flexShrink: 0, overflowY: 'auto' }}>
+                <h3 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 16px 0', color: 'var(--text-primary)' }}>
+                  Elementos para Asignar
+                </h3>
+
+                {/* Cursos lectivos */}
+                {cursosAsignados.length > 0 && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <h4 style={{ fontSize: '13px', fontWeight: '500', margin: '0 0 8px 0', color: 'var(--text-secondary)' }}>
+                      📚 Cursos Lectivos
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {cursosAsignados.map((curso) => {
+                        const courseTypes = [];
+                        // Teoría
+                        const horasTeo = parseInt(curso.teoriaHoras) || 0;
+                        const gruposTeo = parseInt(curso.teoriaGrupos) || 1;
+                        const totalTeo = horasTeo * gruposTeo;
+                        if (totalTeo > 0) {
+                          courseTypes.push({
+                            type: 'teoria',
+                            label: 'Teoría',
+                            color: '#1d4ed8',
+                            totalHours: totalTeo
+                          });
+                        }
+                        // Práctica
+                        const horasPra = parseInt(curso.practicaHoras) || 0;
+                        const gruposPra = parseInt(curso.practicaGrupos) || 1;
+                        const totalPra = horasPra * gruposPra;
+                        if (totalPra > 0) {
+                          courseTypes.push({
+                            type: 'practica',
+                            label: 'Práctica',
+                            color: '#16a34a',
+                            totalHours: totalPra
+                          });
+                        }
+                        // Laboratorio
+                        const horasLab = parseInt(curso.laboratorioHoras) || 0;
+                        const gruposLab = parseInt(curso.laboratorioGrupos) || 1;
+                        const totalLab = horasLab * gruposLab;
+                        if (totalLab > 0) {
+                          courseTypes.push({
+                            type: 'laboratorio',
+                            label: 'Laboratorio',
+                            color: '#d97706',
+                            totalHours: totalLab
+                          });
+                        }
+
+                        return (
+                          <div key={curso.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {/* Course header */}
+                            <div style={{ 
+                              fontSize: '12px', 
+                              fontWeight: '600', 
+                              color: 'var(--text-secondary)', 
+                              marginBottom: '2px',
+                              marginLeft: '4px'
+                            }}>
+                              {curso.codigo} - {curso.nombre} (Sección {curso.seccion})
+                            </div>
+                            
+                            {/* Course types */}
+                            {courseTypes.map((courseType) => {
+                              const cursoElement = { 
+                                ...curso, 
+                                tipo: 'curso',
+                                cursoType: courseType.type, 
+                                nombre: `${curso.codigo} - ${curso.nombre} - ${courseType.label}`,
+                                color: courseType.color 
+                              };
+                              const elementKey = getElementKey(cursoElement);
+                              const totalHours = courseType.totalHours;
+                              const usedHours = horasUsadas[elementKey] || 0;
+                              const isSelected = elementoSeleccionado && getElementKey(elementoSeleccionado) === elementKey;
+                              
+                              const isFiltered = elementoFiltro && getElementKey(elementoFiltro) === elementKey;
+                              return (
+                                <div
+                                  key={`${curso.id}-${courseType.type}`}
+                                  style={{
+                                    padding: '8px 12px',
+                                    borderWidth: '2px',
+                                    borderStyle: 'solid',
+                                    borderColor: isSelected ? courseType.color : 'var(--border-color)',
+                                    borderRadius: '6px',
+                                    background: isSelected ? `${courseType.color}15` : 'var(--card-bg)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s',
+                                    borderLeftWidth: '4px',
+                                    borderLeftColor: courseType.color,
+                                    marginLeft: '8px',
+                                    position: 'relative'
+                                  }}
+                                  onClick={() => {
+                                    // Toggle selection: if already selected, unselect
+                                    if (isSelected) {
+                                      setElementoSeleccionado(null);
+                                    } else {
+                                      setElementoSeleccionado(cursoElement);
+                                    }
+                                    setWarningMessage(null);
+                                  }}
+                                >
+                                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                                    <div style={{fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)'}}>
+                                      {courseType.label}
+                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setElementoFiltro(isFiltered ? null : cursoElement);
+                                      }}
+                                      style={{
+                                        background: isFiltered ? `${courseType.color}30` : 'transparent',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        fontSize: '16px',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        color: isFiltered ? courseType.color : 'var(--text-muted)'
+                                      }}
+                                      title={isFiltered ? "Quitar filtro" : "Filtrar solo este elemento"}
+                                    >
+                                      {isFiltered ? '👁️' : '👁️‍🗨️'}
+                                    </button>
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                    {usedHours}/{totalHours} horas
+                                  </div>
+                                  <div style={{ marginTop: '4px', height: '4px', background: darkMode ? '#374151' : '#e5e7eb', borderRadius: '2px', overflow: 'hidden' }}>
+                                    <div style={{
+                                      width: `${(usedHours / totalHours) * 100}%`,
+                                      height: '100%',
+                                      background: courseType.color,
+                                      borderRadius: '2px'
+                                    }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actividades no lectivas con horas > 0 */}
+                <div>
+                  <h4 style={{ fontSize: '13px', fontWeight: '500', margin: '0 0 8px 0', color: 'var(--text-secondary)' }}>
+                    📋 Actividades No Lectivas
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {[
+                      {
+                        key: 'preparacion',
+                        titulo: '2. Preparación y Evaluación',
+                        color: '#3b82f6',
+                        horas: secciones.preparacionEvaluacion.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                      },
+                      {
+                        key: 'consejeria',
+                        titulo: '3. Consejería y Tutoría',
+                        color: '#10b981',
+                        horas: secciones.consejeriaTutoria.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                      },
+                      {
+                        key: 'investigacion',
+                        titulo: '4. Investigación',
+                        color: '#8b5cf6',
+                        horas: secciones.investigacion.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                      },
+                      {
+                        key: 'capacitacion',
+                        titulo: '5. Capacitación',
+                        color: '#f59e0b',
+                        horas: secciones.capacitacion.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                      },
+                      {
+                        key: 'gobierno',
+                        titulo: '6. Gobierno',
+                        color: '#ef4444',
+                        horas: secciones.gobierno.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                      },
+                      {
+                        key: 'administracion',
+                        titulo: '7. Administración',
+                        color: '#6366f1',
+                        horas: secciones.administracion.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                      },
+                      {
+                        key: 'asesoria',
+                        titulo: '8. Asesoría de Tesis',
+                        color: '#ec4899',
+                        horas: secciones.asesoriaTesis.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                      },
+                      {
+                        key: 'responsabilidad',
+                        titulo: '9. Responsabilidad Social',
+                        color: '#14b8a6',
+                        horas: secciones.responsabilidadSocial.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                      },
+                      {
+                        key: 'comites',
+                        titulo: '10. Comités Técnicos',
+                        color: '#84cc16',
+                        horas: secciones.comitesTecnicos.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                      }
+                    ]
+                    .filter(act => act.horas > 0)
+                    .map((act) => {
+                      const actElement = { key: act.key, tipo: 'no-lectiva', titulo: act.titulo, color: act.color };
+                      const elementKey = getElementKey(actElement);
+                      const usedHours = horasUsadas[elementKey] || 0;
+                      const isSelected = elementoSeleccionado && getElementKey(elementoSeleccionado) === elementKey;
+                      
+                      const isFiltered = elementoFiltro && getElementKey(elementoFiltro) === elementKey;
+                      return (
+                        <div
+                          key={act.key}
+                          style={{
+                            padding: '10px 12px',
+                            borderWidth: '2px',
+                            borderStyle: 'solid',
+                            borderColor: isSelected ? act.color : 'var(--border-color)',
+                            borderRadius: '6px',
+                            background: isSelected ? `${act.color}20` : 'var(--card-bg)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s',
+                            borderLeftWidth: '4px',
+                            borderLeftColor: act.color,
+                            position: 'relative'
+                          }}
+                          onClick={() => {
+                            // Toggle selection
+                            if (isSelected) {
+                              setElementoSeleccionado(null);
+                            } else {
+                              setElementoSeleccionado(actElement);
+                            }
+                            setWarningMessage(null);
+                          }}
+                        >
+                          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                            <div style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                              {act.titulo}
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setElementoFiltro(isFiltered ? null : actElement);
+                              }}
+                              style={{
+                                background: isFiltered ? `${act.color}30` : 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '16px',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                color: isFiltered ? act.color : 'var(--text-muted)'
+                              }}
+                              title={isFiltered ? "Quitar filtro" : "Filtrar solo este elemento"}
+                            >
+                              {isFiltered ? '👁️' : '👁️‍🗨️'}
+                            </button>
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                            {usedHours}/{act.horas} horas
+                          </div>
+                          <div style={{ marginTop: '4px', height: '4px', background: darkMode ? '#374151' : '#e5e7eb', borderRadius: '2px', overflow: 'hidden' }}>
+                            <div style={{
+                              width: `${(usedHours / act.horas) * 100}%`,
+                              height: '100%',
+                              background: act.color,
+                              borderRadius: '2px'
+                            }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Columna Derecha: Grid Horario Horas vs Días */}
+              <div style={{ flex: 1, overflowX: 'auto' }}>
+                <div style={{ display: 'inline-block', minWidth: '100%' }}>
+                  <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '12px' }}>
+                    <thead>
+                      <tr style={{ background: darkMode ? '#1e293b' : '#f1f5f9' }}>
+                        <th style={{ border: '1px solid var(--border-color)', padding: '8px', width: '80px' }}>Hora</th>
+                        {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'].map(dia => (
+                          <th key={dia} style={{ border: '1px solid var(--border-color)', padding: '8px', minWidth: '120px' }}>{dia}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from({ length: 14 }, (_, i) => 7 + i).map(hora => (
+                        <tr key={hora}>
+                          <td style={{ border: '1px solid var(--border-color)', padding: '8px', fontWeight: '500', background: darkMode ? '#1e293b' : '#f1f5f9' }}>
+                            {`${hora}:00 - ${hora + 1}:00`}
+                          </td>
+                          {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'].map(dia => {
+                            const key = `${dia}-${hora}`;
+                            const asignacion = asignaciones[key];
+                            
+                            // Check if we should gray out this cell
+                            const shouldGrayOut = elementoFiltro && asignacion && getElementKey(asignacion) !== getElementKey(elementoFiltro);
+                            
+                            return (
+                              <td
+                                key={key}
+                                style={{
+                                  border: '1px solid var(--border-color)',
+                                  padding: '4px',
+                                  minHeight: '60px',
+                                  height: '60px',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s',
+                                  background: shouldGrayOut ? (darkMode ? '#1f2937' : '#e5e7eb') : (asignacion ? `${asignacion.color}30` : 'transparent'),
+                                  filter: shouldGrayOut ? 'grayscale(0.8) opacity(0.5)' : 'none'
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!asignacion) {
+                                    e.currentTarget.style.background = shouldGrayOut ? (darkMode ? '#1f2937' : '#e5e7eb') : (elementoSeleccionado ? `${elementoSeleccionado.color || '#3b82f6'}20` : darkMode ? '#334155' : '#f8fafc');
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = shouldGrayOut ? (darkMode ? '#1f2937' : '#e5e7eb') : (asignacion ? `${asignacion.color}30` : 'transparent');
+                                }}
+                                onClick={() => {
+                                  if (shouldGrayOut) return;
+                                  if (elementoSeleccionado) {
+                                    // Case 1: We have a selected element
+                                    const selectedKey = getElementKey(elementoSeleccionado);
+                                    const totalHours = getTotalHoursForElement(elementoSeleccionado);
+                                    const usedHours = horasUsadas[selectedKey] || 0;
+                                    
+                                    if (asignacion) {
+                                      // Check if the existing assignment is our selected element
+                                      const existingKey = getElementKey(asignacion);
+                                      if (existingKey === selectedKey) {
+                                        // We can unassign this slot
+                                        setAsignaciones(prev => {
+                                          const newAsignaciones = { ...prev };
+                                          delete newAsignaciones[key];
+                                          return newAsignaciones;
+                                        });
+                                        setHorasUsadas(prev => ({
+                                          ...prev,
+                                          [selectedKey]: Math.max(0, (prev[selectedKey] || 0) - 1)
+                                        }));
+                                        setWarningMessage(null);
+                                      } else {
+                                        // Slot is occupied by another element!
+                                        setWarningMessage(`Este horario ya está ocupado por "${asignacion.nombre || asignacion.titulo}"`);
+                                      }
+                                    } else {
+                                      // Slot is empty
+                                      if (usedHours >= totalHours) {
+                                        setWarningMessage(`Ya has asignado todas las horas para "${elementoSeleccionado.nombre || elementoSeleccionado.titulo}"`);
+                                      } else {
+                                        // Assign it!
+                                        setAsignaciones(prev => ({
+                                          ...prev,
+                                          [key]: elementoSeleccionado
+                                        }));
+                                        setHorasUsadas(prev => ({
+                                          ...prev,
+                                          [selectedKey]: (prev[selectedKey] || 0) + 1
+                                        }));
+                                        setWarningMessage(null);
+                                      }
+                                    }
+                                  } else if (asignacion) {
+                                    // Case 2: No element selected, but slot has assignment
+                                    const existingKey = getElementKey(asignacion);
+                                    setAsignaciones(prev => {
+                                      const newAsignaciones = { ...prev };
+                                      delete newAsignaciones[key];
+                                      return newAsignaciones;
+                                    });
+                                    setHorasUsadas(prev => ({
+                                      ...prev,
+                                      [existingKey]: Math.max(0, (prev[existingKey] || 0) - 1)
+                                    }));
+                                    setWarningMessage(null);
+                                  }
+                                }}
+                              >
+                                {asignacion && (
+                                  <div style={{
+                                    background: shouldGrayOut ? (darkMode ? '#4b5563' : '#9ca3af') : asignacion.color,
+                                    color: 'white',
+                                    padding: '4px 6px',
+                                    borderRadius: '4px',
+                                    fontSize: '10px',
+                                    fontWeight: '500',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    {asignacion.nombre || asignacion.titulo}
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Botones al final */}
+            <div style={{display:'flex',justifyContent:'flex-end',gap:'10px',padding:'0 20px 20px 20px'}}>
+              <button
+                className="btn-secondary"
+                onClick={() => setShowModalHorarioSeleccion(false)}
+              >
+                Cerrar
+              </button>
+              <button className="btn-primary" onClick={handleGuardarHorario}>
+                Guardar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -3662,6 +4350,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                       const blocked = nlIsBlocked(d, slot.id);
                       const occSec = SECCIONES_NL.find(s => nlSlots[s.key]?.has(key));
                       const isCur = occSec?.key === nlSection;
+                      const esOcupadaPorOtra = occSec && !isCur;
                       return (
                         <div key={key}
                           onMouseDown={() => { if (!blocked) { nlMouseDown.current = true; nlToggle(d, slot.id); } }}
@@ -3669,16 +4358,18 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           style={{
                             minHeight:'36px',borderBottom:'1px solid var(--border-color)',
                             borderLeft: si === 0 ? 'none' : '1px solid var(--border-color)',
-                            cursor:blocked?'not-allowed':(occSec && !isCur)?'default':'pointer',
-                            background:blocked?'var(--bg-card-hover)':occSec?occSec.color:'var(--bg-card)',
-                            opacity:blocked?0.4:(occSec && !isCur)?0.6:1,
+                            cursor:blocked?'not-allowed':'pointer',
+                            background:blocked?(darkMode?'#450a0a':'#fef2f2'):occSec?occSec.color:'var(--bg-card)',
+                            opacity:blocked?1:(occSec && !isCur)?0.9:1,
                             display:'flex',alignItems:'center',justifyContent:'center',
-                            fontSize:'10px',color:occSec?'#fff':'var(--text-muted)',
-                            fontWeight:blocked?500:(occSec?600:400),
+                            fontSize:'9px',color:blocked?(darkMode?'#fecaca':'#991b1b'):(occSec?'#fff':'var(--text-muted)'),
+                            fontWeight:blocked?600:(occSec?600:400),
                             transition:'all 0.1s',
                           }}
                         >
-                          {blocked?'No disponible':occSec?(isCur?'✓':occSec.num):''}
+                          {blocked && !esOcupadaPorOtra?'No disponible':
+                           esOcupadaPorOtra?`${occSec?.num}`:
+                           occSec?'✓':''}
                         </div>
                       );
                     })}
@@ -3687,7 +4378,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
               </div>
 
               <p style={{fontSize:'11px',color:'var(--text-secondary)',marginTop:'12px',marginBottom:0}}>
-                Haz clic o arrastra sobre la cuadrícula para marcar/desmarcar horas. Celdas tenues = ocupadas por otras actividades.
+                Haz clic o arrastra sobre la cuadrícula para marcar/desmarcar horas. Celdas rojas = ocupadas por otras actividades.
               </p>
             </div>
             <div className="modal-footer" style={{display:'flex',justifyContent:'flex-end',gap:'8px',padding:'12px 16px',borderTop:'1px solid var(--border-color)'}}>
