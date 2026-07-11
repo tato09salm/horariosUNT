@@ -34,7 +34,7 @@ export default function LoginPageClient() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{background: darkMode ? 'linear-gradient(135deg, #020617 0%, #0f172a 50%, #020617 100%)' : 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)'}}>
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-[#164694] to-[#0F2F63]">
       <motion.div 
         className={`w-full max-w-6xl mx-3 rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row ${darkMode ? 'bg-slate-900' : 'bg-white'}`}
         initial={{ opacity: 0, y: 30 }}
@@ -43,8 +43,7 @@ export default function LoginPageClient() {
       >
         {/* Col1: Photo/Logo Section (Left on Desktop, Top on Mobile) */}
         <motion.div 
-          className="flex-1 p-6 md:p-10 flex flex-col items-center justify-center text-center relative" 
-          style={{background:'linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)'}}
+          className="flex-1 p-6 md:p-10 flex flex-col items-center justify-center text-center relative bg-gradient-to-b from-[#173F73] via-[#12345F] to-[#0B2347]"
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
