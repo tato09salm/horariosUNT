@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from '@/lib/theme';
 import { useUser } from '@/app/(app)/layout';
+import { BookOpen, Building2, CalendarDays, CheckCircle2, ChevronDown, ClipboardList, Clock3, Eye, EyeOff, Filter, MapPin, RotateCcw, Search, X } from 'lucide-react';
 
 const DIAS_LABEL: Record<string, string> = { lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue', viernes: 'Vie', sabado: 'Sáb' };
 
@@ -194,6 +195,7 @@ export default function NuevaCargaHorariaPage() {
   });
 
   const [docentes, setDocentes] = useState<Docente[]>([]);
+  const [ambientes, setAmbientes] = useState<any[]>([]);
   const [docenteSeleccionado, setDocenteSeleccionado] = useState<Docente | null>(null);
   const [facultad, setFacultad] = useState('');
   const [dptoAcademico, setDptoAcademico] = useState('');
@@ -207,6 +209,17 @@ export default function NuevaCargaHorariaPage() {
 
   // Modal de selección y leyenda de horario
   const [showModalHorarioSeleccion, setShowModalHorarioSeleccion] = useState(false);
+  const [showHorarioPreview, setShowHorarioPreview] = useState(false);
+  const [previewCelda, setPreviewCelda] = useState<{ dia: string; hora: number }>({ dia: 'lunes', hora: 7 });
+  const [previewHorarios, setPreviewHorarios] = useState<any[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewAmbienteId, setPreviewAmbienteId] = useState<string>('');
+  const [previewDiaFiltro, setPreviewDiaFiltro] = useState<string>('lunes');
+  const [previewHoraInicio, setPreviewHoraInicio] = useState<string>('07:00');
+  const [previewHoraFin, setPreviewHoraFin] = useState<string>('08:00');
+  const [previewTipoAulas, setPreviewTipoAulas] = useState(true);
+  const [previewTipoLabs, setPreviewTipoLabs] = useState(true);
+  const [previewCapacidadMinima, setPreviewCapacidadMinima] = useState<string>('');
   const [elementoSeleccionado, setElementoSeleccionado] = useState<any>(null);
   const [elementoFiltro, setElementoFiltro] = useState<any>(null);
   const [asignaciones, setAsignaciones] = useState<Record<string, any>>({});
@@ -236,6 +249,7 @@ export default function NuevaCargaHorariaPage() {
   const NL_SLOTS = Array.from({ length: 14 }, (_, i) => ({ id: `${String(7 + i).padStart(2, '0')}:00`, label: `${String(7 + i).padStart(2, '0')}:00 - ${String(8 + i).padStart(2, '0')}:00` }));
   const NL_DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
   const NL_DIAS_LABEL: Record<string, string> = { lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue', viernes: 'Vie', sabado: 'Sáb' };
+  const DIAS = NL_DIAS;
   const nlSlotKey = (d: string, h: string) => `${d}|${h}`;
   const SECCION_KEY_TO_NL: Record<string, string> = {
     preparacionEvaluacion: 'preparacion', consejeriaTutoria: 'consejeria', investigacion: 'investigacion',
@@ -301,21 +315,24 @@ export default function NuevaCargaHorariaPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [docentesRes, cursosRes, ciclosRes, curriculasRes] = await Promise.all([
+        const [docentesRes, cursosRes, ciclosRes, aulasRes, curriculasRes] = await Promise.all([
           fetch('/api/docentes?limit=1000'),
           fetch('/api/cursos?reporte=true'),
           fetch('/api/ciclos?reporte=true'),
+          fetch('/api/aulas?limit=1000'),
           fetch('/api/curriculas?manage=true')
         ]);
         const docentesData = await docentesRes.json();
         const cursosData = await cursosRes.json();
         const ciclosData = await ciclosRes.json();
+        const aulasData = await aulasRes.json();
         const curriculasData = await curriculasRes.json();
         
         setDocentes(docentesData.data || []);
         setAllCursos(cursosData.data || []);
         setCursos(cursosData.data || []);
         setCiclosAcademicos(ciclosData.data || []);
+        setAmbientes(aulasData.data || []);
         setCurriculas(curriculasData.data || []);
         
         // Load curricula history from localStorage
@@ -336,6 +353,26 @@ export default function NuevaCargaHorariaPage() {
     };
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!showHorarioPreview || !cicloAcademicoSeleccionado) return;
+
+    const cargarPreview = async () => {
+      setPreviewLoading(true);
+      try {
+        const res = await fetch(`/api/horarios?ciclo_id=${cicloAcademicoSeleccionado}`);
+        const data = await res.json();
+        setPreviewHorarios(Array.isArray(data.data) ? data.data : []);
+      } catch (error) {
+        console.error('Error cargando disponibilidad del horario:', error);
+        setPreviewHorarios([]);
+      } finally {
+        setPreviewLoading(false);
+      }
+    };
+
+    cargarPreview();
+  }, [showHorarioPreview, cicloAcademicoSeleccionado]);
   
   // Load initial docente if docenteId is provided
   useEffect(() => {
@@ -1602,6 +1639,84 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
     } else {
       return `nol-${element.key}`;
     }
+  };
+
+  const ambientesDisponibles = useMemo(() => {
+    return (ambientes || [])
+      .filter((amb: any) => amb?.activo !== false)
+      .sort((a: any, b: any) => String(a.codigo || '').localeCompare(String(b.codigo || '')));
+  }, [ambientes]);
+
+  useEffect(() => {
+    if (!previewAmbienteId && ambientesDisponibles.length > 0) {
+      setPreviewAmbienteId(ambientesDisponibles[0].id);
+    }
+  }, [ambientesDisponibles, previewAmbienteId]);
+
+  useEffect(() => {
+    if (!showHorarioPreview) return;
+    setPreviewDiaFiltro(previewCelda.dia);
+    setPreviewHoraInicio(`${String(previewCelda.hora).padStart(2, '0')}:00`);
+    setPreviewHoraFin(`${String(previewCelda.hora + 1).padStart(2, '0')}:00`);
+  }, [showHorarioPreview, previewCelda.dia, previewCelda.hora]);
+
+  const previewAmbienteSeleccionado = useMemo(() => {
+    return ambientesDisponibles.find((amb: any) => amb.id === previewAmbienteId) || ambientesDisponibles[0] || null;
+  }, [ambientesDisponibles, previewAmbienteId]);
+
+  const previewOcupacion = useMemo(() => {
+    const map = new Map<string, any[]>();
+
+    for (const asignacion of previewHorarios) {
+      const dia = asignacion?.dia;
+      const hora = parseInt(String(asignacion?.hora_inicio || '').split(':')[0]);
+      const ambienteId = asignacion?.ambiente_id;
+      if (!dia || Number.isNaN(hora) || !ambienteId) continue;
+
+      const key = `${dia}-${hora}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(asignacion);
+    }
+
+    return map;
+  }, [previewHorarios]);
+
+  const previewOcupacionAmbiente = useMemo(() => {
+    const ambienteId = previewAmbienteSeleccionado?.id;
+    const set = new Set<string>();
+    if (!ambienteId) return set;
+
+    for (const asignacion of previewHorarios) {
+      if (asignacion?.ambiente_id !== ambienteId) continue;
+      const dia = asignacion?.dia;
+      const hora = parseInt(String(asignacion?.hora_inicio || '').split(':')[0]);
+      if (!dia || Number.isNaN(hora)) continue;
+      set.add(`${dia}-${hora}`);
+    }
+
+    return set;
+  }, [previewHorarios, previewAmbienteSeleccionado]);
+
+  const previewAmbientesFiltrados = useMemo(() => {
+    const key = `${previewCelda.dia}-${previewCelda.hora}`;
+    const ocupados = new Set((previewOcupacion.get(key) || []).map((item: any) => item.ambiente_id));
+    const tiposSeleccionados = [previewTipoAulas ? 'aula' : null, previewTipoLabs ? 'laboratorio' : null].filter(Boolean) as string[];
+    const capacidadMinima = parseInt(previewCapacidadMinima || '0') || 0;
+
+    return ambientesDisponibles
+      .filter((amb: any) => tiposSeleccionados.includes(String(amb.tipo || '').toLowerCase()))
+      .filter((amb: any) => !ocupados.has(amb.id))
+      .filter((amb: any) => !capacidadMinima || Number(amb.capacidad || 0) >= capacidadMinima)
+      .sort((a: any, b: any) => String(a.codigo || '').localeCompare(String(b.codigo || '')));
+  }, [previewCelda, previewOcupacion, ambientesDisponibles, previewAmbienteId, previewTipoAulas, previewTipoLabs, previewCapacidadMinima]);
+
+  const previewTotalDisponibles = useMemo(() => {
+    return ambientesDisponibles.filter((amb: any) => ['aula', 'laboratorio'].includes(String(amb.tipo || '').toLowerCase())).length;
+  }, [ambientesDisponibles]);
+
+  const aplicarPreviewFiltros = () => {
+    const horaInicio = parseInt(previewHoraInicio.split(':')[0] || '7');
+    setPreviewCelda({ dia: previewDiaFiltro, hora: Number.isNaN(horaInicio) ? 7 : horaInicio });
   };
 
   const handleGuardarHorario = () => {
@@ -3805,58 +3920,86 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       {showModalHorarioSeleccion && (
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: '1400px', width: '98%', maxHeight: '95vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-            <div className="modal-header">
-              <h2 style={{fontSize:'18px',fontWeight:700,margin:0}}>Programar Horario</h2>
-              <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
-                        <button 
-                          onClick={() => {
-                            // Reset modal state
-                            setAsignaciones({});
-                            setHorasUsadas({});
-                            setElementoSeleccionado(null);
-                            setElementoFiltro(null);
-                            setWarningMessage(null);
-                            
-                            // Reset secciones (non-lectiva)
-                            const resetSecciones: Secciones = {
-                              preparacionEvaluacion: { items: [], horas: '0' },
-                              consejeriaTutoria: { items: [], horas: '0' },
-                              investigacion: { items: [], horas: '0' },
-                              capacitacion: { items: [], horas: '0' },
-                              gobierno: { items: [], horas: '0' },
-                              administracion: { items: [], horas: '0' },
-                              asesoriaTesis: { items: [], horas: '0' },
-                              responsabilidadSocial: { items: [], horas: '0' },
-                              comitesTecnicos: { items: [], horas: '0' }
-                            };
-                            setSecciones(resetSecciones);
-                            
-                            // Reset cursosAsignados horarios
-                            const resetCursos = cursosAsignados.map(curso => ({
-                              ...curso,
-                              dia: undefined,
-                              hora_inicio: undefined,
-                              hora_fin: undefined,
-                              horario_slots: undefined,
-                              _horarioSlots: undefined
-                            }));
-                            setCursosAsignados(resetCursos);
-                          }}
-                          style={{
-                            background:'none',
-                            border:'1px solid var(--border-color)',
-                            padding:'6px 12px',
-                            borderRadius:'6px',
-                            fontSize:'13px',
-                            cursor:'pointer',
-                            color:'var(--text-secondary)',
-                            fontWeight:'500'
-                          }}
-                        >
-                          Limpiar
-                        </button>
-                        <button onClick={() => setShowModalHorarioSeleccion(false)} style={{background:'none',border:'none',fontSize:'24px',cursor:'pointer',color:'var(--text-secondary)'}}>×</button>
-                      </div>
+            <div className="modal-header" style={{gap:'12px',alignItems:'center',position:'relative'}}>
+              <div style={{display:'flex',flexDirection:'column',gap:'4px',justifyContent:'center',flex:1}}>
+                <h2 style={{fontSize:'18px',fontWeight:700,margin:0}}>Programar Horario</h2>
+                <span style={{fontSize:'12px',color:'var(--text-secondary)'}}>Asigna bloques y define el ambiente por cada espacio</span>
+              </div>
+              <div style={{position:'absolute',left:'50%',transform:'translateX(-50%)',display:'flex',alignItems:'center'}}>
+                <button
+                  onClick={() => setShowHorarioPreview(true)}
+                  style={{
+                    display:'inline-flex',
+                    alignItems:'center',
+                    gap:'8px',
+                    background:'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                    border:'1px solid #93c5fd',
+                    padding:'8px 14px',
+                    borderRadius:'999px',
+                    fontSize:'13px',
+                    cursor:'pointer',
+                    color:'#1d4ed8',
+                    fontWeight:'600'
+                  }}
+                >
+                  <Eye size={16} />
+                  Ver horario
+                </button>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap',justifyContent:'flex-end',marginLeft:'auto',alignSelf:'center'}}>
+                <button
+                  onClick={() => {
+                    setAsignaciones({});
+                    setHorasUsadas({});
+                    setElementoSeleccionado(null);
+                    setElementoFiltro(null);
+                    setWarningMessage(null);
+                    setShowHorarioPreview(false);
+
+                    const resetSecciones: Secciones = {
+                      preparacionEvaluacion: { items: [], horas: '0' },
+                      consejeriaTutoria: { items: [], horas: '0' },
+                      investigacion: { items: [], horas: '0' },
+                      capacitacion: { items: [], horas: '0' },
+                      gobierno: { items: [], horas: '0' },
+                      administracion: { items: [], horas: '0' },
+                      asesoriaTesis: { items: [], horas: '0' },
+                      responsabilidadSocial: { items: [], horas: '0' },
+                      comitesTecnicos: { items: [], horas: '0' }
+                    };
+                    setSecciones(resetSecciones);
+
+                    const resetCursos = cursosAsignados.map(curso => ({
+                      ...curso,
+                      dia: undefined,
+                      hora_inicio: undefined,
+                      hora_fin: undefined,
+                      horario_slots: undefined,
+                      _horarioSlots: undefined
+                    }));
+                    setCursosAsignados(resetCursos);
+                  }}
+                  style={{
+                    background:'none',
+                    border:'1px solid var(--border-color)',
+                    padding:'6px 12px',
+                    borderRadius:'6px',
+                    fontSize:'13px',
+                    cursor:'pointer',
+                    color:'var(--text-secondary)',
+                    fontWeight:'500',
+                    display:'inline-flex',
+                    alignItems:'center',
+                    gap:'8px'
+                  }}
+                >
+                  <CalendarDays size={15} />
+                  Limpiar
+                </button>
+                <button onClick={() => { setShowHorarioPreview(false); setShowModalHorarioSeleccion(false); }} style={{background:'none',border:'none',fontSize:'24px',cursor:'pointer',color:'var(--text-secondary)',display:'inline-flex',alignItems:'center',justifyContent:'center'}}>
+                  <X size={22} />
+                </button>
+              </div>
             </div>
 
             {warningMessage && (
@@ -3877,8 +4020,9 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                 {/* Cursos lectivos */}
                 {cursosAsignados.length > 0 && (
                   <div style={{ marginBottom: '20px' }}>
-                    <h4 style={{ fontSize: '13px', fontWeight: '500', margin: '0 0 8px 0', color: 'var(--text-secondary)' }}>
-                      📚 Cursos Lectivos
+                      <h4 style={{ fontSize: '13px', fontWeight: '500', margin: '0 0 8px 0', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <BookOpen size={14} />
+                        Cursos Lectivos
                     </h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       {cursosAsignados.map((curso) => {
@@ -3995,7 +4139,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                       }}
                                       title={isFiltered ? "Quitar filtro" : "Filtrar solo este elemento"}
                                     >
-                                      {isFiltered ? '👁️' : '👁️‍🗨️'}
+                                      {isFiltered ? <EyeOff size={16} /> : <Eye size={16} />}
                                     </button>
                                   </div>
                                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -4021,8 +4165,9 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
 
                 {/* Actividades no lectivas con horas > 0 */}
                 <div>
-                  <h4 style={{ fontSize: '13px', fontWeight: '500', margin: '0 0 8px 0', color: 'var(--text-secondary)' }}>
-                    📋 Actividades No Lectivas
+                  <h4 style={{ fontSize: '13px', fontWeight: '500', margin: '0 0 8px 0', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <ClipboardList size={14} />
+                    Actividades No Lectivas
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {[
@@ -4135,7 +4280,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                               }}
                               title={isFiltered ? "Quitar filtro" : "Filtrar solo este elemento"}
                             >
-                              {isFiltered ? '👁️' : '👁️‍🗨️'}
+                              {isFiltered ? <EyeOff size={16} /> : <Eye size={16} />}
                             </button>
                           </div>
                           <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
@@ -4246,35 +4391,68 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                         setWarningMessage(null);
                                       }
                                     }
-                                  } else if (asignacion) {
-                                    // Case 2: No element selected, but slot has assignment
-                                    const existingKey = getElementKey(asignacion);
-                                    setAsignaciones(prev => {
-                                      const newAsignaciones = { ...prev };
-                                      delete newAsignaciones[key];
-                                      return newAsignaciones;
-                                    });
-                                    setHorasUsadas(prev => ({
-                                      ...prev,
-                                      [existingKey]: Math.max(0, (prev[existingKey] || 0) - 1)
-                                    }));
-                                    setWarningMessage(null);
                                   }
                                 }}
                               >
                                 {asignacion && (
-                                  <div style={{
-                                    background: shouldGrayOut ? (darkMode ? '#4b5563' : '#9ca3af') : asignacion.color,
-                                    color: 'white',
-                                    padding: '4px 6px',
-                                    borderRadius: '4px',
-                                    fontSize: '10px',
-                                    fontWeight: '500',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap'
-                                  }}>
-                                    {asignacion.nombre || asignacion.titulo}
+                                  <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+                                    <div style={{
+                                      background: shouldGrayOut ? (darkMode ? '#4b5563' : '#9ca3af') : asignacion.color,
+                                      color: 'white',
+                                      padding: '4px 6px',
+                                      borderRadius: '4px',
+                                      fontSize: '10px',
+                                      fontWeight: '500',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '6px'
+                                    }}>
+                                      <MapPin size={11} />
+                                      <span>{asignacion.nombre || asignacion.titulo}</span>
+                                    </div>
+                                    <div style={{position:'relative'}}>
+                                      <select
+                                        value={asignacion.ambienteId || ''}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onMouseDown={(e) => e.stopPropagation()}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const ambienteId = e.target.value;
+                                          const ambiente = ambientesDisponibles.find((item: any) => item.id === ambienteId);
+                                          setAsignaciones(prev => ({
+                                            ...prev,
+                                            [key]: {
+                                              ...prev[key],
+                                              ambienteId,
+                                              ambienteCodigo: ambiente?.codigo || '',
+                                              ambienteNombre: ambiente ? `${ambiente.codigo} - ${ambiente.nombre}` : ''
+                                            }
+                                          }));
+                                        }}
+                                        style={{
+                                          width: '100%',
+                                          appearance: 'none',
+                                          border: '1px solid var(--border-color)',
+                                          borderRadius: '6px',
+                                          padding: '4px 28px 4px 8px',
+                                          fontSize: '10px',
+                                          color: 'var(--text-secondary)',
+                                          background: darkMode ? '#0f172a' : '#fff',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        <option value="">Seleccionar ambiente</option>
+                                        {ambientesDisponibles.map((amb: any) => (
+                                          <option key={amb.id} value={amb.id}>
+                                            {amb.codigo} - {amb.nombre}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <ChevronDown size={12} style={{ position:'absolute', right:'8px', top:'50%', transform:'translateY(-50%)', pointerEvents:'none', color:'var(--text-muted)' }} />
+                                    </div>
                                   </div>
                                 )}
                               </td>
@@ -4292,12 +4470,258 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
             <div style={{display:'flex',justifyContent:'flex-end',gap:'10px',padding:'0 20px 20px 20px'}}>
               <button
                 className="btn-secondary"
-                onClick={() => setShowModalHorarioSeleccion(false)}
+                onClick={() => { setShowHorarioPreview(false); setShowModalHorarioSeleccion(false); }}
               >
                 Cerrar
               </button>
               <button className="btn-primary" onClick={handleGuardarHorario}>
                 Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHorarioPreview && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: '1460px', width: '98%', maxHeight: '92vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-header" style={{ alignItems: 'center' }}>
+              <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
+                <h2 style={{fontSize:'18px',fontWeight:700,margin:0}}>Vista previa del horario</h2>
+                <span style={{fontSize:'12px',color:'var(--text-secondary)'}}>Primero elige un bloque arriba, luego revisa las aulas y laboratorios libres abajo</span>
+              </div>
+              <button onClick={() => setShowHorarioPreview(false)} style={{background:'none',border:'none',fontSize:'22px',cursor:'pointer',color:'var(--text-secondary)'}}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{padding:'14px 16px 16px', display:'grid', gap:'14px'}}>
+              <div style={{display:'grid',gridTemplateColumns:'280px minmax(0,1fr)',gap:'14px',alignItems:'start'}}>
+                <aside style={{border:'1px solid var(--border-color)',borderRadius:'16px',padding:'14px',background:'var(--bg-card)'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'10px',fontSize:'14px',fontWeight:700,color:'var(--text-primary)'}}>
+                    <Filter size={16} />
+                    Filtros de búsqueda
+                  </div>
+                  <div style={{display:'grid',gap:'12px'}}>
+                    <div>
+                      <label style={{display:'block',fontSize:'12px',color:'var(--text-secondary)',marginBottom:'6px'}}>Ver disponibilidad de:</label>
+                      <select
+                        value={previewAmbienteId}
+                        onChange={(e) => setPreviewAmbienteId(e.target.value)}
+                        className="form-input"
+                        style={{width:'100%'}}
+                      >
+                        <option value="">Seleccionar ambiente</option>
+                        {ambientesDisponibles.map((amb: any) => (
+                          <option key={amb.id} value={amb.id}>{amb.codigo} - {amb.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>
+                      <div>
+                        <label style={{display:'block',fontSize:'12px',color:'var(--text-secondary)',marginBottom:'6px'}}>Hora inicio</label>
+                        <select value={previewHoraInicio} onChange={(e) => setPreviewHoraInicio(e.target.value)} className="form-input" style={{width:'100%'}}>
+                          {Array.from({length:14},(_,i) => `${String(7 + i).padStart(2,'0')}:00`).map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{display:'block',fontSize:'12px',color:'var(--text-secondary)',marginBottom:'6px'}}>Hora fin</label>
+                        <select value={previewHoraFin} onChange={(e) => setPreviewHoraFin(e.target.value)} className="form-input" style={{width:'100%'}}>
+                          {Array.from({length:14},(_,i) => `${String(8 + i).padStart(2,'0')}:00`).map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{display:'block',fontSize:'12px',color:'var(--text-secondary)',marginBottom:'6px'}}>Día</label>
+                      <select value={previewDiaFiltro} onChange={(e) => setPreviewDiaFiltro(e.target.value)} className="form-input" style={{width:'100%'}}>
+                        {DIAS.map(dia => <option key={dia} value={dia}>{DIAS_LABEL[dia]}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{display:'block',fontSize:'12px',color:'var(--text-secondary)',marginBottom:'6px'}}>Tipo de ambiente</label>
+                      <div style={{display:'grid',gap:'8px'}}>
+                        <label style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'13px',color:'var(--text-primary)'}}>
+                          <input type="checkbox" checked={previewTipoAulas} onChange={(e) => setPreviewTipoAulas(e.target.checked)} />
+                          Aulas
+                        </label>
+                        <label style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'13px',color:'var(--text-primary)'}}>
+                          <input type="checkbox" checked={previewTipoLabs} onChange={(e) => setPreviewTipoLabs(e.target.checked)} />
+                          Laboratorios
+                        </label>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{display:'block',fontSize:'12px',color:'var(--text-secondary)',marginBottom:'6px'}}>Capacidad mínima</label>
+                      <select value={previewCapacidadMinima} onChange={(e) => setPreviewCapacidadMinima(e.target.value)} className="form-input" style={{width:'100%'}}>
+                        <option value="">Indiferente</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="40">40</option>
+                        <option value="50">50+</option>
+                      </select>
+                    </div>
+                    <button className="btn-primary" onClick={aplicarPreviewFiltros} style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:'8px'}}>
+                      <Search size={16} />
+                      Buscar Disponibilidad
+                    </button>
+                    <button className="btn-secondary" onClick={() => { setPreviewAmbienteId(''); setPreviewDiaFiltro('lunes'); setPreviewHoraInicio('07:00'); setPreviewHoraFin('08:00'); setPreviewCapacidadMinima(''); setPreviewTipoAulas(true); setPreviewTipoLabs(true); setPreviewCelda({ dia: 'lunes', hora: 7 }); }} style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:'8px'}}>
+                      <RotateCcw size={16} />
+                      Limpiar filtros
+                    </button>
+
+                    <div style={{borderTop:'1px solid var(--border-color)',paddingTop:'12px'}}>
+                      <div style={{fontSize:'12px',fontWeight:700,color:'var(--text-primary)',marginBottom:'8px'}}>Leyenda</div>
+                      <div style={{display:'grid',gap:'8px',fontSize:'12px',color:'var(--text-secondary)'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:'8px'}}><span style={{width:12,height:12,borderRadius:'4px',background:'#dcfce7',border:'1px solid #a7f3d0'}} />Disponible</div>
+                        <div style={{display:'flex',alignItems:'center',gap:'8px'}}><span style={{width:12,height:12,borderRadius:'4px',background:'#fee2e2',border:'1px solid #fecaca'}} />Ocupado</div>
+                        <div style={{display:'flex',alignItems:'center',gap:'8px'}}><span style={{width:12,height:12,borderRadius:'4px',background:'var(--bg-card)',border:'1px solid var(--border-color)'}} />Sin programación</div>
+                      </div>
+                    </div>
+                  </div>
+                </aside>
+
+                <section style={{display:'grid',gap:'14px'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}}>
+                    <div>
+                      <h3 style={{margin:'0 0 4px',fontSize:'15px',fontWeight:700,color:'var(--text-primary)',display:'flex',alignItems:'center',gap:'8px'}}>
+                        <CalendarDays size={16} />
+                        Horario de Disponibilidad (Horas vs Días)
+                      </h3>
+                      <p style={{margin:0,fontSize:'12px',color:'var(--text-secondary)'}}>Haz clic en una celda para actualizar la selección inferior.</p>
+                    </div>
+                    <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+                      <button className="btn-secondary" style={{padding:'8px 10px'}} onClick={() => setPreviewCelda(prev => ({ dia: prev.dia, hora: Math.max(7, prev.hora - 1) }))}>‹</button>
+                      <button className="btn-secondary" style={{padding:'8px 12px'}} onClick={() => setPreviewCelda({ dia: previewDiaFiltro, hora: parseInt(previewHoraInicio.split(':')[0] || '7') })}>Hoy</button>
+                      <button className="btn-secondary" style={{padding:'8px 10px'}} onClick={() => setPreviewCelda(prev => ({ dia: prev.dia, hora: Math.min(20, prev.hora + 1) }))}>›</button>
+                    </div>
+                  </div>
+
+                  {previewLoading ? (
+                    <div style={{padding:'24px',textAlign:'center',border:'1px dashed var(--border-color)',borderRadius:'12px',color:'var(--text-secondary)'}}>Cargando disponibilidad...</div>
+                  ) : (
+                    <div style={{overflowX:'auto',border:'1px solid var(--border-color)',borderRadius:'14px',background:'var(--bg-card)'}}>
+                      <table style={{width:'100%',borderCollapse:'collapse',minWidth:'900px',fontSize:'12px'}}>
+                        <thead>
+                          <tr style={{background: darkMode ? '#223b5c' : '#1f3d63', color: 'white'}}>
+                            <th style={{padding:'10px 12px',textAlign:'center',fontWeight:700}}>Horas</th>
+                            {DIAS.map(dia => <th key={dia} style={{padding:'10px 12px',textAlign:'center',fontWeight:700}}>{DIAS_LABEL[dia]}<div style={{fontSize:'10px',opacity:.9,marginTop:'2px'}}>11/7</div></th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Array.from({ length: 14 }, (_, i) => 7 + i).map(hora => (
+                            <tr key={hora}>
+                              <td style={{padding:'10px 12px',borderBottom:'1px solid var(--border-color)',background:'var(--bg-card)',fontWeight:700,color:'var(--text-secondary)',whiteSpace:'nowrap'}}>
+                                {String(hora).padStart(2, '0')}:00 - {String(hora + 1).padStart(2, '0')}:00
+                              </td>
+                              {DIAS.map(dia => {
+                                const key = `${dia}-${hora}`;
+                                const isSelected = previewCelda.dia === dia && previewCelda.hora === hora;
+                                const isOccupied = previewAmbienteSeleccionado ? previewOcupacionAmbiente.has(key) : false;
+                                const isEmpty = previewTotalDisponibles === 0;
+                                const bg = isEmpty
+                                  ? (darkMode ? '#1f2937' : '#f8fafc')
+                                  : isOccupied
+                                    ? (darkMode ? 'rgba(239,68,68,0.18)' : '#fee2e2')
+                                    : (darkMode ? 'rgba(34,197,94,0.14)' : '#dcfce7');
+
+                                return (
+                                  <td
+                                    key={key}
+                                    onClick={() => setPreviewCelda({ dia, hora })}
+                                    style={{
+                                      padding:'8px 8px',
+                                      borderBottom:'1px solid var(--border-color)',
+                                      borderLeft:'1px solid var(--border-color)',
+                                      textAlign:'center',
+                                      cursor:'pointer',
+                                      background: isSelected ? (darkMode ? 'rgba(59,130,246,0.22)' : '#dbeafe') : bg,
+                                      boxShadow: isSelected ? 'inset 0 0 0 2px #3b82f6' : 'none'
+                                    }}
+                                  >
+                                    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'3px'}}>
+                                      {isOccupied ? <Building2 size={14} color="#dc2626" /> : <CheckCircle2 size={14} color="#16a34a" />}
+                                      <div style={{fontSize:'10px',fontWeight:700,color:'var(--text-primary)'}}>{isOccupied ? 'Ocupado' : 'Disponible'}</div>
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <div style={{display:'grid',gridTemplateColumns:'1.15fr 0.85fr',gap:'14px',alignItems:'start'}}>
+                    <div style={{border:'1px solid var(--border-color)',borderRadius:'16px',padding:'14px',background:'var(--bg-card)'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',marginBottom:'10px',flexWrap:'wrap'}}>
+                        <div>
+                          <h3 style={{margin:'0 0 4px',fontSize:'15px',fontWeight:700,color:'var(--text-primary)'}}>Aulas y laboratorios disponibles</h3>
+                          <p style={{margin:0,fontSize:'12px',color:'var(--text-secondary)'}}>
+                            Selección actual: {DIAS_LABEL[previewCelda.dia]} {String(previewCelda.hora).padStart(2, '0')}:00 - {String(previewCelda.hora + 1).padStart(2, '0')}:00
+                          </p>
+                        </div>
+                        <div style={{fontSize:'12px',fontWeight:700,color:'#16a34a',background:'rgba(22,163,74,0.10)',padding:'8px 10px',borderRadius:'999px'}}>
+                          {previewAmbientesFiltrados.length} ambientes disponibles
+                        </div>
+                      </div>
+
+                      {previewAmbientesFiltrados.length === 0 ? (
+                        <div style={{padding:'18px',textAlign:'center',border:'1px dashed var(--border-color)',borderRadius:'12px',color:'var(--text-secondary)'}}>No hay ambientes disponibles para este bloque.</div>
+                      ) : (
+                        <div style={{display:'grid',gap:'8px'}}>
+                          {previewAmbientesFiltrados.map((amb: any) => (
+                            <div key={amb.id} style={{display:'flex',justifyContent:'space-between',gap:'12px',padding:'10px 12px',border:'1px solid var(--border-color)',borderRadius:'12px',background:'var(--card-bg)',alignItems:'center'}}>
+                              <div style={{display:'flex',alignItems:'center',gap:'10px',minWidth:0}}>
+                                <div style={{width:'34px',height:'34px',borderRadius:'10px',background:'rgba(59,130,246,0.10)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                                  <Building2 size={16} color="#2563eb" />
+                                </div>
+                                <div style={{minWidth:0}}>
+                                  <div style={{fontSize:'13px',fontWeight:700,color:'var(--text-primary)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{amb.codigo} - {amb.nombre}</div>
+                                  <div style={{fontSize:'12px',color:'var(--text-secondary)',display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'2px'}}>
+                                    <span>{String(amb.tipo || '').toUpperCase()}</span>
+                                    <span>Cap. {amb.capacidad ?? '—'}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <button className="btn-secondary" style={{padding:'7px 10px',fontSize:'12px'}} onClick={() => setPreviewAmbienteId(amb.id)}>
+                                Seleccionar
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{border:'1px solid var(--border-color)',borderRadius:'16px',padding:'14px',background:'var(--bg-card)'}}>
+                      <h3 style={{margin:'0 0 10px',fontSize:'15px',fontWeight:700,color:'var(--text-primary)'}}>Detalle del bloque</h3>
+                      <div style={{display:'grid',gap:'10px'}}>
+                        <div style={{padding:'12px',borderRadius:'12px',background:'var(--card-bg)',border:'1px solid var(--border-color)'}}>
+                          <div style={{fontSize:'12px',color:'var(--text-secondary)',marginBottom:'4px'}}>Ambiente elegido</div>
+                          <div style={{fontSize:'13px',fontWeight:700,color:'var(--text-primary)'}}>{previewAmbienteSeleccionado ? `${previewAmbienteSeleccionado.codigo} - ${previewAmbienteSeleccionado.nombre}` : 'Ninguno'}</div>
+                        </div>
+                        <div style={{padding:'12px',borderRadius:'12px',background:'var(--card-bg)',border:'1px solid var(--border-color)'}}>
+                          <div style={{fontSize:'12px',color:'var(--text-secondary)',marginBottom:'4px'}}>Hora</div>
+                          <div style={{fontSize:'13px',fontWeight:700,color:'var(--text-primary)'}}>{previewHoraInicio} - {previewHoraFin}</div>
+                        </div>
+                        <div style={{padding:'12px',borderRadius:'12px',background:'var(--card-bg)',border:'1px solid var(--border-color)'}}>
+                          <div style={{fontSize:'12px',color:'var(--text-secondary)',marginBottom:'4px'}}>Ambientes libres</div>
+                          <div style={{fontSize:'13px',fontWeight:700,color:'var(--text-primary)'}}>{previewAmbientesFiltrados.length}</div>
+                        </div>
+                        <div style={{padding:'12px',borderRadius:'12px',background:'rgba(59,130,246,0.08)',border:'1px solid rgba(59,130,246,0.18)',color:'#1d4ed8',fontSize:'12px',lineHeight:1.45}}>
+                          <Clock3 size={14} style={{verticalAlign:'text-bottom',marginRight:'6px'}} />
+                          Usa los filtros para compactar la búsqueda y hacerla más rápida.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{display:'flex',justifyContent:'flex-end',padding:'12px 18px',borderTop:'1px solid var(--border-color)'}}>
+              <button className="btn-secondary" onClick={() => setShowHorarioPreview(false)}>
+                Cerrar
               </button>
             </div>
           </div>
