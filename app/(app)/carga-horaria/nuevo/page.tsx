@@ -8,6 +8,22 @@ import { BookOpen, Building2, CalendarDays, CheckCircle2, ChevronDown, Clipboard
 
 const DIAS_LABEL: Record<string, string> = { lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue', viernes: 'Vie', sabado: 'Sáb' };
 
+const normalizeDia = (dia: string | null | undefined): string => {
+  if (!dia) return '';
+  const map: Record<string, string> = {
+    lunes: 'lunes', lun: 'lunes',
+    martes: 'martes', mar: 'martes',
+    miercoles: 'miercoles', miércoles: 'miercoles', mie: 'miercoles',
+    jueves: 'jueves', jue: 'jueves',
+    viernes: 'viernes', vie: 'viernes',
+    sabado: 'sabado', sábado: 'sabado', sab: 'sabado',
+  };
+  const key = dia.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return map[key] || key;
+};
+
+const slotKeyFrom = (dia: string, hora: number) => `${normalizeDia(dia)}-${hora}`;
+
 const SECCION_RESET_MAP: Record<string, string> = {
   preparacionEvaluacion: 'preparacion',
   consejeriaTutoria: 'consejeria',
@@ -224,7 +240,14 @@ export default function NuevaCargaHorariaPage() {
   // Track hours used per element
   const [horasUsadas, setHorasUsadas] = useState<Record<string, number>>({});
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
-  
+  const [autoGuardandoHorario, setAutoGuardandoHorario] = useState(false);
+  const asignacionesRef = useRef<Record<string, any>>({});
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const guardandoHorarioRef = useRef(false);
+
+  useEffect(() => {
+    asignacionesRef.current = asignaciones;
+  }, [asignaciones]);
   // Modal de horario no lectivo (antiguo)
   const [showModalHorario, setShowModalHorario] = useState(false);
   const [nlSection, setNlSection] = useState('preparacion');
@@ -352,25 +375,36 @@ export default function NuevaCargaHorariaPage() {
     loadData();
   }, []);
 
+  const cargarOcupacionAmbientes = useCallback(async () => {
+    if (!cicloAcademicoSeleccionado) return;
+
+    setPreviewLoading(true);
+    try {
+      const excludeParam = docenteSeleccionado?.id
+        ? `&exclude_docente_id=${docenteSeleccionado.id}`
+        : '';
+      const [horariosRes, ocupacionRes] = await Promise.all([
+        fetch(`/api/horarios?ciclo_id=${cicloAcademicoSeleccionado}`),
+        fetch(`/api/carga-horaria/ocupacion-ambientes?ciclo_academico_id=${cicloAcademicoSeleccionado}${excludeParam}`),
+      ]);
+      const horariosData = await horariosRes.json();
+      const ocupacionData = await ocupacionRes.json();
+      setPreviewHorarios([
+        ...(Array.isArray(horariosData.data) ? horariosData.data : []),
+        ...(Array.isArray(ocupacionData.data) ? ocupacionData.data : []),
+      ]);
+    } catch (error) {
+      console.error('Error cargando disponibilidad del horario:', error);
+      setPreviewHorarios([]);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, [cicloAcademicoSeleccionado, docenteSeleccionado?.id]);
+
   useEffect(() => {
-    if (!showHorarioPreview || !cicloAcademicoSeleccionado) return;
-
-    const cargarPreview = async () => {
-      setPreviewLoading(true);
-      try {
-        const res = await fetch(`/api/horarios?ciclo_id=${cicloAcademicoSeleccionado}`);
-        const data = await res.json();
-        setPreviewHorarios(Array.isArray(data.data) ? data.data : []);
-      } catch (error) {
-        console.error('Error cargando disponibilidad del horario:', error);
-        setPreviewHorarios([]);
-      } finally {
-        setPreviewLoading(false);
-      }
-    };
-
-    cargarPreview();
-  }, [showHorarioPreview, cicloAcademicoSeleccionado]);
+    if ((!showHorarioPreview && !showModalHorarioSeleccion) || !cicloAcademicoSeleccionado) return;
+    void cargarOcupacionAmbientes();
+  }, [showHorarioPreview, showModalHorarioSeleccion, cicloAcademicoSeleccionado, cargarOcupacionAmbientes]);
   
   // Load initial docente if docenteId is provided
   useEffect(() => {
@@ -1652,39 +1686,93 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
   const previewOcupacion = useMemo(() => {
     const map = new Map<string, any[]>();
 
+    const pushOcupacion = (diaRaw: string, hora: number, item: any) => {
+      const dia = normalizeDia(diaRaw);
+      if (!dia || Number.isNaN(hora)) return;
+      const key = slotKeyFrom(dia, hora);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(item);
+    };
+
     for (const asignacion of previewHorarios) {
       const dia = asignacion?.dia;
-      const hora = parseInt(String(asignacion?.hora_inicio || '').split(':')[0]);
+      const hora = parseInt(String(asignacion?.hora_inicio || '').split(':')[0], 10);
       const ambienteId = asignacion?.ambiente_id;
       if (!dia || Number.isNaN(hora) || !ambienteId) continue;
 
-      const key = `${dia}-${hora}`;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(asignacion);
+      pushOcupacion(dia, hora, {
+        ...asignacion,
+        dia: normalizeDia(dia),
+        ambiente_id: ambienteId,
+      });
     }
 
     for (const [key, asignacion] of Object.entries(asignaciones)) {
       if (!asignacion?.ambienteId) continue;
-      const [dia, horaStr] = key.split('-');
-      const hora = parseInt(horaStr);
-      if (!dia || Number.isNaN(hora)) continue;
-      const slotKey = `${dia}-${hora}`;
-      if (!map.has(slotKey)) map.set(slotKey, []);
-      map.get(slotKey)!.push({
-        dia,
+      const [diaRaw, horaStr] = key.split('-');
+      const hora = parseInt(horaStr, 10);
+      if (!diaRaw || Number.isNaN(hora)) continue;
+
+      pushOcupacion(diaRaw, hora, {
+        dia: normalizeDia(diaRaw),
         hora_inicio: `${String(hora).padStart(2, '0')}:00`,
         ambiente_id: asignacion.ambienteId,
         ambiente_codigo: asignacion.ambienteCodigo,
         ambiente_nombre: asignacion.ambienteNombre,
+        docente_nombre: docenteSeleccionado
+          ? `${docenteSeleccionado.apellidos}, ${docenteSeleccionado.nombre}`
+          : 'Asignación actual',
+        curso_codigo: asignacion.codigo,
+        curso_nombre: asignacion.nombre || asignacion.titulo,
         local: true,
       });
     }
 
     return map;
-  }, [previewHorarios, asignaciones]);
+  }, [previewHorarios, asignaciones, docenteSeleccionado]);
+
+  const getOcupacionEnCelda = useCallback((dia: string, hora: number) => {
+    return previewOcupacion.get(slotKeyFrom(dia, hora)) || [];
+  }, [previewOcupacion]);
+
+  const ambienteEstaOcupado = useCallback((
+    dia: string,
+    hora: number,
+    ambienteId: string,
+    ignoreCellKey?: string
+  ) => {
+    const key = slotKeyFrom(dia, hora);
+    return getOcupacionEnCelda(dia, hora).some((item: any) => {
+      if (item.ambiente_id !== ambienteId) return false;
+      if (ignoreCellKey && key === ignoreCellKey && item.local) return false;
+      return true;
+    });
+  }, [getOcupacionEnCelda]);
+
+  const getAmbientesLibresEnCelda = useCallback((
+    dia: string,
+    hora: number,
+    ignoreCellKey?: string,
+    ambienteActualId?: string
+  ) => {
+    const ocupados = new Set(
+      getOcupacionEnCelda(dia, hora)
+        .filter((item: any) => {
+          if (!ignoreCellKey) return true;
+          const cellKey = slotKeyFrom(dia, hora);
+          return !(item.local && cellKey === ignoreCellKey);
+        })
+        .map((item: any) => item.ambiente_id)
+    );
+
+    return ambientesDisponibles.filter((amb: any) => {
+      if (amb.id === ambienteActualId) return true;
+      return !ocupados.has(amb.id);
+    });
+  }, [getOcupacionEnCelda, ambientesDisponibles]);
 
   const previewAmbientesFiltrados = useMemo(() => {
-    const key = `${previewCelda.dia}-${previewCelda.hora}`;
+    const key = slotKeyFrom(previewCelda.dia, previewCelda.hora);
     const ocupados = new Set((previewOcupacion.get(key) || []).map((item: any) => item.ambiente_id));
     const tiposSeleccionados = [previewTipoAulas ? 'aula' : null, previewTipoLabs ? 'laboratorio' : null].filter(Boolean) as string[];
 
@@ -1692,19 +1780,44 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       .filter((amb: any) => tiposSeleccionados.includes(String(amb.tipo || '').toLowerCase()))
       .filter((amb: any) => !ocupados.has(amb.id))
       .sort((a: any, b: any) => String(a.codigo || '').localeCompare(String(b.codigo || '')));
-  }, [previewCelda, previewOcupacion, ambientesDisponibles, previewAmbienteId, previewTipoAulas, previewTipoLabs]);
+  }, [previewCelda, previewOcupacion, ambientesDisponibles, previewTipoAulas, previewTipoLabs]);
+
+  const previewOcupacionSeleccionada = useMemo(() => {
+    if (!previewAmbienteId) return null;
+    const key = slotKeyFrom(previewCelda.dia, previewCelda.hora);
+    return (previewOcupacion.get(key) || []).find((item: any) => item.ambiente_id === previewAmbienteId) || null;
+  }, [previewAmbienteId, previewCelda, previewOcupacion]);
 
   const previewTotalDisponibles = useMemo(() => {
     return ambientesDisponibles.filter((amb: any) => ['aula', 'laboratorio'].includes(String(amb.tipo || '').toLowerCase())).length;
   }, [ambientesDisponibles]);
 
+  const mapSlotConAmbiente = (slot: { dia: string; hora: number; type?: string; ambienteId?: string; ambienteCodigo?: string; ambienteNombre?: string }) => {
+    const base: Record<string, unknown> = { dia: slot.dia, hora: slot.hora };
+    if (slot.type) base.type = slot.type;
+    if (slot.ambienteId) {
+      base.ambienteId = slot.ambienteId;
+      base.ambienteCodigo = slot.ambienteCodigo || '';
+      base.ambienteNombre = slot.ambienteNombre || '';
+    }
+    return base;
+  };
+
   const buildCargaHorariaPayload = (sourceAsignaciones: Record<string, any> = asignaciones) => {
+    const totalTrabajoLectivoPayload = cursosAsignados.reduce((sum, curso) => {
+      return sum + parseFloat(curso.totalHoras || '0');
+    }, 0);
+    const totalHorasPayload = totalTrabajoLectivoPayload + Object.values(secciones).reduce((sum, actividad) => {
+      return sum + parseFloat(actividad.horas || '0');
+    }, 0);
+
     // Group asignaciones by element
     const asignacionesPorElemento: Record<string, { element: any, slots: { dia: string, hora: number, ambienteId?: string, ambienteCodigo?: string, ambienteNombre?: string }[] }> = {};
 
     for (const [key, element] of Object.entries(sourceAsignaciones)) {
-      const [dia, horaStr] = key.split('-');
-      const hora = parseInt(horaStr);
+      const [diaRaw, horaStr] = key.split('-');
+      const hora = parseInt(horaStr, 10);
+      const dia = normalizeDia(diaRaw);
       const elementKey = getElementKey(element);
       if (!asignacionesPorElemento[elementKey]) {
         asignacionesPorElemento[elementKey] = { element, slots: [] };
@@ -1735,17 +1848,15 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       if (elementKey.startsWith('nol-')) {
         const sectionKey = sectionMap[data.element.key];
         if (sectionKey) {
-          const totalHoras = String(data.slots.length);
-          const items = [{
+          const existingSection = secciones[sectionKey];
+          const totalHoras = String(existingSection?.horas || data.slots.length);
+          const items = (existingSection?.items?.length ? existingSection.items : [{
             id: `item-${Date.now()}`,
             descripcion: data.element.titulo || '',
             horas: totalHoras,
-            dia: undefined,
-            hora_inicio: undefined,
-            hora_fin: undefined
-          }];
+          }]).map((item, index) => (index === 0 ? { ...item, horas: totalHoras } : item));
 
-          const _horarioSlots = data.slots.map(slot => ({ dia: slot.dia, hora: slot.hora }));
+          const _horarioSlots = data.slots.map(slot => mapSlotConAmbiente(slot));
 
           newSecciones[sectionKey] = {
             items,
@@ -1772,7 +1883,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       if (allCourseSlots.length > 0) {
         return {
           ...curso,
-          _horarioSlots: allCourseSlots,
+          _horarioSlots: allCourseSlots.map(slot => mapSlotConAmbiente(slot)),
           dia: allCourseSlots[0]?.dia,
           hora_inicio: allCourseSlots[0] ? `${allCourseSlots[0].hora}:00` : undefined,
           hora_fin: allCourseSlots[0] ? `${allCourseSlots[0].hora + 1}:00` : undefined
@@ -1810,7 +1921,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       asesoria: newSecciones.asesoriaTesis,
       rsu: newSecciones.responsabilidadSocial,
       comites: newSecciones.comitesTecnicos,
-      total_horas: totalHoras,
+      total_horas: totalHorasPayload,
       adicional: updatedAdicionalData,
       nextSecciones: newSecciones,
       nextCursos: newCursos,
@@ -1829,7 +1940,24 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
     const payload = buildCargaHorariaPayload(sourceAsignaciones);
     if (!payload.docente_id || !payload.ciclo_academico_id) return null;
 
+    if (guardandoHorarioRef.current) {
+      if (!mostrarFeedback) {
+        asignacionesRef.current = sourceAsignaciones;
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = setTimeout(() => {
+          void guardarCargaHoraria({
+            sourceAsignaciones: asignacionesRef.current,
+            mostrarFeedback: false,
+            redirigir: false,
+          });
+        }, 450);
+      }
+      return null;
+    }
+
+    guardandoHorarioRef.current = true;
     if (mostrarFeedback) setGuardando(true);
+    else setAutoGuardandoHorario(true);
     try {
       const res = await fetch('/api/carga-horaria', {
         method: 'POST',
@@ -1857,9 +1985,9 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        console.error('Error from API:', data);
         if (mostrarFeedback) {
-          console.error('Error from API:', data);
           setAlertType('error');
           setAlertMessage('Error guardando: ' + (data.error || 'Ocurrió un error'));
         }
@@ -1870,9 +1998,11 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       const chId = resData?.data?.[0]?.id || cargaHorariaId;
       if (chId) setCargaHorariaId(chId);
 
+      setSecciones(payload.nextSecciones);
+      setCursosAsignados(payload.nextCursos);
+      void cargarOcupacionAmbientes();
+
       if (mostrarFeedback) {
-        setSecciones(payload.nextSecciones);
-        setCursosAsignados(payload.nextCursos);
         setShowModalHorarioSeleccion(false);
         setAlertType('success');
         setAlertMessage('Horario guardado correctamente');
@@ -1881,9 +2011,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
 
       if (redirigir) {
         await new Promise(r => setTimeout(r, 500));
-        if (goToMainPage) {
-          router.push('/carga-horaria');
-        } else if (docenteSeleccionado?.es_escuela_configurada === false) {
+        if (docenteSeleccionado?.es_escuela_configurada === false) {
           router.push('/carga-horaria');
         } else if (docenteSeleccionado?.id) {
           router.push(`/carga-horaria/horario-no-lectiva?docenteId=${docenteSeleccionado.id}&cicloAcademico=${cicloAcademicoSeleccionado}&cargaHorariaId=${chId}`);
@@ -1899,16 +2027,35 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       }
       return null;
     } finally {
+      guardandoHorarioRef.current = false;
       if (mostrarFeedback) setGuardando(false);
+      else setAutoGuardandoHorario(false);
     }
   };
 
+  const scheduleAutoGuardar = useCallback((sourceAsignaciones: Record<string, any>) => {
+    asignacionesRef.current = sourceAsignaciones;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      void guardarCargaHoraria({
+        sourceAsignaciones: asignacionesRef.current,
+        mostrarFeedback: false,
+        redirigir: false,
+      });
+    }, 450);
+  }, [cicloAcademicoSeleccionado, docenteSeleccionado, secciones, cursosAsignados, modalidad, facultad, dptoAcademico, adicionalData]);
+
   const handleGuardarHorario = () => {
-    void guardarCargaHoraria({ mostrarFeedback: true, redirigir: true });
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    void guardarCargaHoraria({ sourceAsignaciones: asignacionesRef.current, mostrarFeedback: true, redirigir: false });
+  };
+
+  const handleAutoGuardarHorario = (sourceAsignaciones: Record<string, any>) => {
+    scheduleAutoGuardar(sourceAsignaciones);
   };
 
   const handleAutoGuardarAmbiente = (sourceAsignaciones: Record<string, any>) => {
-    void guardarCargaHoraria({ sourceAsignaciones, mostrarFeedback: false, redirigir: false });
+    scheduleAutoGuardar(sourceAsignaciones);
   };
 
   // Calculate total horas: includes Trabajo Lectivo + other sections
@@ -2470,11 +2617,20 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         const elementInfo = sectionElementMap[secKey];
                         if (elementInfo) {
                           // First check for _horarioSlots array (better)
-                          const horarioSlots = (secData as any)._horarioSlots;
+                          let horarioSlots = (secData as any)._horarioSlots;
+                          if (typeof horarioSlots === 'string') {
+                            try { horarioSlots = JSON.parse(horarioSlots); } catch { horarioSlots = null; }
+                          }
                           if (horarioSlots && Array.isArray(horarioSlots)) {
                             for (const slot of horarioSlots) {
-                              const key = `${slot.dia}-${slot.hora}`;
-                              initialAsignaciones[key] = elementInfo;
+                              const key = slotKeyFrom(slot.dia, slot.hora);
+                              const ambienteId = slot.ambiente_id || slot.ambienteId || '';
+                              const ambienteCodigo = slot.ambiente_codigo || slot.ambienteCodigo || '';
+                              const ambienteNombre = slot.ambiente_nombre || slot.ambienteNombre || '';
+                              initialAsignaciones[key] = {
+                                ...elementInfo,
+                                ...(ambienteId ? { ambienteId, ambienteCodigo, ambienteNombre } : {}),
+                              };
                               const elKey = getElementKey(elementInfo);
                               initialHorasUsadas[elKey] = (initialHorasUsadas[elKey] || 0) + 1;
                             }
@@ -2483,8 +2639,8 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           else if (secData.items) {
                             for (const item of secData.items) {
                               if (item.dia && item.hora_inicio) {
-                                const hora = parseInt(item.hora_inicio.split(':')[0]);
-                                const key = `${item.dia}-${hora}`;
+                                const hora = parseInt(item.hora_inicio.split(':')[0], 10);
+                                const key = slotKeyFrom(item.dia, hora);
                                 initialAsignaciones[key] = elementInfo;
                                 const elKey = getElementKey(elementInfo);
                                 initialHorasUsadas[elKey] = (initialHorasUsadas[elKey] || 0) + 1;
@@ -2497,7 +2653,10 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                       // Process each curso
                       for (const curso of cursosAsignados) {
                         // Check if curso has horario_slots array
-                        const horarioSlots = (curso as any).horario_slots || (curso as any)._horarioSlots;
+                        let horarioSlots = (curso as any).horario_slots || (curso as any)._horarioSlots;
+                        if (typeof horarioSlots === 'string') {
+                          try { horarioSlots = JSON.parse(horarioSlots); } catch { horarioSlots = null; }
+                        }
                         if (horarioSlots && Array.isArray(horarioSlots)) {
                           for (const slot of horarioSlots) {
                             // Determine course type color
@@ -2530,7 +2689,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                             const ambienteCodigo = slot.ambiente_codigo || slot.ambienteCodigo || '';
                             const ambienteNombre = slot.ambiente_nombre || slot.ambienteNombre || '';
                             
-                            const key = `${slot.dia}-${slot.hora}`;
+                            const key = slotKeyFrom(slot.dia, slot.hora);
                             initialAsignaciones[key] = {
                               ...cursoElement,
                               ambienteId,
@@ -2544,8 +2703,8 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         // Fallback to single dia/hora_inicio if no horario_slots
                         else if ((curso as any).dia && (curso as any).hora_inicio) {
                           const cursoElement = { ...curso, tipo: 'curso', cursoType: 'teoria', nombre: `${curso.codigo} - ${curso.nombre} - Teoría`, color: '#1d4ed8' };
-                          const hora = parseInt((curso as any).hora_inicio.split(':')[0]);
-                          const key = `${(curso as any).dia}-${hora}`;
+                          const hora = parseInt((curso as any).hora_inicio.split(':')[0], 10);
+                          const key = slotKeyFrom((curso as any).dia, hora);
                           initialAsignaciones[key] = {
                             ...cursoElement,
                             ambienteId: (curso as any).ambiente_id || (curso as any).ambienteId || '',
@@ -4028,11 +4187,18 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
             <div className="modal-header" style={{gap:'12px',alignItems:'center',position:'relative'}}>
               <div style={{display:'flex',flexDirection:'column',gap:'4px',justifyContent:'center',flex:1}}>
                 <h2 style={{fontSize:'18px',fontWeight:700,margin:0}}>Programar Horario</h2>
-                <span style={{fontSize:'12px',color:'var(--text-secondary)'}}>Asigna bloques y define el ambiente por cada espacio</span>
+                <span style={{fontSize:'12px',color:'var(--text-secondary)'}}>
+                  Asigna bloques y define el ambiente por cada espacio
+                  {autoGuardandoHorario && <span style={{marginLeft:'8px',color:'#2563eb',fontWeight:600}}>· Guardando...</span>}
+                </span>
               </div>
               <div style={{position:'absolute',left:'50%',transform:'translateX(-50%)',display:'flex',alignItems:'center'}}>
                 <button
-                  onClick={() => setShowHorarioPreview(true)}
+                  onClick={() => {
+                    setPreviewAmbienteId('');
+                    setPreviewCelda({ dia: 'lunes', hora: 7 });
+                    setShowHorarioPreview(true);
+                  }}
                   style={{
                     display:'inline-flex',
                     alignItems:'center',
@@ -4413,8 +4579,8 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     <thead>
                       <tr style={{ background: darkMode ? '#1e293b' : '#f1f5f9' }}>
                         <th style={{ border: '1px solid var(--border-color)', padding: '8px', width: '80px' }}>Hora</th>
-                        {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'].map(dia => (
-                          <th key={dia} style={{ border: '1px solid var(--border-color)', padding: '8px', minWidth: '120px' }}>{dia}</th>
+                        {DIAS.map(dia => (
+                          <th key={dia} style={{ border: '1px solid var(--border-color)', padding: '8px', minWidth: '120px' }}>{DIAS_LABEL[dia]}</th>
                         ))}
                       </tr>
                     </thead>
@@ -4424,9 +4590,10 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           <td style={{ border: '1px solid var(--border-color)', padding: '8px', fontWeight: '500', background: darkMode ? '#1e293b' : '#f1f5f9' }}>
                             {`${hora}:00 - ${hora + 1}:00`}
                           </td>
-                          {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'].map(dia => {
-                            const key = `${dia}-${hora}`;
+                          {DIAS.map(dia => {
+                            const key = slotKeyFrom(dia, hora);
                             const asignacion = asignaciones[key];
+                            const ambientesLibres = getAmbientesLibresEnCelda(dia, hora, key, asignacion?.ambienteId);
                             
                             // Check if we should gray out this cell
                             const shouldGrayOut = elementoFiltro && asignacion && getElementKey(asignacion) !== getElementKey(elementoFiltro);
@@ -4464,17 +4631,15 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                       // Check if the existing assignment is our selected element
                                       const existingKey = getElementKey(asignacion);
                                       if (existingKey === selectedKey) {
-                                        // We can unassign this slot
-                                        setAsignaciones(prev => {
-                                          const newAsignaciones = { ...prev };
-                                          delete newAsignaciones[key];
-                                          return newAsignaciones;
-                                        });
+                                        const newAsignaciones = { ...asignaciones };
+                                        delete newAsignaciones[key];
+                                        setAsignaciones(newAsignaciones);
                                         setHorasUsadas(prev => ({
                                           ...prev,
                                           [selectedKey]: Math.max(0, (prev[selectedKey] || 0) - 1)
                                         }));
                                         setWarningMessage(null);
+                                        handleAutoGuardarHorario(newAsignaciones);
                                       } else {
                                         // Slot is occupied by another element!
                                         setWarningMessage(`Este horario ya está ocupado por "${asignacion.nombre || asignacion.titulo}"`);
@@ -4484,16 +4649,17 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                       if (usedHours >= totalHours) {
                                         setWarningMessage(`Ya has asignado todas las horas para "${elementoSeleccionado.nombre || elementoSeleccionado.titulo}"`);
                                       } else {
-                                        // Assign it!
-                                        setAsignaciones(prev => ({
-                                          ...prev,
+                                        const newAsignaciones = {
+                                          ...asignaciones,
                                           [key]: elementoSeleccionado
-                                        }));
+                                        };
+                                        setAsignaciones(newAsignaciones);
                                         setHorasUsadas(prev => ({
                                           ...prev,
                                           [selectedKey]: (prev[selectedKey] || 0) + 1
                                         }));
                                         setWarningMessage(null);
+                                        handleAutoGuardarHorario(newAsignaciones);
                                       }
                                     }
                                   }
@@ -4565,6 +4731,14 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                           onChange={(e) => {
                                             e.stopPropagation();
                                             const ambienteId = e.target.value;
+                                            if (ambienteId && ambienteEstaOcupado(dia, hora, ambienteId, key)) {
+                                              const conflicto = getOcupacionEnCelda(dia, hora).find((item: any) => item.ambiente_id === ambienteId);
+                                              const detalle = conflicto?.curso_codigo
+                                                ? `${conflicto.curso_codigo} (${conflicto.docente_nombre || 'otro docente'})`
+                                                : (conflicto?.docente_nombre || 'otra actividad');
+                                              setWarningMessage(`El ambiente ya está ocupado en ${DIAS_LABEL[dia]} ${hora}:00 por ${detalle}`);
+                                              return;
+                                            }
                                             const ambiente = ambientesDisponibles.find((item: any) => item.id === ambienteId);
                                             const nextAsignaciones = {
                                               ...asignaciones,
@@ -4576,6 +4750,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                               }
                                             };
                                             setAsignaciones(nextAsignaciones);
+                                            setWarningMessage(null);
                                             handleAutoGuardarAmbiente(nextAsignaciones);
                                           }}
                                           style={{
@@ -4591,7 +4766,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                           }}
                                         >
                                           <option value="">Seleccione ambiente</option>
-                                          {ambientesDisponibles.map((amb: any) => (
+                                          {ambientesLibres.map((amb: any) => (
                                             <option key={amb.id} value={amb.id}>
                                               {amb.codigo} - {amb.nombre}
                                             </option>
@@ -4658,7 +4833,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         className="form-input"
                         style={{width:'100%'}}
                       >
-                        <option value="">Seleccione ambiente</option>
+                        <option value="">Seleccionar ambiente</option>
                         {ambientesDisponibles.map((amb: any) => (
                           <option key={amb.id} value={amb.id}>{amb.codigo} - {amb.nombre}</option>
                         ))}
@@ -4724,7 +4899,11 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         <CalendarDays size={16} />
                         Horario de Disponibilidad (Horas vs Días)
                       </h3>
-                      <p style={{margin:0,fontSize:'12px',color:'var(--text-secondary)'}}>Haz clic en una celda para actualizar la selección inferior.</p>
+                      <p style={{margin:0,fontSize:'12px',color:'var(--text-secondary)'}}>
+                        {previewAmbienteId
+                          ? 'Revisa si el ambiente seleccionado está libre u ocupado en cada bloque.'
+                          : 'Selecciona un ambiente en el filtro o haz clic en un bloque para ver aulas disponibles.'}
+                      </p>
                     </div>
                   </div>
 
@@ -4746,33 +4925,66 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                 {String(hora).padStart(2, '0')}:00 - {String(hora + 1).padStart(2, '0')}:00
                               </td>
                               {DIAS.map(dia => {
-                                const key = `${dia}-${hora}`;
+                                const key = slotKeyFrom(dia, hora);
+                                const ocupacionesCelda = previewOcupacion.get(key) || [];
                                 const isSelected = previewCelda.dia === dia && previewCelda.hora === hora;
-                                const isOccupied = (previewOcupacion.get(key) || []).length > 0;
-                                const isEmpty = previewTotalDisponibles === 0;
-                                const bg = isEmpty
-                                  ? (darkMode ? '#1f2937' : '#f8fafc')
-                                  : isOccupied
+                                const isOccupied = previewAmbienteId
+                                  ? ocupacionesCelda.some((item: any) => item.ambiente_id === previewAmbienteId)
+                                  : false;
+                                const ocupacionDetalle = previewAmbienteId
+                                  ? ocupacionesCelda.find((item: any) => item.ambiente_id === previewAmbienteId)
+                                  : null;
+
+                                let bg = darkMode ? '#1f2937' : '#f8fafc';
+                                if (previewAmbienteId) {
+                                  bg = isOccupied
                                     ? (darkMode ? 'rgba(239,68,68,0.18)' : '#fee2e2')
                                     : (darkMode ? 'rgba(34,197,94,0.14)' : '#dcfce7');
+                                } else if (isSelected) {
+                                  bg = darkMode ? 'rgba(59,130,246,0.22)' : '#dbeafe';
+                                }
 
                                 return (
                                   <td
                                     key={key}
                                     onClick={() => setPreviewCelda({ dia, hora })}
+                                    title={previewAmbienteId && isOccupied && ocupacionDetalle
+                                      ? `Ocupado por ${ocupacionDetalle.docente_nombre || '—'}${ocupacionDetalle.curso_codigo ? ` · ${ocupacionDetalle.curso_codigo}` : ''}`
+                                      : undefined}
                                     style={{
                                       padding:'8px 8px',
                                       borderBottom:'1px solid var(--border-color)',
                                       borderLeft:'1px solid var(--border-color)',
                                       textAlign:'center',
                                       cursor:'pointer',
-                                      background: isOccupied ? bg : isSelected ? (darkMode ? 'rgba(59,130,246,0.22)' : '#dbeafe') : bg,
+                                      background: isSelected && previewAmbienteId ? bg : isSelected ? bg : bg,
                                       boxShadow: isSelected ? 'inset 0 0 0 2px #3b82f6' : 'none'
                                     }}
                                   >
                                     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'3px'}}>
-                                      {isOccupied ? <Building2 size={14} color="#dc2626" /> : <CheckCircle2 size={14} color="#16a34a" />}
-                                      <div style={{fontSize:'10px',fontWeight:700,color:'var(--text-primary)'}}>{isOccupied ? 'Ocupado' : 'Disponible'}</div>
+                                      {!previewAmbienteId ? (
+                                        <>
+                                          <Building2 size={14} color="var(--text-muted)" />
+                                          <div style={{fontSize:'10px',fontWeight:600,color:'var(--text-secondary)',lineHeight:1.2}}>
+                                            {isSelected ? 'Bloque seleccionado' : 'Seleccione un ambiente'}
+                                          </div>
+                                        </>
+                                      ) : isOccupied ? (
+                                        <>
+                                          <Building2 size={14} color="#dc2626" />
+                                          <div style={{fontSize:'10px',fontWeight:700,color:'#dc2626'}}>Ocupado</div>
+                                          {ocupacionDetalle?.ambiente_codigo && (
+                                            <div style={{fontSize:'9px',color:'var(--text-secondary)',maxWidth:'90px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                                              {ocupacionDetalle.ambiente_codigo}
+                                            </div>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <>
+                                          <CheckCircle2 size={14} color="#16a34a" />
+                                          <div style={{fontSize:'10px',fontWeight:700,color:'#16a34a'}}>Disponible</div>
+                                        </>
+                                      )}
                                     </div>
                                   </td>
                                 );
@@ -4790,34 +5002,37 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         <div>
                           <h3 style={{margin:'0 0 4px',fontSize:'15px',fontWeight:700,color:'var(--text-primary)'}}>Aulas y laboratorios disponibles</h3>
                           <p style={{margin:0,fontSize:'12px',color:'var(--text-secondary)'}}>
-                            Selección actual: {DIAS_LABEL[previewCelda.dia]} {String(previewCelda.hora).padStart(2, '0')}:00 - {String(previewCelda.hora + 1).padStart(2, '0')}:00
+                            Bloque seleccionado: {DIAS_LABEL[previewCelda.dia]} {String(previewCelda.hora).padStart(2, '0')}:00 - {String(previewCelda.hora + 1).padStart(2, '0')}:00
                           </p>
                         </div>
                         <div style={{fontSize:'12px',fontWeight:700,color:'#16a34a',background:'rgba(22,163,74,0.10)',padding:'8px 10px',borderRadius:'999px'}}>
-                          {previewAmbientesFiltrados.length} ambientes disponibles
+                          {previewAmbientesFiltrados.length} disponibles
                         </div>
                       </div>
 
                       {previewAmbientesFiltrados.length === 0 ? (
-                        <div style={{padding:'18px',textAlign:'center',border:'1px dashed var(--border-color)',borderRadius:'12px',color:'var(--text-secondary)'}}>No hay ambientes disponibles para este bloque.</div>
+                        <div style={{padding:'18px',textAlign:'center',border:'1px dashed var(--border-color)',borderRadius:'12px',color:'var(--text-secondary)'}}>
+                          No hay ambientes disponibles para este bloque con los filtros actuales.
+                        </div>
                       ) : (
                         <div style={{display:'grid',gap:'8px'}}>
                           {previewAmbientesFiltrados.map((amb: any) => (
-                            <div key={amb.id} style={{display:'flex',justifyContent:'space-between',gap:'12px',padding:'10px 12px',border:'1px solid var(--border-color)',borderRadius:'12px',background:'var(--card-bg)',alignItems:'center'}}>
+                            <div key={amb.id} style={{display:'flex',justifyContent:'space-between',gap:'12px',padding:'10px 12px',border:'1px solid #a7f3d0',borderRadius:'12px',background: darkMode ? 'rgba(34,197,94,0.08)' : '#f0fdf4',alignItems:'center'}}>
                               <div style={{display:'flex',alignItems:'center',gap:'10px',minWidth:0}}>
-                                <div style={{width:'34px',height:'34px',borderRadius:'10px',background:'rgba(59,130,246,0.10)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                                  <Building2 size={16} color="#2563eb" />
+                                <div style={{width:'34px',height:'34px',borderRadius:'10px',background:'rgba(22,163,74,0.12)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                                  <CheckCircle2 size={16} color="#16a34a" />
                                 </div>
                                 <div style={{minWidth:0}}>
                                   <div style={{fontSize:'13px',fontWeight:700,color:'var(--text-primary)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{amb.codigo} - {amb.nombre}</div>
                                   <div style={{fontSize:'12px',color:'var(--text-secondary)',display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'2px'}}>
                                     <span>{String(amb.tipo || '').toUpperCase()}</span>
                                     <span>Cap. {amb.capacidad ?? '—'}</span>
+                                    <span style={{color:'#16a34a',fontWeight:600}}>Disponible</span>
                                   </div>
                                 </div>
                               </div>
                               <button className="btn-secondary" style={{padding:'7px 10px',fontSize:'12px'}} onClick={() => setPreviewAmbienteId(amb.id)}>
-                                Seleccionar
+                                Ver en grilla
                               </button>
                             </div>
                           ))}
@@ -4830,15 +5045,29 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                       <div style={{display:'grid',gap:'10px'}}>
                         <div style={{padding:'12px',borderRadius:'12px',background:'var(--card-bg)',border:'1px solid var(--border-color)'}}>
                           <div style={{fontSize:'12px',color:'var(--text-secondary)',marginBottom:'4px'}}>Ambiente elegido</div>
-                          <div style={{fontSize:'13px',fontWeight:700,color:'var(--text-primary)'}}>{previewAmbienteSeleccionado ? `${previewAmbienteSeleccionado.codigo} - ${previewAmbienteSeleccionado.nombre}` : 'Seleccione ambiente'}</div>
+                          <div style={{fontSize:'13px',fontWeight:700,color:'var(--text-primary)'}}>{previewAmbienteSeleccionado ? `${previewAmbienteSeleccionado.codigo} - ${previewAmbienteSeleccionado.nombre}` : 'Seleccionar ambiente'}</div>
                         </div>
                         <div style={{padding:'12px',borderRadius:'12px',background:'var(--card-bg)',border:'1px solid var(--border-color)'}}>
                           <div style={{fontSize:'12px',color:'var(--text-secondary)',marginBottom:'4px'}}>Hora</div>
                           <div style={{fontSize:'13px',fontWeight:700,color:'var(--text-primary)'}}>{previewHoraInicio} - {previewHoraFin}</div>
                         </div>
                         <div style={{padding:'12px',borderRadius:'12px',background:'var(--card-bg)',border:'1px solid var(--border-color)'}}>
-                          <div style={{fontSize:'12px',color:'var(--text-secondary)',marginBottom:'4px'}}>Ambientes libres</div>
-                          <div style={{fontSize:'13px',fontWeight:700,color:'var(--text-primary)'}}>{previewAmbientesFiltrados.length}</div>
+                          <div style={{fontSize:'12px',color:'var(--text-secondary)',marginBottom:'4px'}}>Estado del bloque</div>
+                          <div style={{fontSize:'13px',fontWeight:700,color: previewOcupacionSeleccionada ? '#dc2626' : '#16a34a'}}>
+                            {previewAmbienteId
+                              ? (previewOcupacionSeleccionada ? 'Ocupado' : 'Disponible')
+                              : 'Seleccione ambiente'}
+                          </div>
+                          {previewOcupacionSeleccionada && (
+                            <div style={{fontSize:'12px',color:'var(--text-secondary)',marginTop:'6px',lineHeight:1.45}}>
+                              {previewOcupacionSeleccionada.docente_nombre && (
+                                <div>Docente: {previewOcupacionSeleccionada.docente_nombre}</div>
+                              )}
+                              {(previewOcupacionSeleccionada.curso_codigo || previewOcupacionSeleccionada.curso_nombre) && (
+                                <div>Curso: {previewOcupacionSeleccionada.curso_codigo || previewOcupacionSeleccionada.curso_nombre}</div>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <div style={{padding:'12px',borderRadius:'12px',background:'rgba(59,130,246,0.08)',border:'1px solid rgba(59,130,246,0.18)',color:'#1d4ed8',fontSize:'12px',lineHeight:1.45}}>
                           <Clock3 size={14} style={{verticalAlign:'text-bottom',marginRight:'6px'}} />
