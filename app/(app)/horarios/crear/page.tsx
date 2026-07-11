@@ -371,8 +371,11 @@ export default function CrearHorarioPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ programacion_id: progId, rows: data })
       });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text.startsWith('<') ? 'El servidor respondió con un error. Intente de nuevo.' : (JSON.parse(text).error || 'Error desconocido'));
+      }
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error);
 
       setMsg({ type: 'success', text: json.message });
       // Recargar datos
