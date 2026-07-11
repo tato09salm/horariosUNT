@@ -497,8 +497,11 @@ export default function HorariosPage() {
           ciclo_plans: cicloPlans,
         }),
       });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text.startsWith('<') ? 'El servidor respondió con un error. Intente de nuevo.' : (JSON.parse(text).error || 'Error desconocido'));
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       setImportResult({ type: 'success', text: data.message });
       setMsg({ type: 'success', text: data.message });
       setShowImportModal(false);
@@ -525,8 +528,11 @@ export default function HorariosPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ programacion_id: progId, ciclo_academico_id: cicloId }),
       });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text.startsWith('<') ? 'El servidor respondió con un error. Intente de nuevo.' : (JSON.parse(text).error || 'Error desconocido'));
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       setMsg({ type: 'success', text: `✅ ${prog.nombre}: ${data.message}` });
       cargarProgramaciones();
     } catch (e: any) {
