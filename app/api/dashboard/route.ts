@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     globalCur,
     globalAmb,
     horasPorCategoria,
+    aulasPorTipo,
     ocupacionAmbientes,
     cargaDocentes,
     distribucionDias,
@@ -50,6 +51,15 @@ export async function GET(req: NextRequest) {
       WHERE d.activo = true
       GROUP BY d.categoria, d.condicion
       ORDER BY docentes DESC
+    `),
+
+    // Ambientes agrupados por tipo
+    query(`
+      SELECT a.tipo, COUNT(*)::int as ambientes
+      FROM ambientes a
+      WHERE a.disponible = true
+      GROUP BY a.tipo
+      ORDER BY a.tipo
     `),
 
     // Ocupación de ambientes (% de slots usados)
@@ -107,7 +117,8 @@ export async function GET(req: NextRequest) {
       globalCursos: parseInt((globalCur as any)?.count || '0'),
       globalAmbientes: parseInt((globalAmb as any)?.count || '0'),
     },
-    horasPorCategoria,
+    docentesPorCategoria: horasPorCategoria,
+    aulasPorTipo,
     ocupacionAmbientes,
     cargaDocentes,
     distribucionDias,
