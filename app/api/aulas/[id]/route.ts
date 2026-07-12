@@ -27,11 +27,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const codigoUpper = body.codigo?.toUpperCase() || '';
     const nombreUpper = body.nombre?.toUpperCase() || '';
     const edificioUpper = body.edificio?.toUpperCase() || '';
-
+    const tipoLower = body.tipo?.toLowerCase() || 'aula';
     const ambiente = await queryOne(
       `UPDATE ambientes SET codigo=$1, nombre=$2, tipo=$3, capacidad=$4, piso=$5, edificio=$6, disponible=$7
        WHERE id=$8 RETURNING *`,
-      [codigoUpper, nombreUpper, body.tipo, body.capacidad, body.piso, edificioUpper, body.disponible, id]
+      [codigoUpper, nombreUpper, tipoLower, body.capacidad, body.piso, edificioUpper, body.disponible, id]
     );
 
     await registrarAuditoria({

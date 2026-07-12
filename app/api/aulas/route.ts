@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     params.push(`%${buscar}%`);
     idx++;
   }
-  if (tipo) { sql += ` AND tipo = $${idx++}`; params.push(tipo); }
+  if (tipo) { sql += ` AND LOWER(tipo) = LOWER($${idx++})`; params.push(tipo); }
   if (piso) { sql += ` AND piso = $${idx++}`; params.push(parseInt(piso)); }
   if (disponible !== null && disponible !== undefined && disponible !== '') {
     sql += ` AND disponible = $${idx++}`; params.push(disponible === 'true');
