@@ -90,6 +90,7 @@ interface ItemActividad {
 interface Actividad {
   items: ItemActividad[];
   horas: string;
+  _horarioSlots?: any[];
 }
 
 interface Secciones {
@@ -1126,7 +1127,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
     if (selectedCurricula) {
       // Get the curricula object
       const curricula = curriculas.find(c => c.id === selectedCurricula);
-      let curriculaCourseIds = [];
+      let curriculaCourseIds: any[] = [];
       
       if (curricula) {
         // First try the direct many-to-many relation
@@ -1543,7 +1544,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
           if (i < hours.length) { start = hours[i]; prev = hours[i]; }
         }
       });
-      const totalHoras = String(items.reduce((s, it) => s + parseInt(it.horas), 0));
+      const totalHoras = String(items.reduce((s, it) => s + parseInt(it.horas || '0'), 0));
       setSecciones(prev => ({ ...prev, [secKey]: { items, horas: totalHoras } }));
       setShowModalHorario(false);
       setNlMsg(null);
@@ -1567,7 +1568,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       );
       // Calcular total solo con valores numéricos válidos
       const newTotalHoras = updatedItems.reduce((sum, item) => {
-        const horasNum = parseInt(item.horas);
+        const horasNum = parseInt(item.horas || '0');
         return sum + (isNaN(horasNum) ? 0 : horasNum);
       }, 0);
       return {
@@ -1602,7 +1603,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
         item.id === itemId ? { ...item, horas: processedValue } : item
       );
       const newTotalHoras = updatedItems.reduce((sum, item) => {
-        const horasNum = parseInt(item.horas);
+        const horasNum = parseInt(item.horas || '0');
         return sum + (isNaN(horasNum) ? 0 : horasNum);
       }, 0);
       return {
@@ -1660,7 +1661,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       };
       const seccionKey = keyMap[element.key];
       if (!seccionKey) return 0;
-      return secciones[seccionKey].items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0);
+      return secciones[seccionKey].items.reduce((sum, i) => sum + (parseInt(i.horas || '0') || 0), 0);
     }
   };
 
@@ -4446,55 +4447,55 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         key: 'preparacion',
                         titulo: '2. Preparación y Evaluación',
                         color: '#3b82f6',
-                        horas: secciones.preparacionEvaluacion.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                        horas: secciones.preparacionEvaluacion.items.reduce((sum, i) => sum + (parseInt(i.horas || '0') || 0), 0)
                       },
                       {
                         key: 'consejeria',
                         titulo: '3. Consejería y Tutoría',
                         color: '#10b981',
-                        horas: secciones.consejeriaTutoria.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                        horas: secciones.consejeriaTutoria.items.reduce((sum, i) => sum + (parseInt(i.horas || '0') || 0), 0)
                       },
                       {
                         key: 'investigacion',
                         titulo: '4. Investigación',
                         color: '#8b5cf6',
-                        horas: secciones.investigacion.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                        horas: secciones.investigacion.items.reduce((sum, i) => sum + (parseInt(i.horas || '0') || 0), 0)
                       },
                       {
                         key: 'capacitacion',
                         titulo: '5. Capacitación',
                         color: '#f59e0b',
-                        horas: secciones.capacitacion.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                        horas: secciones.capacitacion.items.reduce((sum, i) => sum + (parseInt(i.horas || '0') || 0), 0)
                       },
                       {
                         key: 'gobierno',
                         titulo: '6. Gobierno',
                         color: '#ef4444',
-                        horas: secciones.gobierno.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                        horas: secciones.gobierno.items.reduce((sum, i) => sum + (parseInt(i.horas || '0') || 0), 0)
                       },
                       {
                         key: 'administracion',
                         titulo: '7. Administración',
                         color: '#6366f1',
-                        horas: secciones.administracion.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                        horas: secciones.administracion.items.reduce((sum, i) => sum + (parseInt(i.horas || '0') || 0), 0)
                       },
                       {
                         key: 'asesoria',
                         titulo: '8. Asesoría de Tesis',
                         color: '#ec4899',
-                        horas: secciones.asesoriaTesis.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                        horas: secciones.asesoriaTesis.items.reduce((sum, i) => sum + (parseInt(i.horas || '0') || 0), 0)
                       },
                       {
                         key: 'responsabilidad',
                         titulo: '9. Responsabilidad Social',
                         color: '#14b8a6',
-                        horas: secciones.responsabilidadSocial.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                        horas: secciones.responsabilidadSocial.items.reduce((sum, i) => sum + (parseInt(i.horas || '0') || 0), 0)
                       },
                       {
                         key: 'comites',
                         titulo: '10. Comités Técnicos',
                         color: '#84cc16',
-                        horas: secciones.comitesTecnicos.items.reduce((sum, i) => sum + (parseInt(i.horas) || 0), 0)
+                        horas: secciones.comitesTecnicos.items.reduce((sum, i) => sum + (parseInt(i.horas || '0') || 0), 0)
                       }
                     ]
                     .filter(act => act.horas > 0)
