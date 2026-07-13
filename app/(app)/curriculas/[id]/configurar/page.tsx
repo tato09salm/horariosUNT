@@ -84,10 +84,6 @@ export default function ConfigurarCurriculaPage() {
       const dataEscuelas = await resEscuelas.json();
 
       if (!resCurricula.ok) throw new Error(dataCurricula.error);
-      if (dataCurricula.data.estado !== 'BORRADOR') {
-        router.push('/curriculas');
-        return;
-      }
 
       setCurricula(dataCurricula.data);
       const fetchedCursos = dataCursos.data || [];
@@ -313,11 +309,13 @@ export default function ConfigurarCurriculaPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <button className="btn-primary" onClick={handlePublicar} disabled={saving}>
-            Guardar y publicar
-          </button>
+          {curricula.estado === 'BORRADOR' && (
+            <button className="btn-primary" onClick={handlePublicar} disabled={saving}>
+              Guardar y publicar
+            </button>
+          )}
           <button className="btn-secondary" onClick={() => router.push('/curriculas')}>
-            Guardar como borrador
+            Volver
           </button>
         </div>
       </div>

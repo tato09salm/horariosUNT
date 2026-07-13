@@ -104,25 +104,6 @@ export default function LeyendaHorarios({
             </li>
           </ul>
         </section>
-
-        <section>
-          <p className="leyenda-horarios__seccion" style={{ fontWeight: '600', color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 8px' }}>Código de Asesorías</p>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
-            <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span 
-                style={{
-                  background: '#E5E7EB',
-                  borderLeft: '4px solid #6B7280',
-                  width: '24px',
-                  height: '16px',
-                  display: 'inline-block',
-                  borderRadius: '2px'
-                }}
-              />
-              <span>Bloque de Asesoría (Neutro)</span>
-            </li>
-          </ul>
-        </section>
       </div>
 
       {Object.keys(cursosPorCiclo).length > 0 && (

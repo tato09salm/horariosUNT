@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "npx tsx tests/fixes.test.ts",
     "lint": "eslint",
     "db:reset": "powershell -ExecutionPolicy Bypass -File reset-db-base.ps1",
     "db:reset:carga": "powershell -ExecutionPolicy Bypass -File reset-db-full.ps1"
@@ -58,6 +59,7 @@
     "eslint-config-next": "16.2.6",
     "sequelize-cli": "^6.6.5",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }

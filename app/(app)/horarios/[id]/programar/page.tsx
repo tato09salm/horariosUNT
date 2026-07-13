@@ -370,12 +370,26 @@ export default function ProgramarPage() {
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.error);
 
-      const st = resData.data?.csp_stats;
+      const st = resData.data?.csp_stats || {};
+      const statsV2 = resData.data?.stats_v2 || {};
+      const asignadas = st.asignados || statsV2.asignadas || 0;
+      const totalHoras = st.total_bloques || statsV2.total_horas || 0;
+      const pendientes = resData.resumen?.pendientes ?? statsV2.pendientes ?? (totalHoras - asignadas);
+      const pct = totalHoras > 0 ? Math.round(asignadas / totalHoras * 100) : 0;
+      const bloquesContinuos = st.bloques_continuos || 0;
+      const porDocente = resData.data?.por_docente || [];
+      const cursosCompletos = porDocente.reduce((s: number, d: any) => s + (d.cursos_completos || 0), 0);
+      const cursosParciales = porDocente.reduce((s: number, d: any) => s + (d.cursos_parciales || 0), 0);
+      const cursosSinAsignar = porDocente.reduce((s: number, d: any) => s + (d.cursos_sin_asignar || 0), 0);
       const labsPar = st?.franjas_labs_paralelos != null ? ` · Labs en paralelo: ${st.franjas_labs_paralelos} franjas` : '';
       const reintento = st?.log?.some((l: string) => l.includes('Reintento flexible')) ? ' (incluye reintento flexible)' : '';
+      const mensaje = pendientes === 0
+        ? `Asignación completa: ${asignadas}/${totalHoras} horas asignadas.${labsPar}`
+        : `Asignación parcial: ${asignadas}/${totalHoras} horas asignadas (${pct}%). Faltan ${pendientes} horas.${labsPar}`;
       setMsg({
-        type: 'success',
-        text: `Asignación completada${reintento}. ${resData.data?.asignaciones?.length || 0} bloques.${labsPar}`,
+        type: pendientes === 0 ? 'success' : 'warning',
+        text: mensaje,
+        detail: `Bloques continuos: ${bloquesContinuos} · Cursos completos: ${cursosCompletos} · Parciales: ${cursosParciales} · Sin asignar: ${cursosSinAsignar}${reintento}`,
       });
       if (resData.data?.csp_stats) setCspStats(resData.data.csp_stats);
       cargarDatos();
@@ -471,7 +485,10 @@ export default function ProgramarPage() {
 
       {msg && (
         <div className={`alert alert-${msg.type}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>{msg.text}</span>
+          <div>
+            <div>{msg.text}</div>
+            {msg.detail && <div style={{ fontSize: '0.85em', opacity: 0.85, marginTop: 4 }}>{msg.detail}</div>}
+          </div>
           <button
             onClick={() => setMsg(null)}
             style={{

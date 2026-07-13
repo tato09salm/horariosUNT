@@ -1473,7 +1473,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
           const cicloPlan = cAny.ciclo_plan || ch.ciclo_plan || 1;
           const cicloCurso = `${cicloPlan}-C`;
           const escuelaCurso = cAny.escuela || (primeraCarga as any)?.docente_dpto_academico || 'Ingeniería de Sistemas';
-          const seccionCurso = cAny.seccion || '';
+          const seccionCurso = ['EI-901', 'EI-X01'].includes(cAny.curso_codigo) ? (cAny.seccion || '') : '';
           const cursoDisplay = `${cAny.curso_nombre || ''} / ${cicloCurso} ${escuelaCurso}${seccionCurso ? ' ' + seccionCurso : ''}`;
           chlRows.push([
             { content: horarioStr, styles: { ...cellStyle, halign: 'center' as const, fontSize: 6 } },
@@ -2105,7 +2105,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                                         <td style={{ verticalAlign: 'middle' }}>
                                           {getRomanNumeral(ciclo)}
                                         </td>
-                                        <td>{curso.curso_nombre || curso.nombre} ({curso.seccion})</td>
+                                        <td>{curso.curso_nombre || curso.nombre}{['EI-901', 'EI-X01'].includes(curso.curso_codigo) ? ` (${curso.seccion})` : ''}</td>
                                         <td style={{ verticalAlign: 'middle' }}>
                                           {ch.docente_apellidos}, {ch.docente_nombre}
                                         </td>

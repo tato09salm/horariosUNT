@@ -41,18 +41,42 @@ function hashSeed(s: string): number {
   return Math.abs(h);
 }
 
+export function cloneOccupancy(occ: Occupancy): Occupancy {
+  const labClone = new Map<string, LabFranjaUso[]>();
+  for (const [k, v] of occ.labEnFranja) {
+    labClone.set(k, v.map(u => ({ ...u })));
+  }
+  return {
+    docenteOcupado: new Set(occ.docenteOcupado),
+    ambienteOcupado: new Set(occ.ambienteOcupado),
+    grupoOcupado: new Set(occ.grupoOcupado),
+    labEnFranja: labClone,
+    franjaModo: new Map(occ.franjaModo),
+    labParalelosFranjas: occ.labParalelosFranjas,
+    aulaPreferidaTeoria: new Map(occ.aulaPreferidaTeoria),
+    docenteCursoClase: new Set(occ.docenteCursoClase),
+    cicloOcupado: new Set(occ.cicloOcupado),
+  };
+}
+
 /** Evita que todo el CSP caiga en lunes 07:00 (primer día + primer slot) */
-function diasRotados(meta: Record<string, any>, days?: string[]): string[] {
+function diasRotados(meta: Record<string, any>, days?: string[], rotacion?: number): string[] {
   const dias = days || DIAS;
-  const key = `${meta.docente_id || ''}-${meta.codigo || ''}-${meta.numero_grupo || '0'}-${meta.tipo_sesion || ''}`;
+  const key = `${meta.docente_id || ''}-${meta.codigo || ''}-${meta.numero_grupo || '0'}-${meta.tipo_sesion || ''}${rotacion !== undefined ? `-r${rotacion}` : ''}`;
   const offset = hashSeed(key) % dias.length;
   return [...dias.slice(offset), ...dias.slice(0, offset)];
 }
 
-function slotsRotados(meta: Record<string, any>, util: SlotRow[]): SlotRow[] {
-  const key = `${meta.docente_id || ''}-${meta.codigo || ''}`;
+function slotsRotados(meta: Record<string, any>, util: SlotRow[], rotacion?: number): SlotRow[] {
+  const key = `${meta.docente_id || ''}-${meta.codigo || ''}${rotacion !== undefined ? `-r${rotacion}` : ''}`;
   const offset = util.length > 1 ? hashSeed(key) % util.length : 0;
   return [...util.slice(offset), ...util.slice(0, offset)];
+}
+
+function ambientesRotados(ambientes: any[], meta: Record<string, any>, rotacion?: number): any[] {
+  const key = `${meta.docente_id || ''}-${meta.codigo || ''}${rotacion !== undefined ? `-r${rotacion}` : ''}`;
+  const offset = ambientes.length > 1 ? hashSeed(key) % ambientes.length : 0;
+  return [...ambientes.slice(offset), ...ambientes.slice(0, offset)];
 }
 
 export function esSlotComida(slot: SlotRow): boolean {
@@ -87,7 +111,7 @@ export function construirGruposBloques(cursos: any[]): BlockGroup[] {
     const practicaUnits = mkUnits('practica', c.horas_practica || 0);
 
     const horasPorTurno = Number(c.horas_laboratorio) || 0;
-    const turnosLab = Math.max(0, Number(c.cantidad_labs) || 0);
+    const turnosLab = Math.max(1, Number(c.cantidad_labs) || 1);
     const tieneLab = horasPorTurno > 0 && turnosLab > 0;
 
     const pushBloque = (units: BlockUnit[], tipo_sesion: string) => {
@@ -165,7 +189,7 @@ function puedeSlot(
     if (!docMap?.has(timeKey)) return false;
     const p = docMap.get(timeKey)!;
     if (priorityPass === 1 && p !== 1) return false;
-    if (priorityPass === 2 && p !== 2) return false;
+    if (priorityPass === 2 && p === undefined) return false;
     if (occ.docenteOcupado.has(`${block.docente_id}-${timeKey}`)) return false;
   }
 
@@ -339,7 +363,7 @@ function ambienteSlotOk(
   dia: string,
   slotId: string,
   ambAvail: AmbAvailMap,
-  esLab: boolean
+  _esLab: boolean
 ): boolean {
   if (!ambAvail.has(ambId)) return true;
   return ambAvail.get(ambId)!.has(`${dia}-${slotId}`);
@@ -372,14 +396,14 @@ export function asignarBloqueEstudiante(
   occ: Occupancy,
   priorityPass: number,
   ambAvail: AmbAvailMap = new Map(),
-  opts?: { practicaEnAula?: boolean; restrictedIds?: string[]; incluirSabado?: boolean }
+  opts?: { practicaEnAula?: boolean; restrictedIds?: string[]; incluirSabado?: boolean; rotacion?: number }
 ): { ok: boolean; asignaciones: any[]; prioridadUsada: number | null } {
   const util = slotsUtiles(slots, opts?.restrictedIds);
   const meta0 = group.units[0].meta;
   const duracion = group.units.length;
   const tieneLab = group.units.some(u => u.tipo_sesion === 'laboratorio');
 
-  const aulas = ambientes.filter((a: any) => {
+  let aulas = ambientes.filter((a: any) => {
     if (a.tipo === 'laboratorio') return false;
     if ((meta0.num_alumnos || 0) > a.capacidad) return false;
     return true;
@@ -388,13 +412,14 @@ export function asignarBloqueEstudiante(
   const cicloPlanKey = meta0.ciclo_plan ? `${meta0.ciclo_plan}-${meta0.seccion || 'A'}` : undefined;
   const prefAulaId = cicloPlanKey ? occ.aulaPreferidaTeoria.get(cicloPlanKey) : undefined;
   if (prefAulaId) {
-    // Si el ciclo ya tiene un aula preferida, la intentamos poner primera
     aulas.sort((a, b) => (a.id === prefAulaId ? -1 : b.id === prefAulaId ? 1 : 0));
+  } else if (opts?.rotacion !== undefined && opts.rotacion >= 0) {
+    aulas = ambientesRotados(aulas, meta0, opts.rotacion);
   }
   const labs = ambientes.filter((a: any) => a.tipo === 'laboratorio' && (meta0.num_alumnos || 0) <= a.capacidad);
 
-  const dias = diasRotados(meta0, opts?.incluirSabado ? DIAS_EXTENDIDO : undefined);
-  const slotsOrden = slotsRotados(meta0, util);
+  const dias = diasRotados(meta0, opts?.incluirSabado ? DIAS_EXTENDIDO : undefined, opts?.rotacion);
+  const slotsOrden = slotsRotados(meta0, util, opts?.rotacion);
 
   for (const dia of dias) {
     for (let i = 0; i <= slotsOrden.length - duracion; i++) {
@@ -480,20 +505,23 @@ export function asignarGrupoContinuo(
   occ: Occupancy,
   priorityPass: number,
   ambAvail: AmbAvailMap = new Map(),
-  opts?: { practicaEnAula?: boolean; restrictedIds?: string[]; incluirSabado?: boolean }
+  opts?: { practicaEnAula?: boolean; restrictedIds?: string[]; incluirSabado?: boolean; rotacion?: number }
 ): { ok: boolean; asignaciones: any[]; prioridadUsada: number | null } {
   const block = group.units[0].meta;
   const duracion = group.units.length;
   const util = slotsUtiles(slots, opts?.restrictedIds);
-  const validAmbientes = ambientesValidosPara(block, ambientes, opts);
+  let validAmbientes = ambientesValidosPara(block, ambientes, opts);
+  if (opts?.rotacion !== undefined && opts.rotacion >= 0) {
+    validAmbientes = ambientesRotados(validAmbientes, block, opts.rotacion);
+  }
 
-  const dias = diasRotados(block, opts?.incluirSabado ? DIAS_EXTENDIDO : undefined);
-  const slotsOrden = slotsRotados(block, util);
+  const dias = diasRotados(block, opts?.incluirSabado ? DIAS_EXTENDIDO : undefined, opts?.rotacion);
+  const slotsOrden = slotsRotados(block, util, opts?.rotacion);
 
   for (const dia of dias) {
     for (let i = 0; i <= slotsOrden.length - duracion; i++) {
       const ventana = slotsOrden.slice(i, i + duracion);
-      const indicesOrden = ventana.map(s => s.orden);
+      const _indicesOrden = ventana.map(s => s.orden);
       const consecutivos = ventana.every((s, idx) =>
         idx === 0 || s.orden === ventana[idx - 1].orden + 1
       );
@@ -565,15 +593,18 @@ export function asignarUnidad(
   priorityPass: number,
   bloqueContinuoId?: string,
   ambAvail: AmbAvailMap = new Map(),
-  opts?: { practicaEnAula?: boolean; restrictedIds?: string[]; incluirSabado?: boolean }
+  opts?: { practicaEnAula?: boolean; restrictedIds?: string[]; incluirSabado?: boolean; rotacion?: number }
 ): { ok: boolean; asignacion?: any; prioridadUsada: number | null } {
   const block = unit.meta;
 
-  const validAmbientes = ambientesValidosPara(block, ambientes, opts);
+  let validAmbientes = ambientesValidosPara(block, ambientes, opts);
+  if (opts?.rotacion !== undefined && opts.rotacion >= 0) {
+    validAmbientes = ambientesRotados(validAmbientes, block, opts.rotacion);
+  }
 
   const util = slotsUtiles(slots, opts?.restrictedIds);
-  const dias = diasRotados(block, opts?.incluirSabado ? DIAS_EXTENDIDO : undefined);
-  const slotsOrden = slotsRotados(block, util);
+  const dias = diasRotados(block, opts?.incluirSabado ? DIAS_EXTENDIDO : undefined, opts?.rotacion);
+  const slotsOrden = slotsRotados(block, util, opts?.rotacion);
 
   const cicloPlanKey = block.ciclo_plan ? `${block.ciclo_plan}-${block.seccion || 'A'}` : undefined;
   const prefTeoria = cicloPlanKey ? occ.aulaPreferidaTeoria.get(cicloPlanKey) : undefined;
@@ -605,6 +636,11 @@ export function asignarUnidad(
   return { ok: false, prioridadUsada: null };
 }
 
+function _claveBloqueAcademico(block: any): string {
+  const pc_id = block.pc_id || block.id || '';
+  return [pc_id, block.docente_id ?? '', block.curso_id ?? '', block.grupo_id ?? '', block.tipo_sesion ?? '', block.lab_turno ?? 0].join('|');
+}
+
 function crearAsignacion(
   block: any,
   dia: string,
@@ -617,6 +653,7 @@ function crearAsignacion(
 ) {
   return {
     id: randomUUID(),
+    clave_bloque: _claveBloqueAcademico(block),
     pc_id: block.id || null,
     curso_id: block.curso_id || null,
     grupo_id: block.grupo_id || null,

@@ -57,9 +57,9 @@ export async function GET(req: NextRequest) {
           d.nombre || ' ' || d.apellidos AS docente_nombre,
           d.categoria, d.condicion, d.horas_max_semana,
           SUM(pc.horas_teoria + pc.horas_practica
-              + pc.horas_laboratorio * GREATEST(COALESCE(cu.cantidad_labs,1),1)) AS horas_cursos,
+              + pc.horas_laboratorio) AS horas_cursos,
           SUM(pc.horas_teoria + pc.horas_practica
-              + pc.horas_laboratorio * GREATEST(COALESCE(cu.cantidad_labs,1),1)) AS horas_requeridas
+              + pc.horas_laboratorio) AS horas_requeridas
         FROM programacion_cursos pc
         JOIN docentes d ON d.id = pc.docente_id
         JOIN cursos cu ON cu.id = pc.curso_id
@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
         pc.horas_laboratorio,
         GREATEST(COALESCE(cu.cantidad_labs, 1), 1) AS cantidad_labs,
         (pc.horas_teoria + pc.horas_practica
-         + pc.horas_laboratorio * GREATEST(COALESCE(cu.cantidad_labs,1),1)) AS total_horas,
+         + pc.horas_laboratorio) AS total_horas,
         pc.horas_consejeria,
         g.numero_grupo
       FROM programacion_cursos pc

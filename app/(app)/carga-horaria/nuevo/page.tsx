@@ -2348,14 +2348,18 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>{curso.codigo}</td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>{curso.nombre}</td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)', fontSize: '10px' }}>{curso.curriculaNombre || '-'}</td>
-                          <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              value={curso.seccion}
-                              onChange={(e) => handleUpdateCursoField(curso.id, 'seccion', e.target.value)}
-                              disabled={lectivaBloqueada}
-                              style={{ padding: '4px 6px', fontSize: '11px', width: '60px' }}
-                            />
+                          <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                            {['EI-901', 'EI-X01'].includes(curso.codigo) ? (
+                              <input
+                                className="form-input"
+                                value={curso.seccion}
+                                onChange={(e) => handleUpdateCursoField(curso.id, 'seccion', e.target.value)}
+                                disabled={lectivaBloqueada}
+                                style={{ padding: '4px 6px', fontSize: '11px', width: '60px', textAlign: 'center' }}
+                              />
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>—</span>
+                            )}
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <select
@@ -4346,7 +4350,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                               marginBottom: '2px',
                               marginLeft: '4px'
                             }}>
-                              {curso.codigo} - {curso.nombre} (Sección {curso.seccion})
+                              {curso.codigo} - {curso.nombre}{['EI-901', 'EI-X01'].includes(curso.codigo) ? ` (Sección ${curso.seccion})` : ''}
                             </div>
                             
                             {/* Course types */}

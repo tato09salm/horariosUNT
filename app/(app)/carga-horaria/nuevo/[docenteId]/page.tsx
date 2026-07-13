@@ -391,7 +391,8 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
                             {curso?.codigo}
                           </div>
                         </td>
-                        <td>
+                        <td style={{ textAlign: 'center' }}>
+                          {['EI-901', 'EI-X01'].includes(curso?.codigo || '') ? (
                           <input
                             type="text"
                             value={cursoSel.seccion}
@@ -404,6 +405,9 @@ export default function FormCargaHorariaPage({ params }: { params: { docenteId: 
                               background: 'var(--bg-card)'
                             }}
                           />
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>—</span>
+                          )}
                         </td>
                         <td>
                           <input
