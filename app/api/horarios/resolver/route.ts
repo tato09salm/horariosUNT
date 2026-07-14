@@ -26,11 +26,9 @@ export async function POST(req: NextRequest) {
     // ── VALIDACIÓN PREVIA: disponibilidad mínima ─────────────────────────────
     const cursosAsignados = await query(`
       SELECT pc.docente_id, pc.horas_teoria, pc.horas_practica, pc.horas_laboratorio,
-             pc.horas_consejeria,
-             GREATEST(COALESCE(cu.cantidad_labs, 1), 1) AS cantidad_labs,
+             1 AS cantidad_labs,
              d.nombre || ' ' || d.apellidos as docente_nombre
       FROM programacion_cursos pc
-      JOIN cursos cu ON cu.id = pc.curso_id
       JOIN docentes d ON d.id = pc.docente_id
       WHERE pc.programacion_id = $1 AND pc.docente_id IS NOT NULL
     `, [programacion_id]);
@@ -42,7 +40,7 @@ export async function POST(req: NextRequest) {
       const horasLab = (c.horas_laboratorio || 0) * factorLab;
       horasPorDocente.set(c.docente_id, {
         nombre: c.docente_nombre,
-        horas: prev.horas + (c.horas_teoria || 0) + (c.horas_practica || 0) + horasLab + (c.horas_consejeria || 0),
+        horas: prev.horas + (c.horas_teoria || 0) + (c.horas_practica || 0) + horasLab,
       });
     }
 
@@ -88,10 +86,12 @@ export async function POST(req: NextRequest) {
     if (usarV2) {
       // ── V2: Docente-priority CSP + GA híbrido ────────────────────────────────
       const cursos = await query(`
-        SELECT pc.*, g.num_alumnos, g.numero_grupo, cu.codigo, cu.nombre as curso_nombre, cu.ciclo_plan,
+        SELECT pc.id, pc.programacion_id, pc.curso_id, pc.grupo_id, pc.docente_id,
+               pc.horas_teoria, pc.horas_practica, pc.horas_laboratorio,
+               g.num_alumnos, g.numero_grupo, cu.codigo, cu.nombre as curso_nombre, cu.ciclo_plan,
                COALESCE(cu.bloque_indivisible, true) as bloque_indivisible,
-               COALESCE(cu.cantidad_labs, 1) as cantidad_labs,
-               COALESCE(cu.horas_laboratorio, cu.horas_practica, 0) as horas_laboratorio_catalogo,
+                1 as cantidad_labs,
+                COALESCE(cu.horas_laboratorio, cu.horas_practica, 0) as horas_laboratorio_catalogo,
                d.condicion, d.categoria, d.fecha_ingreso, d.nombre as docente_n, d.apellidos as docente_a,
                CASE d.condicion WHEN 'nombrado' THEN 0 ELSE 1 END as condicion_orden,
                CASE d.categoria 
@@ -146,8 +146,7 @@ export async function POST(req: NextRequest) {
         } catch { /* ignore */ }
       }
       if (restrictedIds === null) {
-        const foodSlot = (slots as Array<{ id: string; hora_inicio: string }>).find(s => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
-        restrictedIds = foodSlot ? [foodSlot.id] : [];
+        restrictedIds = [];
       }
 
       const v2Result = await generarHorarioV2(

@@ -57,11 +57,6 @@ export default function ReportesPage() {
             restDict = parsed;
           }
         } catch(e) {}
-      } else {
-        const foodSlot = activeSlots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
-        if (foodSlot) {
-          restDict[foodSlot.id] = 'HORA LIBRE (REFRIGERIO)';
-        }
       }
       setRestringidos(restDict);
       setLoadedRestringidos(true);
@@ -446,8 +441,8 @@ export default function ReportesPage() {
         const horaFin = slot.hora_fin.substring(0, 5);
         const fila: any[] = [`${horaIni}\n${horaFin}`];
 
-        const esRefrigerio = loadedRestringidos ? (slot.id in restringidos) : slot.hora_inicio.startsWith('13:00');
-        const msgRefrigerio = loadedRestringidos ? (restringidos[slot.id] || 'HORA LIBRE (REFRIGERIO)') : 'HORA LIBRE (REFRIGERIO)';
+        const esRefrigerio = loadedRestringidos && (slot.id in restringidos);
+        const msgRefrigerio = restringidos[slot.id] || 'HORA LIBRE (REFRIGERIO)';
 
         diasSem.forEach((dia, diaIdx) => {
           const spanRestante = spansPendientes.get(diaIdx) || 0;

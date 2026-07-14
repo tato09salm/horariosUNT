@@ -106,6 +106,7 @@ CREATE TABLE cursos (
   semestre INTEGER,
   prerequisitos UUID[],
   activo BOOLEAN DEFAULT true,
+  distribucion_excepcional_horaria VARCHAR(50) DEFAULT 'NORMAL',
   created_at TIMESTAMP DEFAULT NOW()
 );
 

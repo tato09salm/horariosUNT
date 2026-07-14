@@ -42,7 +42,7 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
   const cursos = await query(`
     SELECT pc.*, g.num_alumnos, g.numero_grupo, cu.codigo, cu.nombre as curso_nombre, cu.ciclo_plan,
            COALESCE(cu.bloque_indivisible, true) as bloque_indivisible,
-           COALESCE(cu.cantidad_labs, 1) as cantidad_labs,
+           1 as cantidad_labs,
            COALESCE(cu.horas_laboratorio, cu.horas_practica, 0) as horas_laboratorio_catalogo,
            d.condicion, d.categoria, d.fecha_ingreso, d.nombre as docente_n, d.apellidos as docente_a,
            CASE d.condicion WHEN 'nombrado' THEN 0 ELSE 1 END as condicion_orden,
@@ -118,8 +118,7 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
   }
 
   if (restrictedIds === null) {
-    const foodSlot = slots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
-    restrictedIds = foodSlot ? [foodSlot.id] : [];
+    restrictedIds = [];
   }
 
   // Build docStats
@@ -153,7 +152,7 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
 
     const cursosFaltantes = await query(`
       SELECT pc.*, cu.codigo, cu.nombre as curso_nombre, cu.ciclo_plan,
-             GREATEST(COALESCE(cu.cantidad_labs, 1), 1) AS cantidad_labs,
+              1 AS cantidad_labs,
              g.numero_grupo, g.num_alumnos,
              CASE d.condicion WHEN 'nombrado' THEN 0 ELSE 1 END as condicion_orden,
              CASE d.categoria 

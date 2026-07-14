@@ -401,8 +401,8 @@ export default function ProgramarPage() {
   };
 
   const avanzarFase = async () => {
-    if (!cspStats) {
-      setMsg({ type: 'error', text: 'Debes ejecutar el motor de programación (CSP) antes de avanzar a la Fase 4.' });
+    if (!cspStats && asignaciones.length === 0) {
+      setMsg({ type: 'error', text: 'Debes ejecutar el motor de programación (CSP) o importar un horario antes de avanzar a la Fase 4.' });
       return;
     }
     if (conflictos.length > 0 && !window.confirm('Hay conflictos sin resolver. ¿Estás seguro que quieres avanzar?')) {
@@ -442,6 +442,27 @@ export default function ProgramarPage() {
     } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
   };
 
+  const importarCursos2026I = async () => {
+    if (!window.confirm('¿Importar cursos 2026-I? Esto agregará/actualizará los cursos y grupos con sus docentes asignados.')) return;
+    setResolving(true);
+    setMsg({ type: 'info', text: 'Importando cursos 2026-I...' });
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}/importar-cursos-2026i`, {
+        method: 'POST',
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+
+      setMsg({ type: 'success', text: json.message });
+      // Recargar datos para reflejar los cambios
+      await cargarDatos();
+    } catch (err: any) {
+      setMsg({ type: 'error', text: 'Error importando cursos 2026-I: ' + err.message });
+    } finally {
+      setResolving(false);
+    }
+  };
+
   const asignacionesVisibles = useMemo(() => {
     if (docentesConCarga.size === 0) return asignaciones;
     return asignaciones.filter(
@@ -468,6 +489,9 @@ export default function ProgramarPage() {
             <button className="btn-secondary" onClick={history.undo} disabled={!history.canUndo} style={{ padding: '6px 12px', fontSize: '12px' }} title="Deshacer (Ctrl+Z)">↩️</button>
             <button className="btn-secondary" onClick={history.redo} disabled={!history.canRedo} style={{ padding: '6px 12px', fontSize: '12px' }} title="Rehacer (Ctrl+Y)">↪️</button>
           </div>
+          <button className="btn-secondary" onClick={importarCursos2026I} disabled={resolving || prog.fase !== 3}>
+            📋 Importar Horario 2026-I
+          </button>
           <button className="btn-secondary" onClick={() => ejecutarMotor(false)} disabled={resolving || prog.fase !== 3}>
             {resolving ? '⚙️ Resolviendo...' : asignacionesVisibles.length > 0 ? '🔄 Reejecutar CSP' : '⚙️ Ejecutar Auto-Asignación'}
           </button>

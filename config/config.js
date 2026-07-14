@@ -11,7 +11,8 @@ const config = {
     database: process.env.DB_NAME || "horariosunt",
     host: process.env.DB_HOST || "localhost",
     port: process.env.DB_PORT || 5432,
-    dialect: "postgres"
+    dialect: "postgres",
+    logging: false
   },
   test: {
     username: process.env.DB_USER || "postgres",
@@ -19,7 +20,8 @@ const config = {
     database: process.env.DB_NAME || "horariosunt_test",
     host: process.env.DB_HOST || "localhost",
     port: process.env.DB_PORT || 5432,
-    dialect: "postgres"
+    dialect: "postgres",
+    logging: false
   },
   production: {
     username: process.env.DB_USER,
@@ -28,6 +30,7 @@ const config = {
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
     dialect: "postgres",
+    logging: false,
     dialectOptions: {
       ssl: {
         require: true,

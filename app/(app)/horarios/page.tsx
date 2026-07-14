@@ -216,11 +216,6 @@ export default function HorariosPage() {
             restDict = parsed;
           }
         } catch(e) {}
-      } else {
-        const foodSlot = activeSlots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
-        if (foodSlot) {
-          restDict[foodSlot.id] = 'HORA LIBRE (REFRIGERIO)';
-        }
       }
       setRestringidosConfig(restDict);
     }).catch(err => {
@@ -685,10 +680,6 @@ export default function HorariosPage() {
           )}
           {vista === 'programaciones' && canEdit && (
             <>
-              <button className="btn-secondary" onClick={() => setShowImportModal(true)}>
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
-                Importar
-              </button>
               <button className="btn-primary" onClick={() => setShowCrear(true)}>
                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
                 Nueva programación

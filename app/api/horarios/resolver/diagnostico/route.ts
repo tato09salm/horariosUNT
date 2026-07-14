@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
         pc.horas_teoria,
         pc.horas_practica,
         pc.horas_laboratorio,
-        GREATEST(COALESCE(cu.cantidad_labs, 1), 1) AS cantidad_labs,
+        1 AS cantidad_labs,
         (pc.horas_teoria + pc.horas_practica
          + pc.horas_laboratorio) AS total_horas,
         pc.horas_consejeria,

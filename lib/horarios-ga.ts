@@ -534,8 +534,7 @@ export async function ejecutarAlgoritmoGenetico(
   }
 
   if (restrictedIds === null) {
-    const foodSlot = allSlots.find(s => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
-    restrictedIds = foodSlot ? [foodSlot.id] : [];
+    restrictedIds = [];
   }
 
   if (incluirSabado) {

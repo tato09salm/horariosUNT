@@ -388,6 +388,21 @@ export default function NuevaCargaHorariaPage() {
         fetch(`/api/horarios?ciclo_id=${cicloAcademicoSeleccionado}`),
         fetch(`/api/carga-horaria/ocupacion-ambientes?ciclo_academico_id=${cicloAcademicoSeleccionado}${excludeParam}`),
       ]);
+      
+      // Check response status before parsing JSON
+      if (!horariosRes.ok) {
+        console.error('Horarios API error:', horariosRes.status, horariosRes.statusText);
+        const text = await horariosRes.text();
+        console.error('Horarios response:', text.substring(0, 200));
+        throw new Error(`Horarios API failed: ${horariosRes.status}`);
+      }
+      if (!ocupacionRes.ok) {
+        console.error('Ocupacion API error:', ocupacionRes.status, ocupacionRes.statusText);
+        const text = await ocupacionRes.text();
+        console.error('Ocupacion response:', text.substring(0, 200));
+        throw new Error(`Ocupacion API failed: ${ocupacionRes.status}`);
+      }
+      
       const horariosData = await horariosRes.json();
       const ocupacionData = await ocupacionRes.json();
       setPreviewHorarios([
