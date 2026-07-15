@@ -1906,6 +1906,11 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
         };
       }
 
+      // Preserve existing horario_slots from API data to prevent accidental overwrite
+      if ((curso as any)._horarioSlots || (curso as any).horario_slots) {
+        return curso;
+      }
+
       return curso;
     });
 
@@ -2183,7 +2188,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       <div className="card" style={{ padding: '24px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {/* Search and Select Docente */}
-          {step === 1 && (
+          {step === 1 && !isDocente && (
             <div>
               <label style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
                 Buscar Docente
@@ -2364,7 +2369,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>{curso.nombre}</td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)', fontSize: '10px' }}>{curso.curriculaNombre || '-'}</td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-                            {['EI-901', 'EI-X01'].includes(curso.codigo) ? (
+                            {curso.seccion ? (
                               <input
                                 className="form-input"
                                 value={curso.seccion}
@@ -2709,7 +2714,8 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                             const ambienteCodigo = slot.ambiente_codigo || slot.ambienteCodigo || '';
                             const ambienteNombre = slot.ambiente_nombre || slot.ambienteNombre || '';
                             
-                            const key = slotKeyFrom(slot.dia, slot.hora);
+                            const slotHora = typeof slot.hora === 'string' ? parseInt((slot.hora as string).split('-')[0].split(':')[0], 10) || 0 : slot.hora;
+                            const key = slotKeyFrom(slot.dia, slotHora);
                             initialAsignaciones[key] = {
                               ...cursoElement,
                               ambienteId,
@@ -2741,6 +2747,8 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                       setElementoSeleccionado(null);
                       setWarningMessage(null);
                       
+                      console.log('[DEBUG] asignaciones:', Object.keys(initialAsignaciones).length, 'keys:', Object.keys(initialAsignaciones));
+                      console.log('[DEBUG] horasUsadas:', Object.keys(initialHorasUsadas).length, 'keys:', Object.keys(initialHorasUsadas));
                       setShowModalHorarioSeleccion(true);
                     }}
                     style={{ padding: '6px 12px', fontSize: '12px' }}
@@ -4264,9 +4272,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                       ...curso,
                       dia: undefined,
                       hora_inicio: undefined,
-                      hora_fin: undefined,
-                      horario_slots: undefined,
-                      _horarioSlots: undefined
+                      hora_fin: undefined
                     }));
                     setCursosAsignados(resetCursos);
                   }}
@@ -4388,20 +4394,23 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                   key={`${curso.id}-${courseType.type}`}
                                   style={{
                                     padding: '8px 12px',
-                                    borderWidth: '2px',
+                                    borderTopWidth: '2px',
+                                    borderRightWidth: '2px',
+                                    borderBottomWidth: '2px',
+                                    borderLeftWidth: '4px',
                                     borderStyle: 'solid',
-                                    borderColor: isSelected ? courseType.color : 'var(--border-color)',
+                                    borderTopColor: isSelected ? courseType.color : 'var(--border-color)',
+                                    borderRightColor: isSelected ? courseType.color : 'var(--border-color)',
+                                    borderBottomColor: isSelected ? courseType.color : 'var(--border-color)',
+                                    borderLeftColor: courseType.color,
                                     borderRadius: '6px',
                                     background: isSelected ? `${courseType.color}15` : 'var(--card-bg)',
                                     cursor: 'pointer',
                                     transition: 'all 0.15s',
-                                    borderLeftWidth: '4px',
-                                    borderLeftColor: courseType.color,
                                     marginLeft: '8px',
                                     position: 'relative'
                                   }}
                                   onClick={() => {
-                                    // Toggle selection: if already selected, unselect
                                     if (isSelected) {
                                       setElementoSeleccionado(null);
                                     } else {
@@ -4532,7 +4541,9 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                             padding: '10px 12px',
                             borderWidth: '2px',
                             borderStyle: 'solid',
-                            borderColor: isSelected ? act.color : 'var(--border-color)',
+                            borderTopColor: isSelected ? act.color : 'var(--border-color)',
+                            borderRightColor: isSelected ? act.color : 'var(--border-color)',
+                            borderBottomColor: isSelected ? act.color : 'var(--border-color)',
                             borderRadius: '6px',
                             background: isSelected ? `${act.color}20` : 'var(--card-bg)',
                             cursor: 'pointer',
@@ -4641,6 +4652,10 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                 }}
                                 onClick={() => {
                                   if (shouldGrayOut) return;
+                                  if (asignacion?.tipo === 'curso') {
+                                    setWarningMessage('Los horarios de carga lectiva no pueden modificarse manualmente');
+                                    return;
+                                  }
                                   if (elementoSeleccionado) {
                                     // Case 1: We have a selected element
                                     const selectedKey = getElementKey(elementoSeleccionado);
@@ -4707,45 +4722,48 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                     {asignacion.ambienteId ? (
                                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',border:'1px solid var(--border-color)',borderRadius:'999px',padding:'4px 8px',background:darkMode ? '#0f172a' : '#fff',fontSize:'10px',color:'var(--text-secondary)'}}>
                                         <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{asignacion.ambienteCodigo || asignacion.ambienteNombre || 'Ambiente seleccionado'}</span>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            const nextAsignaciones = {
-                                              ...asignaciones,
-                                              [key]: {
-                                                ...asignaciones[key],
-                                                ambienteId: '',
-                                                ambienteCodigo: '',
-                                                ambienteNombre: ''
-                                              }
-                                            };
-                                            setAsignaciones(nextAsignaciones);
-                                            handleAutoGuardarAmbiente(nextAsignaciones);
-                                          }}
-                                          style={{
-                                            display:'inline-flex',
-                                            alignItems:'center',
-                                            justifyContent:'center',
-                                            width:'16px',
-                                            height:'16px',
-                                            border:'none',
-                                            borderRadius:'999px',
-                                            background:'rgba(185,28,28,0.12)',
-                                            color:'#b91c1c',
-                                            cursor:'pointer',
-                                            flex:'0 0 auto',
-                                            padding:0
-                                          }}
-                                          title="Quitar ambiente"
-                                        >
-                                          <X size={10} />
-                                        </button>
+                                        {asignacion.tipo !== 'curso' && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const nextAsignaciones = {
+                                                ...asignaciones,
+                                                [key]: {
+                                                  ...asignaciones[key],
+                                                  ambienteId: '',
+                                                  ambienteCodigo: '',
+                                                  ambienteNombre: ''
+                                                }
+                                              };
+                                              setAsignaciones(nextAsignaciones);
+                                              handleAutoGuardarAmbiente(nextAsignaciones);
+                                            }}
+                                            style={{
+                                              display:'inline-flex',
+                                              alignItems:'center',
+                                              justifyContent:'center',
+                                              width:'16px',
+                                              height:'16px',
+                                              border:'none',
+                                              borderRadius:'999px',
+                                              background:'rgba(185,28,28,0.12)',
+                                              color:'#b91c1c',
+                                              cursor:'pointer',
+                                              flex:'0 0 auto',
+                                              padding:0
+                                            }}
+                                            title="Quitar ambiente"
+                                          >
+                                            <X size={10} />
+                                          </button>
+                                        )}
                                       </div>
                                     ) : (
                                       <div style={{position:'relative'}}>
                                         <select
                                           value={asignacion.ambienteId || ''}
+                                          disabled={asignacion.tipo === 'curso'}
                                           onClick={(e) => e.stopPropagation()}
                                           onMouseDown={(e) => e.stopPropagation()}
                                           onChange={(e) => {

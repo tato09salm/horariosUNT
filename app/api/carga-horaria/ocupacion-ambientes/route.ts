@@ -47,8 +47,7 @@ function slotToOcupacion(
     origen: string;
   }
 ) {
-  const ambienteId = slot?.ambienteId || slot?.ambiente_id;
-  if (!ambienteId) return null;
+  const ambienteId = slot?.ambienteId || slot?.ambiente_id || null;
 
   const dia = normalizeDia(slot?.dia);
   const horaRaw = slot?.hora ?? slot?.hora_inicio;
@@ -86,66 +85,104 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Ensure horario_slots column exists on all carga_horaria tables
+    const ensureCols = async (tables: string[], columns: [string, string][]) => {
+      for (const tbl of tables) {
+        for (const [col, colType] of columns) {
+          try {
+            await query(`
+              DO $$ BEGIN
+                IF NOT EXISTS (
+                  SELECT 1 FROM information_schema.columns
+                  WHERE table_name = '${tbl}'
+                  AND column_name = '${col}'
+                ) THEN
+                  EXECUTE 'ALTER TABLE ${tbl} ADD COLUMN ${col} ${colType}';
+                END IF;
+              END $$;
+            `);
+          } catch (_) {}
+        }
+      }
+    };
+    const allSectionTables = [
+      'carga_horaria_preparacion', 'carga_horaria_consejeria',
+      'carga_horaria_investigacion', 'carga_horaria_capacitacion',
+      'carga_horaria_gobierno', 'carga_horaria_administracion',
+      'carga_horaria_asesoria', 'carga_horaria_rsu',
+      'carga_horaria_comites'
+    ];
+    await ensureCols(['carga_horaria_cursos'], [['horario_slots', 'JSONB']]);
+    await ensureCols(allSectionTables, [['horario_slots', 'JSONB']]);
+
     const ocupaciones: any[] = [];
     const docenteFilter = excludeDocenteId ? ' AND ch.docente_id != $2' : '';
     const baseParams: any[] = excludeDocenteId
       ? [cicloAcademicoId, excludeDocenteId]
       : [cicloAcademicoId];
 
-    const cursosRows = await query(
-      `SELECT ch.docente_id,
-              d.nombre || ' ' || d.apellidos AS docente_nombre,
-              c.codigo AS curso_codigo,
-              c.nombre AS curso_nombre,
-              chc.horario_slots
-       FROM carga_horaria_cursos chc
-       JOIN carga_horaria ch ON ch.id = chc.carga_horaria_id
-       JOIN docentes d ON d.id = ch.docente_id
-       JOIN cursos c ON c.id = chc.curso_id
-       WHERE ch.ciclo_academico_id = $1
-         AND ch.activo = true
-         AND chc.horario_slots IS NOT NULL
-         ${docenteFilter}`,
-      baseParams
-    );
-
-    for (const row of cursosRows) {
-      for (const slot of parseHorarioSlots(row.horario_slots)) {
-        const item = slotToOcupacion(slot, {
-          docente_id: row.docente_id,
-          docente_nombre: row.docente_nombre,
-          curso_codigo: row.curso_codigo,
-          curso_nombre: row.curso_nombre,
-          origen: 'carga_horaria_curso',
-        });
-        if (item) ocupaciones.push(item);
-      }
-    }
-
-    for (const table of SECTION_TABLES) {
-      const sectionRows = await query(
+    try {
+      const cursosRows = await query(
         `SELECT ch.docente_id,
                 d.nombre || ' ' || d.apellidos AS docente_nombre,
-                s.horario_slots
-         FROM ${table} s
-         JOIN carga_horaria ch ON ch.id = s.carga_horaria_id
+                c.codigo AS curso_codigo,
+                c.nombre AS curso_nombre,
+                chc.horario_slots
+         FROM carga_horaria_cursos chc
+         JOIN carga_horaria ch ON ch.id = chc.carga_horaria_id
          JOIN docentes d ON d.id = ch.docente_id
+         JOIN cursos c ON c.id = chc.curso_id
          WHERE ch.ciclo_academico_id = $1
            AND ch.activo = true
-           AND s.horario_slots IS NOT NULL
+           AND chc.horario_slots IS NOT NULL
            ${docenteFilter}`,
         baseParams
       );
 
-      for (const row of sectionRows) {
+      for (const row of cursosRows) {
         for (const slot of parseHorarioSlots(row.horario_slots)) {
           const item = slotToOcupacion(slot, {
             docente_id: row.docente_id,
             docente_nombre: row.docente_nombre,
-            origen: 'carga_horaria_no_lectiva',
+            curso_codigo: row.curso_codigo,
+            curso_nombre: row.curso_nombre,
+            origen: 'carga_horaria_curso',
           });
           if (item) ocupaciones.push(item);
         }
+      }
+    } catch (err) {
+      // carga_horaria_cursos may not have horario_slots column yet; skip gracefully
+    }
+
+    for (const table of SECTION_TABLES) {
+      try {
+        const sectionRows = await query(
+          `SELECT ch.docente_id,
+                  d.nombre || ' ' || d.apellidos AS docente_nombre,
+                  s.horario_slots
+           FROM ${table} s
+           JOIN carga_horaria ch ON ch.id = s.carga_horaria_id
+           JOIN docentes d ON d.id = ch.docente_id
+           WHERE ch.ciclo_academico_id = $1
+             AND ch.activo = true
+             AND s.horario_slots IS NOT NULL
+             ${docenteFilter}`,
+          baseParams
+        );
+
+        for (const row of sectionRows) {
+          for (const slot of parseHorarioSlots(row.horario_slots)) {
+            const item = slotToOcupacion(slot, {
+              docente_id: row.docente_id,
+              docente_nombre: row.docente_nombre,
+              origen: 'carga_horaria_no_lectiva',
+            });
+            if (item) ocupaciones.push(item);
+          }
+        }
+      } catch (err) {
+        // Table may not have horario_slots column yet; skip gracefully
       }
     }
 

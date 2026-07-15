@@ -3,6 +3,45 @@ import { getSession } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
 import { getCargaAdicionalDocente } from '@/lib/horarios';
 
+async function getCargaHorariaBlocks(docenteId: string, cicloId: string): Promise<any[]> {
+  try {
+    const rows = await query(`
+      SELECT chc.horario_slots, c.codigo AS curso_codigo, c.nombre AS curso_nombre
+      FROM carga_horaria_cursos chc
+      JOIN carga_horaria ch ON ch.id = chc.carga_horaria_id
+      JOIN cursos c ON c.id = chc.curso_id
+      WHERE ch.docente_id = $1 AND ch.ciclo_academico_id = $2 AND ch.activo = true
+        AND chc.horario_slots IS NOT NULL
+    `, [docenteId, cicloId]);
+
+    const blocks: any[] = [];
+    for (const row of rows) {
+      let slots: any[];
+      try {
+        slots = typeof row.horario_slots === 'string' ? JSON.parse(row.horario_slots) : row.horario_slots;
+      } catch { continue; }
+      if (!Array.isArray(slots)) continue;
+      for (const slot of slots) {
+        if (slot.dia && (slot.hora !== undefined || slot.hora_inicio)) {
+          const horaNum = typeof slot.hora === 'number' ? slot.hora : parseInt(String(slot.hora || slot.hora_inicio).split(':')[0], 10);
+          if (Number.isNaN(horaNum)) continue;
+          blocks.push({
+            dia: slot.dia,
+            hora_inicio: `${String(horaNum).padStart(2, '0')}:00`,
+            hora_fin: `${String(horaNum + 1).padStart(2, '0')}:00`,
+            tipo: 'carga_lectiva',
+            curso_codigo: row.curso_codigo,
+            curso_nombre: row.curso_nombre,
+          });
+        }
+      }
+    }
+    return blocks;
+  } catch {
+    return [];
+  }
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
@@ -48,9 +87,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         WHERE a.ciclo_id = $1 AND a.docente_id = $2 AND a.estado = 'activo'
       `, [ciclo_id, id]);
 
+      const adicionales = await getCargaAdicionalDocente(id, ciclo_id);
+
+      // Also load blocks from carga_horaria_cursos (teaching load)
+      const cargaHorariaBlocks = await getCargaHorariaBlocks(id, ciclo_id);
+
       if (asignaciones.length > 0) {
-        const adicionales = await getCargaAdicionalDocente(id, ciclo_id);
-        return NextResponse.json({ data: [...asignaciones, ...adicionales] });
+        return NextResponse.json({ data: [...asignaciones, ...adicionales, ...cargaHorariaBlocks] });
       }
 
       // Second try: use programacion.config.asignaciones
@@ -78,13 +121,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             ciclo_nombre: '',
           };
         });
-        const adicionales = await getCargaAdicionalDocente(id, ciclo_id);
-        return NextResponse.json({ data: [...mappedAsignaciones, ...adicionales] });
+        return NextResponse.json({ data: [...mappedAsignaciones, ...adicionales, ...cargaHorariaBlocks] });
       }
     }
 
     const adicionales = await getCargaAdicionalDocente(id, ciclo_id);
-    return NextResponse.json({ data: adicionales });
+    const cargaHorariaBlocks = await getCargaHorariaBlocks(id, ciclo_id);
+    return NextResponse.json({ data: [...adicionales, ...cargaHorariaBlocks] });
   } catch (err) {
     console.error('Error in /api/docentes/:id/horario:', err);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
