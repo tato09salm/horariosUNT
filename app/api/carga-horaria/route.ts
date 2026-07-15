@@ -65,7 +65,10 @@ export async function GET(req: NextRequest) {
       // Add cursos (or empty array if none)
       try {
         const cursos = await query(`
-          SELECT chc.*, c.nombre as curso_nombre, c.codigo as curso_codigo, c.ciclo_plan
+          SELECT chc.*, c.nombre as curso_nombre, c.codigo as curso_codigo, c.ciclo_plan,
+                 (SELECT cur2.id FROM malla_curricular mc2 JOIN curriculas cur2 ON cur2.id = mc2.curricula_id WHERE mc2.curso_id = c.id LIMIT 1) as malla_curricula_id,
+                 (SELECT cur2.nombre_carrera FROM malla_curricular mc2 JOIN curriculas cur2 ON cur2.id = mc2.curricula_id WHERE mc2.curso_id = c.id LIMIT 1) as malla_curricula_nombre,
+                 (SELECT cur2.año_curricula FROM malla_curricular mc2 JOIN curriculas cur2 ON cur2.id = mc2.curricula_id WHERE mc2.curso_id = c.id LIMIT 1) as malla_curricula_año
           FROM carga_horaria_cursos chc
           JOIN cursos c ON chc.curso_id = c.id
           WHERE chc.carga_horaria_id = $1
@@ -87,8 +90,8 @@ export async function GET(req: NextRequest) {
           laboratorio_grupos: c.laboratorio_grupos ?? 1,
           observaciones: c.observaciones || '',
           estado_observaciones: c.estado_observaciones || 'pendiente',
-          curricula_id: c.curricula_id,
-          curricula_nombre: c.curricula_nombre,
+          curricula_id: c.curricula_id || c.malla_curricula_id,
+          curricula_nombre: c.curricula_nombre || (c.malla_curricula_año ? `${c.malla_curricula_nombre} - ${c.malla_curricula_año}` : c.malla_curricula_nombre),
           dia: c.dia,
           hora_inicio: c.hora_inicio,
           hora_fin: c.hora_fin,
@@ -97,6 +100,48 @@ export async function GET(req: NextRequest) {
       } catch (err) {
         console.error('Error loading courses:', err);
         cargaHoraria[i].cursos = [];
+      }
+      
+      // If horario_slots is NULL for all cursos, try to populate from programaciones.config.asignaciones
+      if (cargaHoraria[i].cursos.length > 0 && !cargaHoraria[i].cursos.some((c: any) => c.horario_slots)) {
+        try {
+          const progResult = await query(
+            `SELECT config FROM programaciones WHERE ciclo_id = $1 AND config IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
+            [ch.ciclo_academico_id]
+          );
+          if (progResult.length > 0 && progResult[0].config?.asignaciones) {
+            const asigs = progResult[0].config.asignaciones;
+            // Load slots_tiempo for time lookups
+            let slotsTiempo: any[] = [];
+            try {
+              slotsTiempo = await query('SELECT id, hora_inicio, hora_fin FROM slots_tiempo');
+            } catch {}
+            const slotMap: Record<string, string> = {};
+            for (const st of slotsTiempo) {
+              const hInicio = st.hora_inicio?.substring(0, 5) || '';
+              const hFin = st.hora_fin?.substring(0, 5) || '';
+              slotMap[st.id] = `${hInicio}-${hFin}`;
+            }
+            // Filter asignaciones for this docente
+            const docenteAsigs = asigs.filter((a: any) => a.docente_id === ch.docente_id);
+            // Build horario_slots per curso
+            for (const curso of cargaHoraria[i].cursos) {
+              const cursoAsigs = docenteAsigs.filter((a: any) => a.curso_id === curso.curso_id);
+              if (cursoAsigs.length > 0) {
+                curso.horario_slots = cursoAsigs.map((a: any) => ({
+                  dia: a.dia,
+                  hora: parseInt((slotMap[a.slot_id] || '').split('-')[0].split(':')[0], 10) || 0,
+                  type: a.tipo,
+                  ambiente_id: a.ambiente_id || '',
+                  ambiente_codigo: a.ambiente_codigo || '',
+                  ambiente_nombre: a.ambiente_nombre || ''
+                }));
+              }
+            }
+          }
+        } catch (progErr) {
+          console.error('Error loading from programaciones:', progErr);
+        }
       }
       
       // Add sections - return all rows for multi-item support and include _horarioSlots
@@ -190,8 +235,8 @@ export async function GET(req: NextRequest) {
       total_cursos_por_ciclo: totalCursosMap 
     });
   } catch (error: any) {
-    console.error('❌ Error in GET /api/carga-horaria:', error);
-    console.error('❌ Error stack:', error.stack);
+      console.error('❌ Error in GET /api/carga-horaria:', error.message);
+      console.error('❌ Error stack:', error.stack);
     return NextResponse.json({ 
       data: [], 
       total_cursos_por_ciclo: {}, 
@@ -379,15 +424,20 @@ if (session.rol === 'docente') {
       const ch = result.rows[0];
       const cargaHorariaId = ch.id;
 
-      // Insert all courses for this carga_horaria
+      // Preserve existing horario_slots before DELETE (to prevent accidental data loss)
+      const existingSlots = await client.query(
+        'SELECT curso_id, horario_slots FROM carga_horaria_cursos WHERE carga_horaria_id = $1',
+        [cargaHorariaId]
+      );
+      const existingSlotsMap = new Map(existingSlots.rows.map((r: any) => [r.curso_id, r.horario_slots]));
+
       await client.query('DELETE FROM carga_horaria_cursos WHERE carga_horaria_id = $1', [cargaHorariaId]);
       
       for (const curso of sanitizedCursos) {
-        // Get custom schedule fields
         const dia = curso.dia || null;
         const hora_inicio = curso.hora_inicio || null;
         const hora_fin = curso.hora_fin || null;
-        const horario_slots = curso._horarioSlots || null;
+        const horario_slots = curso._horarioSlots || existingSlotsMap.get(curso.curso_id) || null;
 
         await client.query(
           `INSERT INTO carga_horaria_cursos (
