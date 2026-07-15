@@ -59,7 +59,7 @@ export async function GET(
       return jsonNoStore({ error: 'Programación no encontrada' }, { status: 404 });
     }
 
-    if (prog.fase !== 4 && prog.estado !== 'publicado') {
+    if (Number(prog.fase) !== 4 && prog.estado !== 'publicado') {
       return jsonNoStore(
         { error: 'El formato UNT solo se habilita cuando la programación está en Fase 4' },
         { status: 400 }
@@ -67,7 +67,8 @@ export async function GET(
     }
 
     // 2. Cargar asignaciones crudas (borrador en config, o activas en tabla real)
-    let rawAsignaciones = prog.config?.asignaciones || [];
+    const progConfig = typeof prog.config === 'string' ? JSON.parse(prog.config) : (prog.config || {});
+    let rawAsignaciones = progConfig.asignaciones || [];
     if (rawAsignaciones.length === 0) {
       rawAsignaciones = await query(`
         SELECT a.id, a.dia, a.slot_id, a.grupo_id, a.docente_id, a.ambiente_id, a.tipo
@@ -219,10 +220,10 @@ export async function GET(
 
     return jsonNoStore({
       programacion: {
-        año: prog.año?.toString() ?? '2025',
-        semestre: prog.semestre ?? 'II',
-        inicio: '01 de setiembre de 2025',
-        termino: '20 de diciembre de 2025'
+        año: String(prog.año ?? '2025'),
+        semestre: String(prog.semestre ?? 'II'),
+        inicio: prog.fecha_inicio ? new Date(prog.fecha_inicio).toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' }) : 'Por definir',
+        termino: prog.fecha_fin ? new Date(prog.fecha_fin).toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' }) : 'Por definir',
       },
       ciclos
     });

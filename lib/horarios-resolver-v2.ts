@@ -913,6 +913,7 @@ export interface PuntajeSolucion {
   usoSabado: number;
   teoriaPracticaInvertidas: number;
   desglose: Record<string, number>;
+  horasExcedentes: number;
 }
 
 export interface MejoraIteracion {

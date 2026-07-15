@@ -573,30 +573,29 @@ export async function getHorarioNoLectivaCiclo(ciclo_id: string) {
 
   const placeholders = chIds.map((_, i) => `$${i + 1}`).join(',');
   
+  const sectionTables: { key: string; table: string; descField: string }[] = [
+    { key: 'preparacion', table: 'carga_horaria_preparacion', descField: 'descripcion' },
+    { key: 'consejeria', table: 'carga_horaria_consejeria', descField: 'detalles' },
+    { key: 'investigacion', table: 'carga_horaria_investigacion', descField: 'proyecto' },
+    { key: 'capacitacion', table: 'carga_horaria_capacitacion', descField: 'detalles' },
+    { key: 'gobierno', table: 'carga_horaria_gobierno', descField: 'detalles' },
+    { key: 'administracion', table: 'carga_horaria_administracion', descField: 'detalles' },
+    { key: 'asesoria', table: 'carga_horaria_asesoria', descField: 'detalles' },
+    { key: 'rsu', table: 'carga_horaria_rsu', descField: 'plan' },
+    { key: 'comites', table: 'carga_horaria_comites', descField: 'detalles' },
+  ];
   let noLectivaRows: any[] = [];
-  try {
-    noLectivaRows = await query(`
-      SELECT 'preparacion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, descripcion as detalles FROM carga_horaria_preparacion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-      UNION ALL
-      SELECT 'consejeria' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_consejeria WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-      UNION ALL
-      SELECT 'investigacion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, proyecto FROM carga_horaria_investigacion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-      UNION ALL
-      SELECT 'capacitacion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_capacitacion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-      UNION ALL
-      SELECT 'gobierno' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_gobierno WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-      UNION ALL
-      SELECT 'administracion' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_administracion WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-      UNION ALL
-      SELECT 'asesoria' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_asesoria WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-      UNION ALL
-      SELECT 'rsu' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, plan FROM carga_horaria_rsu WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-      UNION ALL
-      SELECT 'comites' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, detalles FROM carga_horaria_comites WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
-    `, chIds);
-  } catch (err) {
-    console.warn('Error fetching no lectiva rows for ciclo:', err);
-    noLectivaRows = [];
+  for (const st of sectionTables) {
+    try {
+      const rows = await query(`
+        SELECT '${st.key}' as seccion_key, id, carga_horaria_id, dia, hora_inicio::text, hora_fin::text, ${st.descField} as detalles
+        FROM ${st.table}
+        WHERE carga_horaria_id IN (${placeholders}) AND dia IS NOT NULL
+      `, chIds);
+      noLectivaRows.push(...rows);
+    } catch (err) {
+      // Table may not have required columns yet; skip gracefully
+    }
   }
 
   const titles: Record<string, string> = {
