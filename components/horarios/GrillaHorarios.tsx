@@ -278,33 +278,31 @@ export default function GrillaHorarios({
       const startIdx = startItem.slotIdx;
       const dia = startItem.dia;
 
-      // Validar si podemos expandir (cero colisiones con otras asignaciones de inicio en los slots siguientes)
-      let canSpan = true;
+      // 1. No expandir si la CELDA DE INICIO tiene otros cursos (no de este bloque)
+      const startOtherAsigs = asigGrilla.filter(a =>
+        a.dia === dia &&
+        a.slot_id === startItem.slot_id &&
+        !block.some(b => b.id === a.id)
+      );
+      if (startOtherAsigs.length > 0) return;
+
+      // 2. Validar slots intermedios (colisión con otras asignaciones)
       for (let i = 1; i < block.length; i++) {
         const nextSlot = slots[startIdx + i];
-        if (!nextSlot) {
-          canSpan = false;
-          break;
-        }
+        if (!nextSlot) return;
 
-        // Buscar otras asignaciones en el mismo día/slot que no sean de este bloque
         const otherAsigs = asigGrilla.filter(a => 
           a.dia === dia && 
           a.slot_id === nextSlot.id && 
           !block.some(b => b.id === a.id)
         );
-
-        if (otherAsigs.length > 0) {
-          canSpan = false;
-          break;
-        }
+        if (otherAsigs.length > 0) return;
       }
 
-      if (canSpan) {
-        blockStartMap.set(`${dia}_${startItem.slot_id}`, { block, duration: block.length });
-        for (let i = 1; i < block.length; i++) {
-          hiddenCellsSet.add(`${block[i].dia}_${block[i].slot_id}`);
-        }
+      // 3. Usar posicionamiento explícito en lugar de 'span ' para compatibilidad con display: contents
+      blockStartMap.set(`${dia}_${startItem.slot_id}`, { block, duration: block.length });
+      for (let i = 1; i < block.length; i++) {
+        hiddenCellsSet.add(`${block[i].dia}_${block[i].slot_id}`);
       }
     });
 
@@ -324,8 +322,8 @@ export default function GrillaHorarios({
             </div>
           ))}
           {slots.map((slot, sIdx) => {
-            const isLunch = loadedRestringidos ? (slot.id in restringidos) : (slot.hora_inicio === '13:00' || slot.hora_inicio === '13:00:00');
-            const lunchMsg = loadedRestringidos ? (restringidos[slot.id] || 'HORA LIBRE (REFRIGERIO)') : 'HORA LIBRE (REFRIGERIO)';
+            const isLunch = loadedRestringidos && (slot.id in restringidos);
+            const lunchMsg = restringidos[slot.id] || 'HORA LIBRE (REFRIGERIO)';
             return (
               <div key={slot.id} style={{ display: 'contents' }}>
                 <div
@@ -364,7 +362,7 @@ export default function GrillaHorarios({
 
                     const cellStyle: React.CSSProperties = {};
                     if (duration > 1) {
-                      cellStyle.gridRow = `span ${duration}`;
+                      cellStyle.gridRow = `${sIdx + 2} / span ${duration}`;
                     }
                     if (!isMobile) {
                       const dayIndex = diasVisibles.indexOf(dia);

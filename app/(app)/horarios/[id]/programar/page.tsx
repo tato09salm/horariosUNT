@@ -370,12 +370,26 @@ export default function ProgramarPage() {
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.error);
 
-      const st = resData.data?.csp_stats;
+      const st = resData.data?.csp_stats || {};
+      const statsV2 = resData.data?.stats_v2 || {};
+      const asignadas = st.asignados || statsV2.asignadas || 0;
+      const totalHoras = st.total_bloques || statsV2.total_horas || 0;
+      const pendientes = resData.resumen?.pendientes ?? statsV2.pendientes ?? (totalHoras - asignadas);
+      const pct = totalHoras > 0 ? Math.round(asignadas / totalHoras * 100) : 0;
+      const bloquesContinuos = st.bloques_continuos || 0;
+      const porDocente = resData.data?.por_docente || [];
+      const cursosCompletos = porDocente.reduce((s: number, d: any) => s + (d.cursos_completos || 0), 0);
+      const cursosParciales = porDocente.reduce((s: number, d: any) => s + (d.cursos_parciales || 0), 0);
+      const cursosSinAsignar = porDocente.reduce((s: number, d: any) => s + (d.cursos_sin_asignar || 0), 0);
       const labsPar = st?.franjas_labs_paralelos != null ? ` · Labs en paralelo: ${st.franjas_labs_paralelos} franjas` : '';
       const reintento = st?.log?.some((l: string) => l.includes('Reintento flexible')) ? ' (incluye reintento flexible)' : '';
+      const mensaje = pendientes === 0
+        ? `Asignación completa: ${asignadas}/${totalHoras} horas asignadas.${labsPar}`
+        : `Asignación parcial: ${asignadas}/${totalHoras} horas asignadas (${pct}%). Faltan ${pendientes} horas.${labsPar}`;
       setMsg({
-        type: 'success',
-        text: `Asignación completada${reintento}. ${resData.data?.asignaciones?.length || 0} bloques.${labsPar}`,
+        type: pendientes === 0 ? 'success' : 'warning',
+        text: mensaje,
+        detail: `Bloques continuos: ${bloquesContinuos} · Cursos completos: ${cursosCompletos} · Parciales: ${cursosParciales} · Sin asignar: ${cursosSinAsignar}${reintento}`,
       });
       if (resData.data?.csp_stats) setCspStats(resData.data.csp_stats);
       cargarDatos();
@@ -387,8 +401,8 @@ export default function ProgramarPage() {
   };
 
   const avanzarFase = async () => {
-    if (!cspStats) {
-      setMsg({ type: 'error', text: 'Debes ejecutar el motor de programación (CSP) antes de avanzar a la Fase 4.' });
+    if (!cspStats && asignaciones.length === 0) {
+      setMsg({ type: 'error', text: 'Debes ejecutar el motor de programación (CSP) o importar un horario antes de avanzar a la Fase 4.' });
       return;
     }
     if (conflictos.length > 0 && !window.confirm('Hay conflictos sin resolver. ¿Estás seguro que quieres avanzar?')) {
@@ -428,6 +442,27 @@ export default function ProgramarPage() {
     } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
   };
 
+  const importarCursos2026I = async () => {
+    if (!window.confirm('¿Importar cursos 2026-I? Esto agregará/actualizará los cursos y grupos con sus docentes asignados.')) return;
+    setResolving(true);
+    setMsg({ type: 'info', text: 'Importando cursos 2026-I...' });
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}/importar-cursos-2026i`, {
+        method: 'POST',
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+
+      setMsg({ type: 'success', text: json.message });
+      // Recargar datos para reflejar los cambios
+      await cargarDatos();
+    } catch (err: any) {
+      setMsg({ type: 'error', text: 'Error importando cursos 2026-I: ' + err.message });
+    } finally {
+      setResolving(false);
+    }
+  };
+
   const asignacionesVisibles = useMemo(() => {
     if (docentesConCarga.size === 0) return asignaciones;
     return asignaciones.filter(
@@ -454,6 +489,9 @@ export default function ProgramarPage() {
             <button className="btn-secondary" onClick={history.undo} disabled={!history.canUndo} style={{ padding: '6px 12px', fontSize: '12px' }} title="Deshacer (Ctrl+Z)">↩️</button>
             <button className="btn-secondary" onClick={history.redo} disabled={!history.canRedo} style={{ padding: '6px 12px', fontSize: '12px' }} title="Rehacer (Ctrl+Y)">↪️</button>
           </div>
+          <button className="btn-secondary" onClick={importarCursos2026I} disabled={resolving || prog.fase !== 3}>
+            📋 Importar Horario 2026-I
+          </button>
           <button className="btn-secondary" onClick={() => ejecutarMotor(false)} disabled={resolving || prog.fase !== 3}>
             {resolving ? '⚙️ Resolviendo...' : asignacionesVisibles.length > 0 ? '🔄 Reejecutar CSP' : '⚙️ Ejecutar Auto-Asignación'}
           </button>
@@ -471,7 +509,10 @@ export default function ProgramarPage() {
 
       {msg && (
         <div className={`alert alert-${msg.type}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>{msg.text}</span>
+          <div>
+            <div>{msg.text}</div>
+            {msg.detail && <div style={{ fontSize: '0.85em', opacity: 0.85, marginTop: 4 }}>{msg.detail}</div>}
+          </div>
           <button
             onClick={() => setMsg(null)}
             style={{

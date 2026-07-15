@@ -51,8 +51,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       ORDER BY d.apellidos
     `, [id]);
 
-    console.log(`[programacion-cursos] prog=${prog.nombre}, cursos=${cursos.length}, docentes=${cargaDocentes.length}`);
-
     return NextResponse.json({ data: cursos, cargaDocentes });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error interno';

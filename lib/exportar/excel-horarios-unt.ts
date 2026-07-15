@@ -5,6 +5,7 @@ import { aplicarEncabezadoInstitucional } from './secciones/encabezado-instituci
 import { aplicarTablaDocentes, type DocenteFila } from './secciones/tabla-docentes';
 import { aplicarTablaHorario } from './secciones/tabla-horario';
 import { aplicarAsignaciones, type Asignacion } from './secciones/asignaciones';
+import { crearHojaResumenGeneral } from './crear-hoja-resumen';
 
 interface ConfigExportUNT {
   programacion: {
@@ -165,67 +166,17 @@ export async function exportarHorariosFormatoUNT(config: ConfigExportUNT) {
     todasAsignaciones.push(...cicloData.asignaciones);
   }
 
-  // HOJA 1: Información Global (al inicio)
-  const wsInfoGlobal = workbook.addWorksheet('INFORMACIÓN GLOBAL', {
-    pageSetup: {
-      orientation: 'portrait',
-      paperSize: 9,
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 0,
-    }
-  });
+  // HOJA 1: Resumen General (portada ejecutiva)
+  const sheetNames: string[] = ['Resumen General'];
 
-  // Encabezado institucional
-  wsInfoGlobal.mergeCells('A1:E1');
-  wsInfoGlobal.getCell('A1').value = 'UNIVERSIDAD NACIONAL DE TRUJILLO';
-  wsInfoGlobal.getCell('A1').font = { bold: true, size: 14 };
-  wsInfoGlobal.getCell('A1').alignment = { horizontal: 'center' };
-
-  wsInfoGlobal.mergeCells('A2:E2');
-  wsInfoGlobal.getCell('A2').value = 'Facultad de Ingeniería - Escuela de Ingeniería de Sistemas';
-  wsInfoGlobal.getCell('A2').font = { size: 12 };
-  wsInfoGlobal.getCell('A2').alignment = { horizontal: 'center' };
-
-  wsInfoGlobal.mergeCells('A3:E3');
-  wsInfoGlobal.getCell('A3').value = `HORARIOS ACADÉMICOS - ${config.programacion.año} - ${config.programacion.semestre}`;
-  wsInfoGlobal.getCell('A3').font = { bold: true, size: 13 };
-  wsInfoGlobal.getCell('A3').alignment = { horizontal: 'center' };
-
-  wsInfoGlobal.mergeCells('A4:E4');
-  wsInfoGlobal.getCell('A4').value = `Periodo: ${config.programacion.inicio} al ${config.programacion.termino}`;
-  wsInfoGlobal.getCell('A4').font = { size: 11 };
-  wsInfoGlobal.getCell('A4').alignment = { horizontal: 'center' };
-
-  // Estadísticas generales
-  wsInfoGlobal.getCell('A6').value = 'RESUMEN GENERAL';
-  wsInfoGlobal.getCell('A6').font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
-  wsInfoGlobal.getCell('A6').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A3A5C' } };
-  wsInfoGlobal.mergeCells('A6:E6');
-
-  const totalDocentes = docenteNameMap.size;
-  const totalCursos = new Set(todasAsignaciones.map(a => a.curso_codigo)).size;
-  const totalAsignaciones = todasAsignaciones.length;
-  const totalAulas = new Set(todasAsignaciones.map(a => a.aula)).size;
-
-  wsInfoGlobal.getCell('A8').value = 'Total Docentes:';
-  wsInfoGlobal.getCell('B8').value = totalDocentes;
-  wsInfoGlobal.getCell('A9').value = 'Total Cursos:';
-  wsInfoGlobal.getCell('B9').value = totalCursos;
-  wsInfoGlobal.getCell('A10').value = 'Total Asignaciones:';
-  wsInfoGlobal.getCell('B10').value = totalAsignaciones;
-  wsInfoGlobal.getCell('A11').value = 'Total Aulas/Laboratorios:';
-  wsInfoGlobal.getCell('B11').value = totalAulas;
-
-  wsInfoGlobal.getColumn('A').width = 25;
-  wsInfoGlobal.getColumn('B').width = 15;
-  wsInfoGlobal.getColumn('C').width = 25;
-  wsInfoGlobal.getColumn('D').width = 15;
-  wsInfoGlobal.getColumn('E').width = 15;
+  // Build sheet names by collecting them as we create sheets later
+  crearHojaResumenGeneral(workbook, config, todasAsignaciones);
 
   // Una hoja por cada ciclo (II, IV, VI, VIII, X)
   for (const cicloData of config.ciclos) {
-    const ws = crearHojaUNT(workbook, safeSheetName(cicloData.ciclo), {
+    const sheetName = safeSheetName(cicloData.ciclo);
+    sheetNames.push(sheetName);
+    const ws = crearHojaUNT(workbook, sheetName, {
       ciclo: cicloData.ciclo,
       seccion: cicloData.seccion,
       año: config.programacion.año,
@@ -250,7 +201,9 @@ export async function exportarHorariosFormatoUNT(config: ConfigExportUNT) {
     const docentesGeneral = buildDocentesFromAsignaciones(todasAsignaciones, docenteNameMap);
     const asignacionesGeneral = remapAsignacionesDocenteN(todasAsignaciones, docentesGeneral);
 
-    const wsGeneral = crearHojaUNT(workbook, safeSheetName('GENERAL'), {
+    const sheetGeneral = safeSheetName('GENERAL');
+    sheetNames.push(sheetGeneral);
+    const wsGeneral = crearHojaUNT(workbook, sheetGeneral, {
       ciclo: 'GENERAL',
       seccion: '-',
       año: config.programacion.año,
@@ -282,7 +235,9 @@ export async function exportarHorariosFormatoUNT(config: ConfigExportUNT) {
         const docentesAula = buildDocentesFromAsignaciones(aulaData.asignaciones, docenteNameMap);
         const asignacionesAula = remapAsignacionesDocenteN(aulaData.asignaciones, docentesAula);
 
-        const wsAula = crearHojaUNT(workbook, safeSheetName(`AULA-${aulaData.label}`), {
+        const sheetAula = safeSheetName(`AULA-${aulaData.label}`);
+        sheetNames.push(sheetAula);
+        const wsAula = crearHojaUNT(workbook, sheetAula, {
           ciclo: 'AULA',
           seccion: aulaData.label,
           año: config.programacion.año,
@@ -320,7 +275,9 @@ export async function exportarHorariosFormatoUNT(config: ConfigExportUNT) {
         const nombreDocente = docenteNameMap.get(docenteId) || 'Sin docente';
         const docenteData = docentesGeneral.find(d => d.docente_id === docenteId);
 
-        const wsDocente = crearHojaUNT(workbook, safeSheetName(`DOC-${nombreDocente}`), {
+        const sheetDocente = safeSheetName(`DOC-${nombreDocente}`);
+        sheetNames.push(sheetDocente);
+        const wsDocente = crearHojaUNT(workbook, sheetDocente, {
           ciclo: 'DOCENTE',
           seccion: nombreDocente,
           año: config.programacion.año,

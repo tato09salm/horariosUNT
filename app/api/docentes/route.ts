@@ -118,14 +118,6 @@ export async function GET(req: NextRequest) {
   }
 
   const docentes = await query(sql, params);
-  console.log('🗄️ Docentes from database:', docentes.map(d => ({
-    id: d.id,
-    nombre: d.nombre,
-    apellidos: d.apellidos,
-    facultad: d.facultad,
-    dpto_academico: d.dpto_academico,
-    allKeys: Object.keys(d)
-  })));
   return NextResponse.json({ data: docentes, total, page: reporte ? 1 : page, limit: reporte ? total : limit });
 }
 

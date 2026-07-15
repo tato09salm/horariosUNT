@@ -1473,7 +1473,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
           const cicloPlan = cAny.ciclo_plan || ch.ciclo_plan || 1;
           const cicloCurso = `${cicloPlan}-C`;
           const escuelaCurso = cAny.escuela || (primeraCarga as any)?.docente_dpto_academico || 'Ingeniería de Sistemas';
-          const seccionCurso = cAny.seccion || '';
+          const seccionCurso = ['EI-901', 'EI-X01'].includes(cAny.curso_codigo) ? (cAny.seccion || '') : '';
           const cursoDisplay = `${cAny.curso_nombre || ''} / ${cicloCurso} ${escuelaCurso}${seccionCurso ? ' ' + seccionCurso : ''}`;
           chlRows.push([
             { content: horarioStr, styles: { ...cellStyle, halign: 'center' as const, fontSize: 6 } },
@@ -1672,13 +1672,6 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
   // Obtener todos los ciclos de estudio (I-X)
   const todosLosCiclos = Array.from({ length: 10 }, (_, i) => i + 1);
 
-  const ciclosFiltrados = todosLosCiclos.filter(c => {
-    const cicloStr = getRomanNumeral(c).toLowerCase();
-    const cicloNumStr = c.toString();
-    const searchLower = buscarCiclo.toLowerCase();
-    return cicloStr.includes(searchLower) || cicloNumStr.includes(searchLower);
-  });
-
   // Agrupar carga horaria por ciclo_plan (even without courses)
   const cargaPorCiclo: Record<number, CargaHoraria[]> = {};
   const cursoCicloMap: Record<number, { curso: Curso, cargaHoraria: CargaHoraria }[]> = {};
@@ -1714,7 +1707,20 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
   console.log('🔹 cursoCicloMap after grouping:', cursoCicloMap);
   console.log('🔹 cargaPorCiclo:', cargaPorCiclo);
   console.log('🔹 totalCursosPorCicloFromDB:', totalCursosPorCicloFromDB);
-  console.log('🔹 todosLosCiclos:', todosLosCiclos);
+
+  // Obtener los ciclos visibles: para docente, solo aquellos con datos
+  const ciclosConDatos = Array.from(new Set([
+    ...Object.keys(cursoCicloMap).map(Number),
+    ...Object.keys(cargaPorCiclo).filter(k => Number(k) > 0).map(Number)
+  ])).sort((a, b) => a - b);
+  const ciclosBase = isDocente ? ciclosConDatos : todosLosCiclos;
+
+  const ciclosFiltrados = ciclosBase.filter(c => {
+    const cicloStr = getRomanNumeral(c).toLowerCase();
+    const cicloNumStr = c.toString();
+    const searchLower = buscarCiclo.toLowerCase();
+    return cicloStr.includes(searchLower) || cicloNumStr.includes(searchLower);
+  });
 
   // Helper function to remove accents and special characters
   const normalizeText = (text: string) => {
@@ -1770,7 +1776,13 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: '700', margin: '0 0 4px' }}>Carga Horaria</h1>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>Asignación de carga horaria a docentes por ciclo</p>
+            {isDocente ? (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+                {ciclosConDatos.length} ciclo{ciclosConDatos.length !== 1 ? 's' : ''} con cursos · {cargaHoraria.length} carga{cargaHoraria.length !== 1 ? 's' : ''} horaria{cargaHoraria.length !== 1 ? 's' : ''}
+              </p>
+            ) : (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>Asignación de carga horaria a docentes por ciclo</p>
+            )}
           </div>
           
           {/* Selector de ciclo académico - mostrar en ambas pestañas */}
@@ -1799,6 +1811,41 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
             </select>
           </div>
         </div>
+        
+        {isDocente && cargaHoraria.length > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+            borderRadius: '12px',
+            padding: '16px 20px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+            border: '1px solid #bfdbfe'
+          }}>
+            <div style={{
+              width: '48px', height: '48px', borderRadius: '50%',
+              background: '#3b82f6', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', color: '#fff', fontWeight: 700,
+              fontSize: '18px', flexShrink: 0
+            }}>
+              {(cargaHoraria[0]?.docente_nombre?.[0] || '?')}{(cargaHoraria[0]?.docente_apellidos?.[0] || '')}
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: '12px', fontWeight: '600', color: '#3b82f6', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Mi Carga Horaria
+              </p>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>
+                {cargaHoraria[0]?.docente_apellidos}, {cargaHoraria[0]?.docente_nombre}
+              </h2>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '6px', fontSize: '13px', color: '#475569' }}>
+                <span>{ciclosConDatos.length} ciclo{ciclosConDatos.length !== 1 ? 's' : ''} con cursos</span>
+                <span>{cargaHoraria.reduce((sum, ch) => sum + (ch.cursos?.length || 0), 0)} curso{cargaHoraria.reduce((sum, ch) => sum + (ch.cursos?.length || 0), 0) !== 1 ? 's' : ''} asignados</span>
+                <span>{cargaHoraria.reduce((sum, ch) => sum + (ch.horas_asignadas || 0), 0)}h total{cargaHoraria.reduce((sum, ch) => sum + (ch.horas_asignadas || 0), 0) !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div style={{ 
@@ -1958,10 +2005,16 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                         style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                         disabled={!cicloAcademicoSeleccionado}
                       >
-                        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-                        </svg>
-                        {isDocente ? 'Agregar Carga' : 'Asignar'}
+                        {isDocente && cargaHoraria.length > 0 ? (
+                          <Edit2 size={18} />
+                        ) : (
+                          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+                          </svg>
+                        )}
+                        {isDocente
+                          ? (cargaHoraria.length > 0 ? 'Editar Carga' : 'Agregar Carga')
+                          : 'Asignar'}
                       </button>
                     )}
                   </div>
@@ -1976,7 +2029,25 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                   </div>
                 ) : ciclosFiltrados.length === 0 ? (
                   <div className="card" style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                    {filtroSinAsignacion ? 'Todos los ciclos tienen asignación' : 'No hay ciclos disponibles'}
+                    {isDocente ? (
+                      <div>
+                        <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ margin: '0 auto 12px', opacity: 0.4 }}>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                        <p style={{ fontSize: '16px', fontWeight: 600, margin: '0 0 6px' }}>No tienes carga horaria asignada</p>
+                        <p style={{ fontSize: '14px', margin: '0 0 16px', color: '#94a3b8' }}>Aún no se te han asignado cursos para este ciclo académico</p>
+                        {!miCargaBloqueada && (
+                          <button
+                            className="btn-primary"
+                            onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${user?.docente_id}`)}
+                          >
+                            Agregar Carga
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      filtroSinAsignacion ? 'Todos los ciclos tienen asignación' : 'No hay ciclos disponibles'
+                    )}
                   </div>
                 ) : (cargaPorCiclo[0] || []).length > 0 ? (
                   <div className="card" style={{ marginBottom: '16px', border: '1px solid #dbeafe' }}>
@@ -2073,7 +2144,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                           {/* First check if we have any courses in this ciclo */}
                           {(!cursoCicloMap[ciclo] || cursoCicloMap[ciclo].length === 0) && cargasEnCiclo.length === 0 ? (
                             <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
-                              Aún no se asigna a los docentes carga horaria para este ciclo
+                              {isDocente ? 'No tienes cursos asignados en este ciclo' : 'Aún no se asigna a los docentes carga horaria para este ciclo'}
                             </div>
                           ) : (
                             <div className="table-container">
@@ -2105,7 +2176,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                                         <td style={{ verticalAlign: 'middle' }}>
                                           {getRomanNumeral(ciclo)}
                                         </td>
-                                        <td>{curso.curso_nombre || curso.nombre} ({curso.seccion})</td>
+                                        <td>{curso.curso_nombre || curso.nombre}{['EI-901', 'EI-X01'].includes(curso.curso_codigo) ? ` (${curso.seccion})` : ''}</td>
                                         <td style={{ verticalAlign: 'middle' }}>
                                           {ch.docente_apellidos}, {ch.docente_nombre}
                                         </td>

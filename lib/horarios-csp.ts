@@ -42,7 +42,7 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
   const cursos = await query(`
     SELECT pc.*, g.num_alumnos, g.numero_grupo, cu.codigo, cu.nombre as curso_nombre, cu.ciclo_plan,
            COALESCE(cu.bloque_indivisible, true) as bloque_indivisible,
-           COALESCE(cu.cantidad_labs, 1) as cantidad_labs,
+           1 as cantidad_labs,
            COALESCE(cu.horas_laboratorio, cu.horas_practica, 0) as horas_laboratorio_catalogo,
            d.condicion, d.categoria, d.fecha_ingreso, d.nombre as docente_n, d.apellidos as docente_a,
            CASE d.condicion WHEN 'nombrado' THEN 0 ELSE 1 END as condicion_orden,
@@ -118,8 +118,7 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
   }
 
   if (restrictedIds === null) {
-    const foodSlot = slots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
-    restrictedIds = foodSlot ? [foodSlot.id] : [];
+    restrictedIds = [];
   }
 
   // Build docStats
@@ -153,7 +152,7 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
 
     const cursosFaltantes = await query(`
       SELECT pc.*, cu.codigo, cu.nombre as curso_nombre, cu.ciclo_plan,
-             GREATEST(COALESCE(cu.cantidad_labs, 1), 1) AS cantidad_labs,
+              1 AS cantidad_labs,
              g.numero_grupo, g.num_alumnos,
              CASE d.condicion WHEN 'nombrado' THEN 0 ELSE 1 END as condicion_orden,
              CASE d.categoria 
@@ -178,7 +177,9 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
 
     const bloquesFaltantes: any[] = [];
     for (const c of cursosFaltantes) {
-      const totalHoras = c.horas_teoria + c.horas_practica + (c.horas_laboratorio || 0) * (c.cantidad_labs || 1);
+      const esPuramenteLab = (c.horas_teoria || 0) === 0 && (c.horas_practica || 0) === 0;
+      const factorLab = esPuramenteLab ? 1 : (c.cantidad_labs || 1);
+      const totalHoras = c.horas_teoria + c.horas_practica + (c.horas_laboratorio || 0) * factorLab;
       const asignadas = asignadasPorPC.get(c.id) || 0;
       const faltan = totalHoras - asignadas;
       for (let i = 0; i < faltan; i++) {
@@ -190,7 +191,7 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
           grupo_id: c.grupo_id, numero_grupo: c.numero_grupo, docente_id: c.docente_id,
           tipo_sesion: tipo, num_alumnos: c.num_alumnos || 25, ciclo_plan: c.ciclo_plan,
           condicion_orden: c.condicion_orden, categoria_orden: c.categoria_orden,
-          fecha_ingreso: c.fecha_ingreso, cantidad_labs: c.cantidad_labs || 1,
+          fecha_ingreso: c.fecha_ingreso,
         });
       }
     }
@@ -217,7 +218,9 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
         }
         const bloquesAunFaltantes: any[] = [];
         for (const c of cursosFaltantes) {
-          const totalHoras = c.horas_teoria + c.horas_practica + (c.horas_laboratorio || 0) * (c.cantidad_labs || 1);
+          const esPL = (c.horas_teoria || 0) === 0 && (c.horas_practica || 0) === 0;
+          const factorLab = esPL ? 1 : (c.cantidad_labs || 1);
+          const totalHoras = c.horas_teoria + c.horas_practica + (c.horas_laboratorio || 0) * factorLab;
           const asignadas = asignadasTrasGA.get(c.id) || 0;
           const faltan = totalHoras - asignadas;
           for (let i = 0; i < faltan; i++) {
@@ -229,7 +232,7 @@ export async function generarHorarioCSP(programacion_id: string): Promise<{
               grupo_id: c.grupo_id, numero_grupo: c.numero_grupo, docente_id: c.docente_id,
               tipo_sesion: tipo, num_alumnos: c.num_alumnos || 25, ciclo_plan: c.ciclo_plan,
               condicion_orden: c.condicion_orden, categoria_orden: c.categoria_orden,
-              fecha_ingreso: c.fecha_ingreso, cantidad_labs: c.cantidad_labs || 1,
+              fecha_ingreso: c.fecha_ingreso,
             });
           }
         }

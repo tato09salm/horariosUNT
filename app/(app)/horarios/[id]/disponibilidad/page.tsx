@@ -179,11 +179,6 @@ export default function DisponibilidadPage() {
             restDict = parsed;
           }
         } catch(e) {}
-      } else {
-        const foodSlot = activeSlots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
-        if (foodSlot) {
-          restDict[foodSlot.id] = 'HORA LIBRE (REFRIGERIO)';
-        }
       }
       setRestringidos(restDict);
       setLoadedRestringidos(true);
@@ -391,6 +386,29 @@ export default function DisponibilidadPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const cargarDisponibilidad2026I = async () => {
+    if (!progId) return;
+
+    setLoading(true);
+    setMsg({ type: 'info', text: 'Cargando disponibilidad 2026-I desde CSV...' });
+
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${progId}/cargar-disponibilidad-2026i`, {
+        method: 'POST',
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+
+      setMsg({ type: 'success', text: json.message });
+      if (docenteId) await cargarDisponibilidad(docenteId);
+      cargarResumenPendientes();
+    } catch (err: any) {
+      setMsg({ type: 'error', text: 'Error cargando disponibilidad 2026-I: ' + err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const notificarDocentes = async () => {
     setMsg(null);
     try {
@@ -534,6 +552,9 @@ export default function DisponibilidadPage() {
             <input type="file" accept=".csv" ref={fileInputRef} style={{ display: 'none' }} onChange={importarCSV} />
             <button className="btn-secondary" onClick={() => fileInputRef.current?.click()} disabled={saving || loading}>
               📥 Importar CSV
+            </button>
+            <button className="btn-secondary" onClick={cargarDisponibilidad2026I} disabled={saving || loading}>
+              📋 Cargar Disponibilidad 2026-I
             </button>
             <button className="btn-secondary" onClick={notificarDocentes}>Notificar Docentes</button>
             <button className="btn-secondary" onClick={retrocederFase}>← Volver a Fase 1</button>
@@ -788,7 +809,7 @@ export default function DisponibilidadPage() {
           <div className="horario-header">Hora</div>
           {DIAS.map(d => <div key={d} className="horario-header">{DIAS_LABEL[d]}</div>)}
           {slots.map((slot) => {
-            const isRestringido = loadedRestringidos ? (slot.id in restringidos) : (slot.hora_inicio === '13:00' || slot.hora_inicio === '13:00:00');
+            const isRestringido = loadedRestringidos && (slot.id in restringidos);
             if (isRestringido) return null;
             return (
               <div key={slot.id} style={{ display: 'contents' }}>

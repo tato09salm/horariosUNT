@@ -103,10 +103,22 @@ export async function GET(req: NextRequest) {
       const sections = ['preparacion', 'consejeria', 'investigacion', 'capacitacion', 'gobierno', 'administracion', 'asesoria', 'rsu', 'comites'] as const;
       for (const section of sections) {
         const table = `carga_horaria_${section}`;
+        let rows: any[] = [];
         try {
-          const rows = await query(`
+          rows = await query(`
             SELECT * FROM ${table} WHERE carga_horaria_id = $1 ORDER BY orden ASC, id ASC
           `, [ch.id]);
+        } catch (_) {
+          // Fallback if orden column doesn't exist
+          try {
+            rows = await query(`
+              SELECT * FROM ${table} WHERE carga_horaria_id = $1 ORDER BY id ASC
+            `, [ch.id]);
+          } catch (_2) {
+            rows = [];
+          }
+        }
+        try {
           
           if (rows.length > 0) {
             // Map DB rows to frontend's expected format

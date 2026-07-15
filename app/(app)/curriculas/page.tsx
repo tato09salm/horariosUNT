@@ -516,21 +516,19 @@ export default function CurriculasPage() {
                     <td style={{ fontWeight: 700 }}>{curricula.creditos_totales}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                        {curricula.estado === 'BORRADOR' && (
-                          <a 
-                            href={`/curriculas/${curricula.id}/configurar`}
-                            className="btn-secondary"
-                            style={{ 
-                              textDecoration: 'none', 
-                              display: 'inline-flex', 
-                              alignItems: 'center',
-                              padding: '10px 20px',
-                              fontSize: '14px'
-                            }}
-                          >
-                            Configurar
-                          </a>
-                        )}
+                        <a 
+                          href={`/curriculas/${curricula.id}/configurar`}
+                          className="btn-secondary"
+                          style={{ 
+                            textDecoration: 'none', 
+                            display: 'inline-flex', 
+                            alignItems: 'center',
+                            padding: '10px 20px',
+                            fontSize: '14px'
+                          }}
+                        >
+                          Configurar
+                        </a>
                         <button className="btn-primary btn-crud-edit" onClick={() => editar(curricula)}>
                           Editar
                         </button>
