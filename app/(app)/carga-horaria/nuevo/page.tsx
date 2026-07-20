@@ -2838,7 +2838,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     <thead>
                       <tr style={{ background: darkMode ? '#1e293b' : '#f1f5f9' }}>
                         <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '80%' }}>Descripción</th>
-                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%' }}>Horas</th>
+                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%', textAlign: 'right' }}>Horas</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2846,13 +2846,19 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <input
-                                className="form-input"
-                                value={item.descripcion}
-                                onChange={(e) => handleUpdateItemDescripcion('preparacionEvaluacion', item.id, e.target.value)}
-                                disabled={!!item.dia || campoBloqueado}
-                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                              />
+                              {campoBloqueado ? (
+                                <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block' }}>
+                                  {item.descripcion}
+                                </span>
+                              ) : (
+                                <input
+                                  className="form-input"
+                                  value={item.descripcion}
+                                  onChange={(e) => handleUpdateItemDescripcion('preparacionEvaluacion', item.id, e.target.value)}
+                                  disabled={!!item.dia || campoBloqueado}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                                />
+                              )}
                               {item.dia && (
                                 <span style={{ 
                                   fontSize: '10px', 
@@ -2869,16 +2875,22 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                             </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="text"
-                              value={item.horas || ''}
-                              onChange={(e) => handleUpdateItemHoras('preparacionEvaluacion', item.id, e.target.value)}
-                              onBlur={(e) => handleBlurItemHoras('preparacionEvaluacion', item.id, e.target.value)}
-                             disabled={!!item.dia || campoBloqueado}
-                              onWheel={(e) => e.preventDefault()}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            {campoBloqueado ? (
+                              <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block', textAlign: 'right' }}>
+                                {item.horas || '0'}
+                              </span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="text"
+                                value={item.horas || ''}
+                                onChange={(e) => handleUpdateItemHoras('preparacionEvaluacion', item.id, e.target.value)}
+                                onBlur={(e) => handleBlurItemHoras('preparacionEvaluacion', item.id, e.target.value)}
+                                disabled={!!item.dia || campoBloqueado}
+                                onWheel={(e) => e.preventDefault()}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px', textAlign: 'right' }}
+                              />
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -2915,7 +2927,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     <thead>
                       <tr style={{ background: darkMode ? '#1e293b' : '#f1f5f9' }}>
                         <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '80%' }}>Descripción</th>
-                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%' }}>Horas</th>
+                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%', textAlign: 'right' }}>Horas</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2923,13 +2935,19 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <input
-                                className="form-input"
-                                value={item.descripcion}
-                                onChange={(e) => handleUpdateItemDescripcion('consejeriaTutoria', item.id, e.target.value)}
-                                disabled={!!item.dia || campoBloqueado}
-                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                              />
+                              {campoBloqueado ? (
+                                <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block' }}>
+                                  {item.descripcion}
+                                </span>
+                              ) : (
+                                <input
+                                  className="form-input"
+                                  value={item.descripcion}
+                                  onChange={(e) => handleUpdateItemDescripcion('consejeriaTutoria', item.id, e.target.value)}
+                                  disabled={!!item.dia || campoBloqueado}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                                />
+                              )}
                               {item.dia && (
                                 <span style={{ 
                                   fontSize: '10px', 
@@ -2946,16 +2964,22 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                             </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="text"
-                              value={item.horas || ''}
-                              onChange={(e) => handleUpdateItemHoras('consejeriaTutoria', item.id, e.target.value)}
-                              onBlur={(e) => handleBlurItemHoras('consejeriaTutoria', item.id, e.target.value)}
-                              disabled={!!item.dia || campoBloqueado}
-                              onWheel={(e) => e.preventDefault()}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            {campoBloqueado ? (
+                              <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block', textAlign: 'right' }}>
+                                {item.horas || '0'}
+                              </span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="text"
+                                value={item.horas || ''}
+                                onChange={(e) => handleUpdateItemHoras('consejeriaTutoria', item.id, e.target.value)}
+                                onBlur={(e) => handleBlurItemHoras('consejeriaTutoria', item.id, e.target.value)}
+                                disabled={!!item.dia || campoBloqueado}
+                                onWheel={(e) => e.preventDefault()}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px', textAlign: 'right' }}
+                              />
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -2992,7 +3016,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     <thead>
                       <tr style={{ background: darkMode ? '#1e293b' : '#f1f5f9' }}>
                         <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '80%' }}>Descripción</th>
-                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%' }}>Horas</th>
+                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%', textAlign: 'right' }}>Horas</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3000,13 +3024,19 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <input
-                                className="form-input"
-                                value={item.descripcion}
-                                onChange={(e) => handleUpdateItemDescripcion('investigacion', item.id, e.target.value)}
-                                disabled={!!item.dia || campoBloqueado}
-                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                              />
+                              {campoBloqueado ? (
+                                <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block' }}>
+                                  {item.descripcion}
+                                </span>
+                              ) : (
+                                <input
+                                  className="form-input"
+                                  value={item.descripcion}
+                                  onChange={(e) => handleUpdateItemDescripcion('investigacion', item.id, e.target.value)}
+                                  disabled={!!item.dia || campoBloqueado}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                                />
+                              )}
                               {item.dia && (
                                 <span style={{ 
                                   fontSize: '10px', 
@@ -3023,16 +3053,22 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                             </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="text"
-                              value={item.horas || ''}
-                              onChange={(e) => handleUpdateItemHoras('investigacion', item.id, e.target.value)}
-                              onBlur={(e) => handleBlurItemHoras('investigacion', item.id, e.target.value)}
-                              disabled={!!item.dia || campoBloqueado}
-                              onWheel={(e) => e.preventDefault()}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            {campoBloqueado ? (
+                              <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block', textAlign: 'right' }}>
+                                {item.horas || '0'}
+                              </span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="text"
+                                value={item.horas || ''}
+                                onChange={(e) => handleUpdateItemHoras('investigacion', item.id, e.target.value)}
+                                onBlur={(e) => handleBlurItemHoras('investigacion', item.id, e.target.value)}
+                                disabled={!!item.dia || campoBloqueado}
+                                onWheel={(e) => e.preventDefault()}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px', textAlign: 'right' }}
+                              />
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -3069,7 +3105,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     <thead>
                       <tr style={{ background: darkMode ? '#1e293b' : '#f1f5f9' }}>
                         <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '80%' }}>Descripción</th>
-                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%' }}>Horas</th>
+                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%', textAlign: 'right' }}>Horas</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3077,13 +3113,19 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <input
-                                className="form-input"
-                                value={item.descripcion}
-                                onChange={(e) => handleUpdateItemDescripcion('capacitacion', item.id, e.target.value)}
-                                disabled={!!item.dia || campoBloqueado}
-                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                              />
+                              {campoBloqueado ? (
+                                <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block' }}>
+                                  {item.descripcion}
+                                </span>
+                              ) : (
+                                <input
+                                  className="form-input"
+                                  value={item.descripcion}
+                                  onChange={(e) => handleUpdateItemDescripcion('capacitacion', item.id, e.target.value)}
+                                  disabled={!!item.dia || campoBloqueado}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                                />
+                              )}
                               {item.dia && (
                                 <span style={{ 
                                   fontSize: '10px', 
@@ -3100,16 +3142,22 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                             </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="text"
-                              value={item.horas || ''}
-                              onChange={(e) => handleUpdateItemHoras('capacitacion', item.id, e.target.value)}
-                              onBlur={(e) => handleBlurItemHoras('capacitacion', item.id, e.target.value)}
-                              disabled={!!item.dia || campoBloqueado}
-                              onWheel={(e) => e.preventDefault()}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            {campoBloqueado ? (
+                              <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block', textAlign: 'right' }}>
+                                {item.horas || '0'}
+                              </span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="text"
+                                value={item.horas || ''}
+                                onChange={(e) => handleUpdateItemHoras('capacitacion', item.id, e.target.value)}
+                                onBlur={(e) => handleBlurItemHoras('capacitacion', item.id, e.target.value)}
+                                disabled={!!item.dia || campoBloqueado}
+                                onWheel={(e) => e.preventDefault()}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px', textAlign: 'right' }}
+                              />
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -3146,7 +3194,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     <thead>
                       <tr style={{ background: darkMode ? '#1e293b' : '#f1f5f9' }}>
                         <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '80%' }}>Descripción</th>
-                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%' }}>Horas</th>
+                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%', textAlign: 'right' }}>Horas</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3154,13 +3202,19 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <input
-                                className="form-input"
-                                value={item.descripcion}
-                                onChange={(e) => handleUpdateItemDescripcion('gobierno', item.id, e.target.value)}
-                                disabled={!!item.dia || campoBloqueado}
-                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                              />
+                              {campoBloqueado ? (
+                                <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block' }}>
+                                  {item.descripcion}
+                                </span>
+                              ) : (
+                                <input
+                                  className="form-input"
+                                  value={item.descripcion}
+                                  onChange={(e) => handleUpdateItemDescripcion('gobierno', item.id, e.target.value)}
+                                  disabled={!!item.dia || campoBloqueado}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                                />
+                              )}
                               {item.dia && (
                                 <span style={{ 
                                   fontSize: '10px', 
@@ -3177,16 +3231,22 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                             </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="text"
-                              value={item.horas || ''}
-                              onChange={(e) => handleUpdateItemHoras('gobierno', item.id, e.target.value)}
-                              onBlur={(e) => handleBlurItemHoras('gobierno', item.id, e.target.value)}
-                              disabled={!!item.dia || campoBloqueado}
-                              onWheel={(e) => e.preventDefault()}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            {campoBloqueado ? (
+                              <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block', textAlign: 'right' }}>
+                                {item.horas || '0'}
+                              </span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="text"
+                                value={item.horas || ''}
+                                onChange={(e) => handleUpdateItemHoras('gobierno', item.id, e.target.value)}
+                                onBlur={(e) => handleBlurItemHoras('gobierno', item.id, e.target.value)}
+                                disabled={!!item.dia || campoBloqueado}
+                                onWheel={(e) => e.preventDefault()}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px', textAlign: 'right' }}
+                              />
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -3223,7 +3283,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     <thead>
                       <tr style={{ background: darkMode ? '#1e293b' : '#f1f5f9' }}>
                         <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '80%' }}>Descripción</th>
-                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%' }}>Horas</th>
+                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%', textAlign: 'right' }}>Horas</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3231,13 +3291,19 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <input
-                                className="form-input"
-                                value={item.descripcion}
-                                onChange={(e) => handleUpdateItemDescripcion('administracion', item.id, e.target.value)}
-                                disabled={!!item.dia || campoBloqueado}
-                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                              />
+                              {campoBloqueado ? (
+                                <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block' }}>
+                                  {item.descripcion}
+                                </span>
+                              ) : (
+                                <input
+                                  className="form-input"
+                                  value={item.descripcion}
+                                  onChange={(e) => handleUpdateItemDescripcion('administracion', item.id, e.target.value)}
+                                  disabled={!!item.dia || campoBloqueado}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                                />
+                              )}
                               {item.dia && (
                                 <span style={{ 
                                   fontSize: '10px', 
@@ -3254,16 +3320,22 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                             </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="text"
-                              value={item.horas || ''}
-                              onChange={(e) => handleUpdateItemHoras('administracion', item.id, e.target.value)}
-                              onBlur={(e) => handleBlurItemHoras('administracion', item.id, e.target.value)}
-                              disabled={!!item.dia || campoBloqueado}
-                              onWheel={(e) => e.preventDefault()}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            {campoBloqueado ? (
+                              <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block', textAlign: 'right' }}>
+                                {item.horas || '0'}
+                              </span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="text"
+                                value={item.horas || ''}
+                                onChange={(e) => handleUpdateItemHoras('administracion', item.id, e.target.value)}
+                                onBlur={(e) => handleBlurItemHoras('administracion', item.id, e.target.value)}
+                                disabled={!!item.dia || campoBloqueado}
+                                onWheel={(e) => e.preventDefault()}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px', textAlign: 'right' }}
+                              />
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -3300,7 +3372,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     <thead>
                       <tr style={{ background: darkMode ? '#1e293b' : '#f1f5f9' }}>
                         <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '80%' }}>Descripción</th>
-                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%' }}>Horas</th>
+                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%', textAlign: 'right' }}>Horas</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3308,13 +3380,19 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <input
-                                className="form-input"
-                                value={item.descripcion}
-                                onChange={(e) => handleUpdateItemDescripcion('asesoriaTesis', item.id, e.target.value)}
-                                disabled={!!item.dia || campoBloqueado}
-                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                              />
+                              {campoBloqueado ? (
+                                <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block' }}>
+                                  {item.descripcion}
+                                </span>
+                              ) : (
+                                <input
+                                  className="form-input"
+                                  value={item.descripcion}
+                                  onChange={(e) => handleUpdateItemDescripcion('asesoriaTesis', item.id, e.target.value)}
+                                  disabled={!!item.dia || campoBloqueado}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                                />
+                              )}
                               {item.dia && (
                                 <span style={{ 
                                   fontSize: '10px', 
@@ -3331,16 +3409,22 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                             </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="text"
-                              value={item.horas || ''}
-                              onChange={(e) => handleUpdateItemHoras('asesoriaTesis', item.id, e.target.value)}
-                              onBlur={(e) => handleBlurItemHoras('asesoriaTesis', item.id, e.target.value)}
-                              disabled={!!item.dia || campoBloqueado}
-                              onWheel={(e) => e.preventDefault()}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            {campoBloqueado ? (
+                              <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block', textAlign: 'right' }}>
+                                {item.horas || '0'}
+                              </span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="text"
+                                value={item.horas || ''}
+                                onChange={(e) => handleUpdateItemHoras('asesoriaTesis', item.id, e.target.value)}
+                                onBlur={(e) => handleBlurItemHoras('asesoriaTesis', item.id, e.target.value)}
+                                disabled={!!item.dia || campoBloqueado}
+                                onWheel={(e) => e.preventDefault()}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px', textAlign: 'right' }}
+                              />
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -3377,7 +3461,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     <thead>
                       <tr style={{ background: darkMode ? '#1e293b' : '#f1f5f9' }}>
                         <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '80%' }}>Descripción</th>
-                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%' }}>Horas</th>
+                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%', textAlign: 'right' }}>Horas</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3385,13 +3469,19 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <input
-                                className="form-input"
-                                value={item.descripcion}
-                                onChange={(e) => handleUpdateItemDescripcion('responsabilidadSocial', item.id, e.target.value)}
-                                disabled={!!item.dia || campoBloqueado}
-                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                              />
+                              {campoBloqueado ? (
+                                <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block' }}>
+                                  {item.descripcion}
+                                </span>
+                              ) : (
+                                <input
+                                  className="form-input"
+                                  value={item.descripcion}
+                                  onChange={(e) => handleUpdateItemDescripcion('responsabilidadSocial', item.id, e.target.value)}
+                                  disabled={!!item.dia || campoBloqueado}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                                />
+                              )}
                               {item.dia && (
                                 <span style={{ 
                                   fontSize: '10px', 
@@ -3408,16 +3498,22 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                             </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="text"
-                              value={item.horas || ''}
-                              onChange={(e) => handleUpdateItemHoras('responsabilidadSocial', item.id, e.target.value)}
-                              onBlur={(e) => handleBlurItemHoras('responsabilidadSocial', item.id, e.target.value)}
-                              disabled={!!item.dia || campoBloqueado}
-                              onWheel={(e) => e.preventDefault()}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            {campoBloqueado ? (
+                              <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block', textAlign: 'right' }}>
+                                {item.horas || '0'}
+                              </span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="text"
+                                value={item.horas || ''}
+                                onChange={(e) => handleUpdateItemHoras('responsabilidadSocial', item.id, e.target.value)}
+                                onBlur={(e) => handleBlurItemHoras('responsabilidadSocial', item.id, e.target.value)}
+                                disabled={!!item.dia || campoBloqueado}
+                                onWheel={(e) => e.preventDefault()}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px', textAlign: 'right' }}
+                              />
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -3454,7 +3550,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                     <thead>
                       <tr style={{ background: darkMode ? '#1e293b' : '#f1f5f9' }}>
                         <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '80%' }}>Descripción</th>
-                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%' }}>Horas</th>
+                        <th style={{ padding: '6px 8px', border: '1px solid var(--border-color)', width: '20%', textAlign: 'right' }}>Horas</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3462,13 +3558,19 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                         <tr key={item.id}>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <input
-                                className="form-input"
-                                value={item.descripcion}
-                                onChange={(e) => handleUpdateItemDescripcion('comitesTecnicos', item.id, e.target.value)}
-                                disabled={!!item.dia || campoBloqueado}
-                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                              />
+                              {campoBloqueado ? (
+                                <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block' }}>
+                                  {item.descripcion}
+                                </span>
+                              ) : (
+                                <input
+                                  className="form-input"
+                                  value={item.descripcion}
+                                  onChange={(e) => handleUpdateItemDescripcion('comitesTecnicos', item.id, e.target.value)}
+                                  disabled={!!item.dia || campoBloqueado}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
+                                />
+                              )}
                               {item.dia && (
                                 <span style={{ 
                                   fontSize: '10px', 
@@ -3485,16 +3587,22 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                             </div>
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="text"
-                              value={item.horas || ''}
-                              onChange={(e) => handleUpdateItemHoras('comitesTecnicos', item.id, e.target.value)}
-                              onBlur={(e) => handleBlurItemHoras('comitesTecnicos', item.id, e.target.value)}
-                              disabled={!!item.dia || campoBloqueado}
-                              onWheel={(e) => e.preventDefault()}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: '11px' }}
-                            />
+                            {campoBloqueado ? (
+                              <span style={{ fontSize: '11px', color: 'var(--text-primary)', padding: '4px 6px', display: 'block', textAlign: 'right' }}>
+                                {item.horas || '0'}
+                              </span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="text"
+                                value={item.horas || ''}
+                                onChange={(e) => handleUpdateItemHoras('comitesTecnicos', item.id, e.target.value)}
+                                onBlur={(e) => handleBlurItemHoras('comitesTecnicos', item.id, e.target.value)}
+                                disabled={!!item.dia || campoBloqueado}
+                                onWheel={(e) => e.preventDefault()}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '11px', textAlign: 'right' }}
+                              />
+                            )}
                           </td>
                         </tr>
                       ))}
