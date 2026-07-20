@@ -2369,7 +2369,9 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>{curso.nombre}</td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)', fontSize: '10px' }}>{curso.curriculaNombre || '-'}</td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-                            {curso.seccion ? (
+                            {lectivaBloqueada ? (
+                              <span>{curso.seccion || '—'}</span>
+                            ) : curso.seccion ? (
                               <input
                                 className="form-input"
                                 value={curso.seccion}
@@ -2382,113 +2384,149 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                             )}
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <select
-                              className="form-input"
-                              value={curso.condicionCurso}
-                              onChange={(e) => handleUpdateCursoField(curso.id, 'condicionCurso', e.target.value as 'OB' | 'EL')}
-                              disabled={lectivaBloqueada}
-                              style={{ padding: '4px 6px', fontSize: '11px', width: '70px' }}
-                            >
-                              <option value="OB">OB</option>
-                              <option value="EL">EL</option>
-                            </select>
+                            {lectivaBloqueada ? (
+                              <span>{curso.condicionCurso}</span>
+                            ) : (
+                              <select
+                                className="form-input"
+                                value={curso.condicionCurso}
+                                onChange={(e) => handleUpdateCursoField(curso.id, 'condicionCurso', e.target.value as 'OB' | 'EL')}
+                                disabled={lectivaBloqueada}
+                                style={{ padding: '4px 6px', fontSize: '11px', width: '70px' }}
+                              >
+                                <option value="OB">OB</option>
+                                <option value="EL">EL</option>
+                              </select>
+                            )}
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              value={curso.escuela}
-                              onChange={(e) => handleUpdateCursoField(curso.id, 'escuela', e.target.value)}
-                              disabled={lectivaBloqueada}
-                              style={{ padding: '4px 6px', fontSize: '11px', width: '180px' }}
-                            />
+                            {lectivaBloqueada ? (
+                              <span>{curso.escuela || '—'}</span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                value={curso.escuela}
+                                onChange={(e) => handleUpdateCursoField(curso.id, 'escuela', e.target.value)}
+                                disabled={lectivaBloqueada}
+                                style={{ padding: '4px 6px', fontSize: '11px', width: '180px' }}
+                              />
+                            )}
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>{curso.anioCiclo}</td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="number"
-                              min="0"
-                              value={curso.numeroAlumnos}
-                              onChange={(e) => handleUpdateCursoField(curso.id, 'numeroAlumnos', e.target.value)}
-                              onWheel={(e) => e.preventDefault()}
-                              disabled={lectivaBloqueada}
-                              style={{ padding: '4px 6px', fontSize: '11px', width: '70px' }}
-                            />
+                            {lectivaBloqueada ? (
+                              <span>{curso.numeroAlumnos || '0'}</span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="number"
+                                min="0"
+                                value={curso.numeroAlumnos}
+                                onChange={(e) => handleUpdateCursoField(curso.id, 'numeroAlumnos', e.target.value)}
+                                onWheel={(e) => e.preventDefault()}
+                                disabled={lectivaBloqueada}
+                                style={{ padding: '4px 6px', fontSize: '11px', width: '70px' }}
+                              />
+                            )}
                           </td>
                           {/* Teoría */}
                           <td style={{ padding: '6px 4px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="number"
-                              min="0"
-                              value={curso.teoriaHoras}
-                              onChange={(e) => handleUpdateCursoField(curso.id, 'teoriaHoras', e.target.value)}
-                              onWheel={(e) => e.preventDefault()}
-                              disabled={lectivaBloqueada}
-                              style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
-                            />
+                            {lectivaBloqueada ? (
+                              <span>{curso.teoriaHoras || '0'}</span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="number"
+                                min="0"
+                                value={curso.teoriaHoras}
+                                onChange={(e) => handleUpdateCursoField(curso.id, 'teoriaHoras', e.target.value)}
+                                onWheel={(e) => e.preventDefault()}
+                                disabled={lectivaBloqueada}
+                                style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
+                              />
+                            )}
                           </td>
                           <td style={{ padding: '6px 4px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="number"
-                              min="0"
-                              value={curso.teoriaGrupos}
-                              onChange={(e) => handleUpdateCursoField(curso.id, 'teoriaGrupos', e.target.value)}
-                              onWheel={(e) => e.preventDefault()}
-                              disabled={lectivaBloqueada}
-                              style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
-                            />
+                            {lectivaBloqueada ? (
+                              <span>{curso.teoriaGrupos || '0'}</span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="number"
+                                min="0"
+                                value={curso.teoriaGrupos}
+                                onChange={(e) => handleUpdateCursoField(curso.id, 'teoriaGrupos', e.target.value)}
+                                onWheel={(e) => e.preventDefault()}
+                                disabled={lectivaBloqueada}
+                                style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
+                              />
+                            )}
                           </td>
                           {/* Práctica */}
                           <td style={{ padding: '6px 4px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="number"
-                              min="0"
-                              value={curso.practicaHoras}
-                              onChange={(e) => handleUpdateCursoField(curso.id, 'practicaHoras', e.target.value)}
-                              onWheel={(e) => e.preventDefault()}
-                              disabled={lectivaBloqueada}
-                              style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
-                            />
+                            {lectivaBloqueada ? (
+                              <span>{curso.practicaHoras || '0'}</span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="number"
+                                min="0"
+                                value={curso.practicaHoras}
+                                onChange={(e) => handleUpdateCursoField(curso.id, 'practicaHoras', e.target.value)}
+                                onWheel={(e) => e.preventDefault()}
+                                disabled={lectivaBloqueada}
+                                style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
+                              />
+                            )}
                           </td>
                           <td style={{ padding: '6px 4px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="number"
-                              min="0"
-                              value={curso.practicaGrupos}
-                              onChange={(e) => handleUpdateCursoField(curso.id, 'practicaGrupos', e.target.value)}
-                              onWheel={(e) => e.preventDefault()}
-                              disabled={lectivaBloqueada}
-                              style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
-                            />
+                            {lectivaBloqueada ? (
+                              <span>{curso.practicaGrupos || '0'}</span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="number"
+                                min="0"
+                                value={curso.practicaGrupos}
+                                onChange={(e) => handleUpdateCursoField(curso.id, 'practicaGrupos', e.target.value)}
+                                onWheel={(e) => e.preventDefault()}
+                                disabled={lectivaBloqueada}
+                                style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
+                              />
+                            )}
                           </td>
                           {/* Laboratorio */}
                           <td style={{ padding: '6px 4px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="number"
-                              min="0"
-                              value={curso.laboratorioHoras}
-                              onChange={(e) => handleUpdateCursoField(curso.id, 'laboratorioHoras', e.target.value)}
-                              onWheel={(e) => e.preventDefault()}
-                              disabled={lectivaBloqueada}
-                              style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
-                            />
+                            {lectivaBloqueada ? (
+                              <span>{curso.laboratorioHoras || '0'}</span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="number"
+                                min="0"
+                                value={curso.laboratorioHoras}
+                                onChange={(e) => handleUpdateCursoField(curso.id, 'laboratorioHoras', e.target.value)}
+                                onWheel={(e) => e.preventDefault()}
+                                disabled={lectivaBloqueada}
+                                style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
+                              />
+                            )}
                           </td>
                           <td style={{ padding: '6px 4px', border: '1px solid var(--border-color)' }}>
-                            <input
-                              className="form-input"
-                              type="number"
-                              min="0"
-                              value={curso.laboratorioGrupos}
-                              onChange={(e) => handleUpdateCursoField(curso.id, 'laboratorioGrupos', e.target.value)}
-                              onWheel={(e) => e.preventDefault()}
-                              disabled={lectivaBloqueada}
-                              style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
-                            />
+                            {lectivaBloqueada ? (
+                              <span>{curso.laboratorioGrupos || '0'}</span>
+                            ) : (
+                              <input
+                                className="form-input"
+                                type="number"
+                                min="0"
+                                value={curso.laboratorioGrupos}
+                                onChange={(e) => handleUpdateCursoField(curso.id, 'laboratorioGrupos', e.target.value)}
+                                onWheel={(e) => e.preventDefault()}
+                                disabled={lectivaBloqueada}
+                                style={{ padding: '4px 6px', fontSize: '11px', width: '50px' }}
+                              />
+                            )}
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid var(--border-color)' }}>{curso.totalHoras}</td>
                           {!lectivaBloqueada && (
@@ -4682,7 +4720,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                     } else {
                                       // Slot is empty
                                       if (usedHours >= totalHours) {
-                                        setWarningMessage(`Ya has asignado todas las horas para "${elementoSeleccionado.nombre || elementoSeleccionado.titulo}"`);
+                                        alert(`Ya has asignado todas las horas para "${elementoSeleccionado.nombre || elementoSeleccionado.titulo}"`);
                                       } else {
                                         const newAsignaciones = {
                                           ...asignaciones,
