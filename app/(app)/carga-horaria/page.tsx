@@ -127,10 +127,18 @@ export default function CargaHorariaPage() {
   const [filtroCurso, setFiltroCurso] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   
+  const [buscarDocenteReporte, setBuscarDocenteReporte] = useState('');
+  const [filtroCursoReporte, setFiltroCursoReporte] = useState('');
+  const [currentPageReporte, setCurrentPageReporte] = useState(1);
+  
   // Resetear página cuando cambian los filtros
   useEffect(() => {
     setCurrentPage(1);
   }, [filtroNombreDocente, filtroEstadoCarga, filtroCurso]);
+
+  useEffect(() => {
+    setCurrentPageReporte(1);
+  }, [buscarDocenteReporte, filtroCursoReporte]);
   
   // Guardar el ciclo academico seleccionado en sessionStorage
   useEffect(() => {
@@ -153,7 +161,6 @@ export default function CargaHorariaPage() {
   const [buscarCiclo, setBuscarCiclo] = useState('');
   const [filtroSinAsignacion, setFiltroSinAsignacion] = useState(false);
   const [buscarDocente, setBuscarDocente] = useState('');
-  const [buscarDocenteReporte, setBuscarDocenteReporte] = useState('');
   const [docenteSeleccionado, setDocenteSeleccionado] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ type: string; text: string } | null>(null);
@@ -308,7 +315,7 @@ export default function CargaHorariaPage() {
 
   // Cargar docentes con estado de carga para vista "Carga por Docentes"
   useEffect(() => {
-    if (activeTab !== 'carga-docentes' || !cicloAcademicoSeleccionado) return;
+    if ((activeTab !== 'carga-docentes' && activeTab !== 'reportes') || !cicloAcademicoSeleccionado) return;
     setLoadingDocentesCarga(true);
     
     // Cargar todos los docentes activos
@@ -3031,18 +3038,32 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
           ) : (
             <>
               {!isDocente && (
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>
-                  Buscar docente por nombre
-                </label>
-                <input
-                  className="form-input"
-                  style={{ width: '100%', maxWidth: '400px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
-                  placeholder="Buscar docente..."
-                  value={buscarDocenteReporte}
-                  onChange={e => setBuscarDocenteReporte(e.target.value)}
-                />
-              </div>
+                <div style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                      Buscar por nombre, apellidos o código
+                    </label>
+                    <input
+                      className="form-input"
+                      style={{ width: '250px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
+                      placeholder="Nombre, apellidos o código..."
+                      value={buscarDocenteReporte}
+                      onChange={e => setBuscarDocenteReporte(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                      Filtrar por curso
+                    </label>
+                    <input
+                      className="form-input"
+                      style={{ width: '200px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
+                      placeholder="Nombre o código de curso..."
+                      value={filtroCursoReporte}
+                      onChange={e => setFiltroCursoReporte(e.target.value)}
+                    />
+                  </div>
+                </div>
               )}
 
               {/* Tabla de reportes */}
@@ -3055,7 +3076,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                     </tr>
                   </thead>
                   <tbody>
-                    {loadingCiclos ? (
+                    {loadingDocentesCarga ? (
                       <tr>
                         <td colSpan={2} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
                           Cargando...
@@ -3063,112 +3084,126 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                       </tr>
                     ) : (
                       (() => {
-                        // Obtener docentes únicos con carga horaria en el ciclo seleccionado
-                        const docentesUnicosMap = new Map();
-                        const cargaFiltered = isDocente && user?.docente_id
-                          ? cargaHoraria.filter(ch => ch.docente_id === user.docente_id)
-                          : cargaHoraria;
-                        cargaFiltered.forEach(ch => {
-                          if (!docentesUnicosMap.has(ch.docente_id)) {
-                            docentesUnicosMap.set(ch.docente_id, ch);
-                          }
-                        });
-                        const docentesUnicos = Array.from(docentesUnicosMap.values());
+                        const listDocentes = isDocente && user?.docente_id
+                          ? docentesCarga.filter(d => d.id === user.docente_id)
+                          : docentesCarga;
 
                         // Filtrar por búsqueda
-                        const docentesFiltrados = docentesUnicos.filter(ch => 
-                          normalizeText(ch.docente_nombre || '').includes(normalizeText(buscarDocenteReporte)) ||
-                          normalizeText(ch.docente_apellidos || '').includes(normalizeText(buscarDocenteReporte))
-                        );
+                        const docentesFiltrados = listDocentes.filter(d => {
+                          const matchNombre = !buscarDocenteReporte || 
+                            normalizeText(d.nombre || '').includes(normalizeText(buscarDocenteReporte)) ||
+                            normalizeText(d.apellidos || '').includes(normalizeText(buscarDocenteReporte)) ||
+                            normalizeText(d.codigo || '').includes(normalizeText(buscarDocenteReporte));
+                          
+                          const matchCurso = !filtroCursoReporte ||
+                            d.cursos_asignados?.some((c: any) => 
+                              normalizeText(c.curso_codigo || '').includes(normalizeText(filtroCursoReporte)) ||
+                              normalizeText(c.curso_nombre || c.nombre || '').includes(normalizeText(filtroCursoReporte))
+                            );
+                            
+                          return matchNombre && matchCurso;
+                        });
 
                         if (docentesFiltrados.length === 0) {
                           return (
                             <tr>
-                              <td colSpan={2} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                                No hay docentes con carga horaria en este ciclo académico
+                              <td colSpan={2} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                                No se encontraron docentes con los filtros aplicados
                               </td>
                             </tr>
                           );
                         }
 
-                        return docentesFiltrados.map(ch => (
-                          <tr key={ch.docente_id}>
+                        // Paginación de 10 en 10
+                        const ITEMS_PER_PAGE = 10;
+                        const startIndex = (currentPageReporte - 1) * ITEMS_PER_PAGE;
+                        const endIndex = startIndex + ITEMS_PER_PAGE;
+                        const paginados = docentesFiltrados.slice(startIndex, endIndex);
+
+                        return paginados.map(d => (
+                          <tr key={d.id}>
                             <td style={{ verticalAlign: 'middle' }}>
-                              {ch.docente_apellidos}, {ch.docente_nombre}
+                              {d.apellidos}, {d.nombre}
                             </td>
                             <td style={{ verticalAlign: 'middle' }}>
-                              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                <button
-                                  className="btn-secondary"
-                                  style={{ 
-                                    padding: '6px 12px', 
-                                    fontSize: '13px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                  }}
-                                  onClick={() => { generarF01CAD(ch.docente_id); marcarFormatosGenerados(ch.docente_id); }}
-                                >
-                                  <span style={{ fontSize: '14px' }}>📄</span>
-                                  F01-CAD
-                                </button>
-                                <button
-                                  className="btn-secondary"
-                                  style={{ 
-                                    padding: '6px 12px', 
-                                    fontSize: '13px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                  }}
-                                  onClick={() => { generarF02CAD(ch.docente_id); marcarFormatosGenerados(ch.docente_id); }}
-                                >
-                                  <span style={{ fontSize: '14px' }}>📄</span>
-                                  F02-CAD
-                                </button>
-                                <button
-                                  className="btn-secondary"
-                                  style={{ 
-                                    padding: '6px 12px', 
-                                    fontSize: '13px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                  }}
-                                  onClick={() => { generarF03CAD(ch.docente_id); marcarFormatosGenerados(ch.docente_id); }}
-                                >
-                                  <span style={{ fontSize: '14px' }}>📄</span>
-                                  F03-CAD
-                                </button>
-                                <button
-                                  className="btn-secondary"
-                                  style={{ 
-                                    padding: '6px 12px', 
-                                    fontSize: '13px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                  }}
-                                  onClick={() => { generarCargaAdicionalPDF(ch.docente_id); marcarFormatosGenerados(ch.docente_id); }}
+                              {!d.tiene_carga || !d.carga_horaria ? (
+                                <span style={{ color: '#ef4444', fontStyle: 'italic', fontSize: '13px' }}>
+                                  El docente aún no ha completado su carga académica en el ciclo actual.
+                                </span>
+                              ) : (
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                  <button
+                                    className="btn-secondary"
+                                    style={{ 
+                                      padding: '6px 12px', 
+                                      fontSize: '13px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '6px'
+                                    }}
+                                    onClick={() => { generarF01CAD(d.id); marcarFormatosGenerados(d.id); }}
+                                  >
+                                    <span style={{ fontSize: '14px' }}>📄</span>
+                                    F01-CAD
+                                  </button>
+                                  <button
+                                    className="btn-secondary"
+                                    style={{ 
+                                      padding: '6px 12px', 
+                                      fontSize: '13px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '6px'
+                                    }}
+                                    onClick={() => { generarF02CAD(d.id); marcarFormatosGenerados(d.id); }}
+                                  >
+                                    <span style={{ fontSize: '14px' }}>📄</span>
+                                    F02-CAD
+                                  </button>
+                                  <button
+                                    className="btn-secondary"
+                                    style={{ 
+                                      padding: '6px 12px', 
+                                      fontSize: '13px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '6px'
+                                    }}
+                                    onClick={() => { generarF03CAD(d.id); marcarFormatosGenerados(d.id); }}
+                                  >
+                                    <span style={{ fontSize: '14px' }}>📄</span>
+                                    F03-CAD
+                                  </button>
+                                  <button
+                                    className="btn-secondary"
+                                    style={{ 
+                                      padding: '6px 12px', 
+                                      fontSize: '13px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '6px'
+                                    }}
+                                    onClick={() => { generarCargaAdicionalPDF(d.id); marcarFormatosGenerados(d.id); }}
                                   >
                                     <span style={{ fontSize: '14px' }}>📄</span>
                                     Dec. Adicional
-                                </button>
-                                <button
-                                  className="btn-primary"
-                                  style={{ 
-                                    padding: '6px 12px', 
-                                    fontSize: '13px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                  }}
-                                  onClick={() => generarTodosFormatosZip(ch.docente_id)}
+                                  </button>
+                                  <button
+                                    className="btn-primary"
+                                    style={{ 
+                                      padding: '6px 12px', 
+                                      fontSize: '13px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '6px'
+                                    }}
+                                    onClick={() => generarTodosFormatosZip(d.id)}
                                   >
                                     <span style={{ fontSize: '14px' }}>📦</span>
                                     Descargar Todo (.zip)
-                                </button>
-                              </div>
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         ));
@@ -3177,6 +3212,96 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                   </tbody>
                 </table>
               </div>
+
+              {/* Controles de paginación para Reportes */}
+              {(() => {
+                const listDocentes = isDocente && user?.docente_id
+                  ? docentesCarga.filter(d => d.id === user.docente_id)
+                  : docentesCarga;
+
+                const docentesFiltrados = listDocentes.filter(d => {
+                  const matchNombre = !buscarDocenteReporte || 
+                    normalizeText(d.nombre || '').includes(normalizeText(buscarDocenteReporte)) ||
+                    normalizeText(d.apellidos || '').includes(normalizeText(buscarDocenteReporte)) ||
+                    normalizeText(d.codigo || '').includes(normalizeText(buscarDocenteReporte));
+                  
+                  const matchCurso = !filtroCursoReporte ||
+                    d.cursos_asignados?.some((c: any) => 
+                      normalizeText(c.curso_codigo || '').includes(normalizeText(filtroCursoReporte)) ||
+                      normalizeText(c.curso_nombre || c.nombre || '').includes(normalizeText(filtroCursoReporte))
+                    );
+                    
+                  return matchNombre && matchCurso;
+                });
+
+                const ITEMS_PER_PAGE = 10;
+                const totalPages = Math.ceil(docentesFiltrados.length / ITEMS_PER_PAGE);
+                
+                if (totalPages <= 1) return null;
+
+                return (
+                  <div style={{ 
+                    marginTop: '20px', 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center', 
+                    gap: '8px' 
+                  }}>
+                    <button
+                      onClick={() => setCurrentPageReporte(p => Math.max(1, p - 1))}
+                      disabled={currentPageReporte === 1}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-card)',
+                        color: 'var(--text-primary)',
+                        cursor: currentPageReporte === 1 ? 'not-allowed' : 'pointer',
+                        opacity: currentPageReporte === 1 ? 0.5 : 1,
+                        fontSize: '14px'
+                      }}
+                    >
+                      Anterior
+                    </button>
+                    
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPageReporte(page)}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: '6px',
+                          border: currentPageReporte === page ? '1px solid #3b82f6' : '1px solid var(--border-color)',
+                          background: currentPageReporte === page ? '#3b82f6' : 'var(--bg-card)',
+                          color: currentPageReporte === page ? '#ffffff' : 'var(--text-primary)',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: currentPageReporte === page ? '600' : '400'
+                        }}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    
+                    <button
+                      onClick={() => setCurrentPageReporte(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPageReporte === totalPages}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-card)',
+                        color: 'var(--text-primary)',
+                        cursor: currentPageReporte === totalPages ? 'not-allowed' : 'pointer',
+                        opacity: currentPageReporte === totalPages ? 0.5 : 1,
+                        fontSize: '14px'
+                      }}
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                );
+              })()}
             </>
           )}
         </div>
