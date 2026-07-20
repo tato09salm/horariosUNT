@@ -286,6 +286,65 @@ export default function NuevaCargaHorariaPage() {
   const esPropiaVistaDocente = isDocente && initialDocenteId === user?.docente_id;
   const lectivaBloqueada = campoBloqueado || !isSecretaria;
   const [loading, setLoading] = useState(true);
+  const [isDirty, setIsDirty] = useState(false);
+  const isDirtyRef = useRef(false);
+  const setDirty = (dirty: boolean) => {
+    setIsDirty(dirty);
+    isDirtyRef.current = dirty;
+  };
+
+  // Warning for unsaved changes (beforeunload for refreshes/tab close, popstate for browser back, and click listener for Link elements)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirtyRef.current) {
+        e.preventDefault();
+        e.returnValue = 'Tienes cambios sin guardar. ¿Deseas salir de todas formas?';
+        return e.returnValue;
+      }
+    };
+
+    const handlePopState = (e: PopStateEvent) => {
+      if (isDirtyRef.current) {
+        if (window.confirm('Tienes cambios sin guardar. ¿Deseas salir de todas formas?')) {
+          isDirtyRef.current = false;
+          window.history.go(-2);
+        } else {
+          window.history.pushState(null, '', window.location.href);
+        }
+      }
+    };
+
+    const handleAnchorClick = (e: MouseEvent) => {
+      if (!isDirtyRef.current) return;
+      
+      const target = e.target as HTMLElement;
+      const anchor = target.closest('a');
+      
+      if (anchor) {
+        const href = anchor.getAttribute('href');
+        if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+          if (!window.confirm('Tienes cambios sin guardar. ¿Deseas salir de todas formas?')) {
+            e.preventDefault();
+            e.stopPropagation();
+          } else {
+            isDirtyRef.current = false;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+    document.addEventListener('click', handleAnchorClick, true);
+
+    window.history.pushState(null, '', window.location.href);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+      document.removeEventListener('click', handleAnchorClick, true);
+    };
+  }, []);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [confirmCambioOpcion, setConfirmCambioOpcion] = useState<string | null>(null);
@@ -434,6 +493,12 @@ export default function NuevaCargaHorariaPage() {
   
   // Handle docente selection and load saved data if available
   const handleSeleccionarDocenteFromList = async (docente: Docente) => {
+    if (isDirtyRef.current) {
+      if (!window.confirm('Tienes cambios sin guardar. ¿Deseas cambiar de docente de todas formas?')) {
+        return;
+      }
+    }
+    setDirty(false);
 
     
     // Now set new docente
@@ -741,6 +806,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
   };
 
   const handlePeriodoInicioChange = (newDate: string) => {
+    setDirty(true);
     setAdicionalData(prev => {
       const oldDate = prev.fecha_inicio_periodo;
       const updatedCursos = (prev.cursos || []).map(c => {
@@ -758,6 +824,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
   };
 
   const handlePeriodoTerminoChange = (newDate: string) => {
+    setDirty(true);
     setAdicionalData(prev => {
       const oldDate = prev.fecha_termino_periodo;
       const updatedCursos = (prev.cursos || []).map(c => {
@@ -775,6 +842,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
   };
 
   const handleAddAdicionalCurso = () => {
+    setDirty(true);
     const defaultFi = adicionalData.fecha_inicio_periodo || '';
     const defaultFt = adicionalData.fecha_termino_periodo || '';
     setAdicionalData(prev => {
@@ -800,6 +868,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
   };
 
   const handleRemoveAdicionalCurso = (id: string) => {
+    setDirty(true);
     setAdicionalData(prev => {
       const updatedCursos = (prev.cursos || []).filter(c => c.id !== id);
       const newTotal = updatedCursos.reduce((sum, c) => sum + parseFloat(c.total_horas || '0'), 0);
@@ -812,6 +881,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
   };
 
   const handleUpdateAdicionalCursoField = (id: string, field: keyof AdicionalCurso, value: string) => {
+    setDirty(true);
     setAdicionalData(prev => {
       const updatedCursos = (prev.cursos || []).map(c => {
         if (c.id !== id) return c;
@@ -948,6 +1018,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       setMostrarExito(true);
       const chId = resData?.data?.[0]?.id || cargaHorariaId;
       setCargaHorariaId(chId);
+      setDirty(false);
       await new Promise(r => setTimeout(r, 500));
       if (goToMainPage) {
         router.push('/carga-horaria');
@@ -1189,6 +1260,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
     
     const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
     const id = Date.now().toString();
+    setDirty(true);
     setCursosAsignados([...cursosAsignados, { ...nuevoCurso, id }]);
     setNuevoCurso({
       curso_id: '',
@@ -1218,6 +1290,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
     const curso = cursosAsignados.find(c => c.id === id);
     
     // Remove from cursosAsignados
+    setDirty(true);
     setCursosAsignados(cursosAsignados.filter(c => c.id !== id));
     
     // Also remove any slots assigned to this course from the modal state
@@ -1251,6 +1324,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
   };
 
   const handleUpdateCursoField = (id: string, field: keyof CursoAsignado, value: string) => {
+    setDirty(true);
     setCursosAsignados(cursosAsignados.map(c => {
       if (c.id !== id) return c;
       
@@ -1332,6 +1406,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
   };
 
   const handleAgregarItem = (seccionKey: keyof Secciones) => {
+    setDirty(true);
     setSecciones(prev => ({
       ...prev,
       [seccionKey]: {
@@ -1342,6 +1417,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
   };
 
   const handleEliminarItem = (seccionKey: keyof Secciones, itemId: string) => {
+    setDirty(true);
     setSecciones(prev => ({
       ...prev,
       [seccionKey]: {
@@ -1352,6 +1428,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
   };
 
   const handleUpdateItemDescripcion = (seccionKey: keyof Secciones, itemId: string, value: string) => {
+    setDirty(true);
     setSecciones(prev => ({
       ...prev,
       [seccionKey]: {
@@ -1364,6 +1441,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
   };
 
   const handleUpdateHoras = (seccionKey: keyof Secciones, value: string) => {
+    setDirty(true);
     // Ensure value is >= 0
     let processedValue = value;
     const numValue = parseFloat(value);
@@ -1408,6 +1486,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
         throw new Error(err.error || 'Error al reiniciar');
       }
 
+      setDirty(true);
       const defaultId = `${seccionKey}-${Date.now()}`;
       setSecciones(prev => ({
         ...prev,
@@ -1569,6 +1648,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
   };
 
   const handleUpdateItemHoras = (seccionKey: keyof Secciones, itemId: string, value: string) => {
+    setDirty(true);
     // Permitir que el campo esté vacío mientras el usuario escribe
     // Filtrar solo dígitos
     let filteredValue = value.replace(/[^0-9]/g, '');
@@ -2031,6 +2111,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       const resData = await res.json();
       const chId = resData?.data?.[0]?.id || cargaHorariaId;
       if (chId) setCargaHorariaId(chId);
+      setDirty(false);
 
       setSecciones(payload.nextSecciones);
       setCursosAsignados(payload.nextCursos);
@@ -3742,11 +3823,13 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
               const handleClickOpcion = () => {
                 if (opcion.key === 'opcion4') {
                   // Opción 4: sin confirmación, directo
+                  setDirty(true);
                   setDeclaracionJuradaOpcion(opcion.key);
                 } else if (declaracionJuradaOpcion && declaracionJuradaOpcion !== opcion.key) {
                   // Ya hay una seleccionada distinta → pedir confirmación
                   setConfirmCambioOpcion(opcion.key);
                 } else {
+                  setDirty(true);
                   setDeclaracionJuradaOpcion(opcion.key);
                 }
               };
@@ -3873,6 +3956,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                 fontSize: '14px', fontWeight: '500'
               }}
               onClick={() => {
+                setDirty(true);
                 setDeclaracionJuradaOpcion(confirmCambioOpcion);
                 setConfirmCambioOpcion(null);
               }}
@@ -4407,6 +4491,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
               <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap',justifyContent:'flex-end',marginLeft:'auto',alignSelf:'center'}}>
                 <button
                   onClick={() => {
+                    setDirty(true);
                     if (isSecretaria) {
                       setAsignaciones({});
                       setHorasUsadas({});
@@ -4861,6 +4946,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                     return;
                                   }
                                   if (elementoSeleccionado) {
+                                    setDirty(true);
                                     // Case 1: We have a selected element
                                     const selectedKey = getElementKey(elementoSeleccionado);
                                     const totalHours = getTotalHoursForElement(elementoSeleccionado);
@@ -4944,6 +5030,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                                   ambienteNombre: ''
                                                 }
                                               };
+                                              setDirty(true);
                                               setAsignaciones(nextAsignaciones);
                                               handleAutoGuardarAmbiente(nextAsignaciones);
                                             }}
@@ -4995,6 +5082,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                                 ambienteNombre: ambiente ? `${ambiente.codigo} - ${ambiente.nombre}` : ''
                                               }
                                             };
+                                            setDirty(true);
                                             setAsignaciones(nextAsignaciones);
                                             setWarningMessage(null);
                                             handleAutoGuardarAmbiente(nextAsignaciones);
