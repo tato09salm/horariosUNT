@@ -284,7 +284,7 @@ export default function NuevaCargaHorariaPage() {
   };
   const campoBloqueado = (formatosGenerados && isDocente && !canWrite);
   const esPropiaVistaDocente = isDocente && initialDocenteId === user?.docente_id;
-  const lectivaBloqueada = campoBloqueado || isDocente;
+  const lectivaBloqueada = campoBloqueado || !isSecretaria;
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -1848,6 +1848,12 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
     }
 
     const newSecciones = { ...secciones };
+    for (const key of Object.keys(newSecciones)) {
+      newSecciones[key as keyof Secciones] = {
+        ...newSecciones[key as keyof Secciones],
+        _horarioSlots: []
+      };
+    }
     const sectionMap: Record<string, keyof Secciones> = {
       'preparacion': 'preparacionEvaluacion',
       'consejeria': 'consejeriaTutoria',
@@ -1907,11 +1913,18 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       }
 
       // Preserve existing horario_slots from API data to prevent accidental overwrite
-      if ((curso as any)._horarioSlots || (curso as any).horario_slots) {
+      if (!isSecretaria && ((curso as any)._horarioSlots || (curso as any).horario_slots)) {
         return curso;
       }
 
-      return curso;
+      return {
+        ...curso,
+        _horarioSlots: [],
+        horario_slots: [],
+        dia: undefined,
+        hora_inicio: undefined,
+        hora_fin: undefined
+      };
     });
 
     const validCursos = newCursos.filter((curso: any) => curso.curso_id || curso.id);
@@ -4286,33 +4299,71 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
               <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap',justifyContent:'flex-end',marginLeft:'auto',alignSelf:'center'}}>
                 <button
                   onClick={() => {
-                    setAsignaciones({});
-                    setHorasUsadas({});
-                    setElementoSeleccionado(null);
-                    setElementoFiltro(null);
-                    setWarningMessage(null);
-                    setShowHorarioPreview(false);
+                    if (isSecretaria) {
+                      setAsignaciones({});
+                      setHorasUsadas({});
+                      setElementoSeleccionado(null);
+                      setElementoFiltro(null);
+                      setWarningMessage(null);
+                      setShowHorarioPreview(false);
 
-                    const resetSecciones: Secciones = {
-                      preparacionEvaluacion: { items: [], horas: '0' },
-                      consejeriaTutoria: { items: [], horas: '0' },
-                      investigacion: { items: [], horas: '0' },
-                      capacitacion: { items: [], horas: '0' },
-                      gobierno: { items: [], horas: '0' },
-                      administracion: { items: [], horas: '0' },
-                      asesoriaTesis: { items: [], horas: '0' },
-                      responsabilidadSocial: { items: [], horas: '0' },
-                      comitesTecnicos: { items: [], horas: '0' }
-                    };
-                    setSecciones(resetSecciones);
+                      const resetSecciones: Secciones = {
+                        preparacionEvaluacion: { items: [], horas: '0' },
+                        consejeriaTutoria: { items: [], horas: '0' },
+                        investigacion: { items: [], horas: '0' },
+                        capacitacion: { items: [], horas: '0' },
+                        gobierno: { items: [], horas: '0' },
+                        administracion: { items: [], horas: '0' },
+                        asesoriaTesis: { items: [], horas: '0' },
+                        responsabilidadSocial: { items: [], horas: '0' },
+                        comitesTecnicos: { items: [], horas: '0' }
+                      };
+                      setSecciones(resetSecciones);
 
-                    const resetCursos = cursosAsignados.map(curso => ({
-                      ...curso,
-                      dia: undefined,
-                      hora_inicio: undefined,
-                      hora_fin: undefined
-                    }));
-                    setCursosAsignados(resetCursos);
+                      const resetCursos = cursosAsignados.map(curso => ({
+                        ...curso,
+                        dia: undefined,
+                        hora_inicio: undefined,
+                        hora_fin: undefined
+                      }));
+                      setCursosAsignados(resetCursos);
+                      
+                      // Auto-guardar la nueva asignación vacía
+                      handleAutoGuardarHorario({});
+                    } else {
+                      // Solo limpiar no lectivas para otros roles
+                      const nextAsignaciones: Record<string, any> = {};
+                      const nextHorasUsadas: Record<string, number> = {};
+                      Object.entries(asignaciones).forEach(([k, v]: [string, any]) => {
+                        if (v.tipo === 'curso') {
+                          nextAsignaciones[k] = v;
+                          const elKey = getElementKey(v);
+                          nextHorasUsadas[elKey] = (nextHorasUsadas[elKey] || 0) + 1;
+                        }
+                      });
+                      setAsignaciones(nextAsignaciones);
+                      setHorasUsadas(nextHorasUsadas);
+                      setElementoSeleccionado(null);
+                      setElementoFiltro(null);
+                      setWarningMessage(null);
+                      setShowHorarioPreview(false);
+
+                      const resetSecciones: Secciones = {
+                        preparacionEvaluacion: { items: [], horas: '0' },
+                        consejeriaTutoria: { items: [], horas: '0' },
+                        investigacion: { items: [], horas: '0' },
+                        capacitacion: { items: [], horas: '0' },
+                        gobierno: { items: [], horas: '0' },
+                        administracion: { items: [], horas: '0' },
+                        asesoriaTesis: { items: [], horas: '0' },
+                        responsabilidadSocial: { items: [], horas: '0' },
+                        comitesTecnicos: { items: [], horas: '0' }
+                      };
+                      setSecciones(resetSecciones);
+                      
+                      // Auto-guardar la nueva asignación sin las actividades no lectivas
+                      handleAutoGuardarHorario(nextAsignaciones);
+                    }
                   }}
                   style={{
                     background:'none',
@@ -4443,12 +4494,14 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                     borderLeftColor: courseType.color,
                                     borderRadius: '6px',
                                     background: isSelected ? `${courseType.color}15` : 'var(--card-bg)',
-                                    cursor: 'pointer',
+                                    cursor: !isSecretaria ? 'not-allowed' : 'pointer',
                                     transition: 'all 0.15s',
                                     marginLeft: '8px',
-                                    position: 'relative'
+                                    position: 'relative',
+                                    opacity: !isSecretaria ? 0.7 : 1
                                   }}
                                   onClick={() => {
+                                    if (!isSecretaria) return;
                                     if (isSelected) {
                                       setElementoSeleccionado(null);
                                     } else {
@@ -4690,8 +4743,13 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                 }}
                                 onClick={() => {
                                   if (shouldGrayOut) return;
-                                  if (asignacion?.tipo === 'curso') {
-                                    setWarningMessage('Los horarios de carga lectiva no pueden modificarse manualmente');
+                                  if (asignacion?.tipo === 'curso' && !isSecretaria) {
+                                    if (!isDocente) {
+                                      setWarningMessage('Los horarios de carga lectiva no pueden modificarse manualmente');
+                                    }
+                                    return;
+                                  }
+                                  if (elementoSeleccionado?.tipo === 'curso' && !isSecretaria) {
                                     return;
                                   }
                                   if (elementoSeleccionado) {
@@ -4757,10 +4815,14 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                       <MapPin size={11} />
                                       <span>{asignacion.nombre || asignacion.titulo}</span>
                                     </div>
-                                    {asignacion.ambienteId ? (
+                                    {isDocente && asignacion.tipo === 'curso' ? (
+                                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)', paddingLeft: '4px' }}>
+                                        {asignacion.ambienteCodigo || asignacion.ambienteNombre || 'Ambiente no especificado'}
+                                      </div>
+                                    ) : asignacion.ambienteId ? (
                                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',border:'1px solid var(--border-color)',borderRadius:'999px',padding:'4px 8px',background:darkMode ? '#0f172a' : '#fff',fontSize:'10px',color:'var(--text-secondary)'}}>
                                         <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{asignacion.ambienteCodigo || asignacion.ambienteNombre || 'Ambiente seleccionado'}</span>
-                                        {asignacion.tipo !== 'curso' && (
+                                        {(asignacion.tipo !== 'curso' || isSecretaria) && (
                                           <button
                                             type="button"
                                             onClick={(e) => {
@@ -4801,7 +4863,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                                       <div style={{position:'relative'}}>
                                         <select
                                           value={asignacion.ambienteId || ''}
-                                          disabled={asignacion.tipo === 'curso'}
+                                          disabled={asignacion.tipo === 'curso' && !isSecretaria}
                                           onClick={(e) => e.stopPropagation()}
                                           onMouseDown={(e) => e.stopPropagation()}
                                           onChange={(e) => {
