@@ -351,9 +351,9 @@ export default function CargaHorariaPage() {
                   const secData = cargaDocente[sec];
                   if (secData) {
                     if (Array.isArray(secData)) {
-                      horasNoLectivas += secData.reduce((sum: number, item: any) => sum + (item.horas || 0), 0);
+                      horasNoLectivas += secData.reduce((sum: number, item: any) => sum + (parseFloat(item.horas) || 0), 0);
                     } else {
-                      horasNoLectivas += secData.horas || 0;
+                      horasNoLectivas += parseFloat(secData.horas) || 0;
                     }
                   }
                 }
@@ -2685,7 +2685,6 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                     <thead>
                       <tr>
                         <th>Estado</th>
-                        <th>Código</th>
                         <th>Docente</th>
                         <th>Condición</th>
                         <th>Categoría</th>
@@ -2717,7 +2716,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                         if (filtrados.length === 0) {
                           return (
                             <tr>
-                              <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                              <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
                                 No se encontraron docentes con los filtros aplicados
                               </td>
                             </tr>
@@ -2758,10 +2757,9 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                                 </span>
                               )}
                             </td>
-                            <td>{d.codigo || '—'}</td>
                             <td>{d.apellidos}, {d.nombre}</td>
-                            <td>{d.condicion || '—'}</td>
-                            <td>{d.categoria || '—'}</td>
+                            <td>{d.condicion ? d.condicion.toUpperCase() : '—'}</td>
+                            <td>{d.categoria ? d.categoria.toUpperCase() : '—'}</td>
                             <td>
                               {d.cursos_asignados?.length > 0 ? (
                                 <div style={{ fontSize: '12px' }}>
