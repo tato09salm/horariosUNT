@@ -771,7 +771,9 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     if (returnBlob) {
           return doc;
         }
-        doc.save(`carga-adicional-${nombreDocente.replace(/\s+/g, '-')}.pdf`);
+        const blob = doc.output('blob');
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
         return null;
   }
 
@@ -1106,7 +1108,9 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     if (returnBlob) {
       return doc;
     }
-    doc.save(`carga-horaria-${nombreDocente.replace(/\s+/g, '-')}.pdf`);
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
     return null;
   }
 
@@ -1273,7 +1277,9 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     if (returnBlob) {
           return doc;
         }
-        doc.save(`F02-CAD-${nombreDocente.replace(/[\s,]+/g, '-')}.pdf`);
+        const blob = doc.output('blob');
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
         return null;
       }
   
@@ -1665,7 +1671,9 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     if (returnBlob) {
           return doc;
         }
-        doc.save(`F03-CAD-${apellidosNombre.replace(/[\s,]+/g, '-')}.pdf`);
+        const blob = doc.output('blob');
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
         return null;
   }
 
