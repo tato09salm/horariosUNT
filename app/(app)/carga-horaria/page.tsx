@@ -491,7 +491,87 @@ async function marcarFormatosGenerados(docenteId: string) {
   }
 }
 
+function validarHorasDocenteParaDescarga(docenteId: string): { valido: boolean; mensaje?: string } {
+  const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
+  if (cargasDocente.length === 0) {
+    return { valido: false, mensaje: 'No hay datos de carga horaria para este docente' };
+  }
+
+  const docenteCompleto = allDocentes.find(d => d.id === docenteId);
+  const primeraCarga = cargasDocente[0];
+
+  let adicional: any = null;
+  if (primeraCarga?.adicional) {
+    try {
+      adicional = typeof primeraCarga.adicional === 'string'
+        ? JSON.parse(primeraCarga.adicional)
+        : primeraCarga.adicional;
+    } catch (err) {}
+  }
+
+  const modStr = (adicional?.regimen_dedicacion || docenteCompleto?.modalidad || primeraCarga?.modalidad || '').toString().toUpperCase();
+  
+  let horasEsperadas = 0;
+  const match = modStr.match(/(\d+)\s*H/i);
+  if (match) {
+    horasEsperadas = parseInt(match[1], 10);
+  } else if (modStr.includes('DE') || modStr.includes('DEDICACION EXCLUSIVA') || modStr.includes('TC') || modStr.includes('TIEMPO COMPLETO')) {
+    horasEsperadas = 40;
+  } else if (modStr.includes('TP') || modStr.includes('TIEMPO PARCIAL')) {
+    horasEsperadas = 20;
+  }
+
+  let totalLectiva = 0;
+  cargasDocente.forEach(ch => {
+    if (ch.cursos && Array.isArray(ch.cursos)) {
+      ch.cursos.forEach((c: any) => {
+        const hrsTeo = c.hrs_teo || 0;
+        const gTeo = c.teoria_grupos ?? 1;
+        const hrsPra = c.hrs_pra || 0;
+        const gPra = c.practica_grupos ?? 1;
+        const hrsLab = c.hrs_lab || 0;
+        const gLab = c.laboratorio_grupos ?? 1;
+        totalLectiva += (hrsTeo * gTeo) + (hrsPra * gPra) + (hrsLab * gLab);
+      });
+    }
+  });
+
+  let totalNoLectiva = 0;
+  const secKeys = ['preparacion', 'consejeria', 'investigacion', 'capacitacion', 'gobierno', 'administracion', 'asesoria', 'rsu', 'comites'];
+  cargasDocente.forEach(ch => {
+    for (const key of secKeys) {
+      const secVal = ch[key];
+      if (secVal) {
+        if (typeof secVal === 'object' && secVal !== null && 'horas' in secVal) {
+          totalNoLectiva += parseFloat(secVal.horas || '0');
+        } else if (Array.isArray(secVal)) {
+          secVal.forEach((item: any) => {
+            if (item && item.horas) totalNoLectiva += parseFloat(item.horas || '0');
+          });
+        }
+      }
+    }
+  });
+
+  const totalHorasGenerales = totalLectiva + totalNoLectiva;
+
+  if (horasEsperadas > 0 && totalHorasGenerales !== horasEsperadas) {
+    const modNombre = modStr || 'su modalidad';
+    return {
+      valido: false,
+      mensaje: `No se pueden descargar los formatos porque la carga horaria no ha completado las horas requeridas para la modalidad ${modNombre} (${totalHorasGenerales}h de ${horasEsperadas}h establecidas).`
+    };
+  }
+
+  return { valido: true };
+}
+
 async function generarTodosFormatosZip(docenteId: string) {
+    const val = validarHorasDocenteParaDescarga(docenteId);
+    if (!val.valido) {
+      setToast({ type: 'error', text: val.mensaje || 'Horas incompletas para la modalidad.' });
+      return;
+    }
     const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
     if (cargasDocente.length === 0) {
       setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
@@ -532,6 +612,11 @@ async function generarTodosFormatosZip(docenteId: string) {
   }
 
 function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false): jsPDF | null {
+    const val = validarHorasDocenteParaDescarga(docenteId);
+    if (!val.valido) {
+      if (!returnBlob && val.mensaje) setToast({ type: 'error', text: val.mensaje });
+      return null;
+    }
     const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
     if (cargasDocente.length === 0) {
       setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
@@ -776,6 +861,11 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
   }
 
   function generarF01CAD(docenteId: string, returnBlob: boolean = false): jsPDF | null {
+    const val = validarHorasDocenteParaDescarga(docenteId);
+    if (!val.valido) {
+      if (!returnBlob && val.mensaje) setToast({ type: 'error', text: val.mensaje });
+      return null;
+    }
     // Obtener todos los datos de carga horaria del docente en el ciclo seleccionado
     const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
     if (cargasDocente.length === 0) {
@@ -1146,6 +1236,11 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
   }
 
   function generarF02CAD(docenteId: string, returnBlob: boolean = false): jsPDF | null {
+    const val = validarHorasDocenteParaDescarga(docenteId);
+    if (!val.valido) {
+      if (!returnBlob && val.mensaje) setToast({ type: 'error', text: val.mensaje });
+      return null;
+    }
     const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
     if (cargasDocente.length === 0) {
       setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
@@ -1315,6 +1410,11 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
       }
   
   async function generarF03CAD(docenteId: string, returnBlob: boolean = false): Promise<jsPDF | null> {
+    const val = validarHorasDocenteParaDescarga(docenteId);
+    if (!val.valido) {
+      if (!returnBlob && val.mensaje) setToast({ type: 'error', text: val.mensaje });
+      return null;
+    }
     const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
     if (cargasDocente.length === 0) {
       setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
@@ -3111,93 +3211,98 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                         const endIndex = startIndex + ITEMS_PER_PAGE;
                         const paginados = docentesFiltrados.slice(startIndex, endIndex);
 
-                        return paginados.map(d => (
-                          <tr key={d.id}>
-                            <td style={{ verticalAlign: 'middle' }}>
-                              {d.apellidos}, {d.nombre}
-                            </td>
-                            <td style={{ verticalAlign: 'middle' }}>
-                              {!d.tiene_carga || !d.carga_horaria ? (
-                                <span style={{ color: '#ef4444', fontStyle: 'italic', fontSize: '13px' }}>
-                                  El docente aún no ha completado su carga académica en el ciclo actual.
-                                </span>
-                              ) : (
-                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                  <button
-                                    className="btn-secondary"
-                                    style={{ 
-                                      padding: '6px 12px', 
-                                      fontSize: '13px',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '6px'
-                                    }}
-                                    onClick={() => { generarF01CAD(d.id); marcarFormatosGenerados(d.id); }}
-                                  >
-                                    <span style={{ fontSize: '14px' }}>📄</span>
-                                    F01-CAD
-                                  </button>
-                                  <button
-                                    className="btn-secondary"
-                                    style={{ 
-                                      padding: '6px 12px', 
-                                      fontSize: '13px',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '6px'
-                                    }}
-                                    onClick={() => { generarF02CAD(d.id); marcarFormatosGenerados(d.id); }}
-                                  >
-                                    <span style={{ fontSize: '14px' }}>📄</span>
-                                    F02-CAD
-                                  </button>
-                                  <button
-                                    className="btn-secondary"
-                                    style={{ 
-                                      padding: '6px 12px', 
-                                      fontSize: '13px',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '6px'
-                                    }}
-                                    onClick={() => { generarF03CAD(d.id); marcarFormatosGenerados(d.id); }}
-                                  >
-                                    <span style={{ fontSize: '14px' }}>📄</span>
-                                    F03-CAD
-                                  </button>
-                                  <button
-                                    className="btn-secondary"
-                                    style={{ 
-                                      padding: '6px 12px', 
-                                      fontSize: '13px',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '6px'
-                                    }}
-                                    onClick={() => { generarCargaAdicionalPDF(d.id); marcarFormatosGenerados(d.id); }}
-                                  >
-                                    <span style={{ fontSize: '14px' }}>📄</span>
-                                    Dec. Adicional
-                                  </button>
-                                  <button
-                                    className="btn-primary"
-                                    style={{ 
-                                      padding: '6px 12px', 
-                                      fontSize: '13px',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '6px'
-                                    }}
-                                    onClick={() => generarTodosFormatosZip(d.id)}
-                                  >
-                                    <span style={{ fontSize: '14px' }}>📦</span>
-                                    Descargar Todo (.zip)
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ));
+                        return paginados.map(d => {
+                          const valRes = validarHorasDocenteParaDescarga(d.id);
+                          const esIncompleto = !d.tiene_carga || !d.carga_horaria || !valRes.valido;
+
+                          return (
+                            <tr key={d.id}>
+                              <td style={{ verticalAlign: 'middle' }}>
+                                {d.apellidos}, {d.nombre}
+                              </td>
+                              <td style={{ verticalAlign: 'middle' }}>
+                                {esIncompleto ? (
+                                  <span style={{ color: '#ef4444', fontStyle: 'italic', fontSize: '13px' }}>
+                                    El docente aún no ha completado su carga académica en el ciclo actual.
+                                  </span>
+                                ) : (
+                                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    <button
+                                      className="btn-secondary"
+                                      style={{ 
+                                        padding: '6px 12px', 
+                                        fontSize: '13px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px'
+                                      }}
+                                      onClick={() => { generarF01CAD(d.id); marcarFormatosGenerados(d.id); }}
+                                    >
+                                      <span style={{ fontSize: '14px' }}>📄</span>
+                                      F01-CAD
+                                    </button>
+                                    <button
+                                      className="btn-secondary"
+                                      style={{ 
+                                        padding: '6px 12px', 
+                                        fontSize: '13px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px'
+                                      }}
+                                      onClick={() => { generarF02CAD(d.id); marcarFormatosGenerados(d.id); }}
+                                    >
+                                      <span style={{ fontSize: '14px' }}>📄</span>
+                                      F02-CAD
+                                    </button>
+                                    <button
+                                      className="btn-secondary"
+                                      style={{ 
+                                        padding: '6px 12px', 
+                                        fontSize: '13px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px'
+                                      }}
+                                      onClick={() => { generarF03CAD(d.id); marcarFormatosGenerados(d.id); }}
+                                    >
+                                      <span style={{ fontSize: '14px' }}>📄</span>
+                                      F03-CAD
+                                    </button>
+                                    <button
+                                      className="btn-secondary"
+                                      style={{ 
+                                        padding: '6px 12px', 
+                                        fontSize: '13px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px'
+                                      }}
+                                      onClick={() => { generarCargaAdicionalPDF(d.id); marcarFormatosGenerados(d.id); }}
+                                    >
+                                      <span style={{ fontSize: '14px' }}>📄</span>
+                                      Dec. Adicional
+                                    </button>
+                                    <button
+                                      className="btn-primary"
+                                      style={{ 
+                                        padding: '6px 12px', 
+                                        fontSize: '13px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px'
+                                      }}
+                                      onClick={() => generarTodosFormatosZip(d.id)}
+                                    >
+                                      <span style={{ fontSize: '14px' }}>📦</span>
+                                      Descargar Todo (.zip)
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        });
                       })()
                     )}
                   </tbody>
