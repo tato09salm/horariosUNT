@@ -77,19 +77,109 @@ export async function GET(req: NextRequest) {
       LIMIT 12
     `, [cid]) : Promise.resolve([]),
 
-    // Carga horaria por docente
-    cid ? query(`
-      SELECT 
-        d.nombre || ' ' || d.apellidos as nombre,
-        d.categoria, d.condicion, d.horas_max_semana,
-        COUNT(a.id) as horas_asignadas,
-        ROUND(COUNT(a.id) * 100.0 / d.horas_max_semana, 1) as porcentaje_carga
-      FROM docentes d
-      LEFT JOIN asignaciones a ON a.docente_id = d.id AND a.ciclo_id = $1 AND a.estado = 'activo'
-      WHERE d.activo = true
-      GROUP BY d.id, d.nombre, d.apellidos, d.categoria, d.condicion, d.horas_max_semana
-      ORDER BY porcentaje_carga DESC
-    `, [cid]) : Promise.resolve([]),
+    // Carga horaria por docente (incorporando CHL, CHNL, CHLA)
+    cid ? (async () => {
+      const [rawCargaDocentes, cargaHorariaList] = await Promise.all([
+        query(`
+          SELECT 
+            d.id,
+            d.apellidos || ', ' || d.nombre as nombre,
+            d.categoria, d.condicion, d.modalidad, d.horas_max_semana
+          FROM docentes d
+          WHERE d.activo = true
+          ORDER BY d.apellidos ASC, d.nombre ASC
+        `),
+        query(`SELECT * FROM carga_horaria WHERE ciclo_academico_id = $1`, [cid])
+      ]);
+
+      return rawCargaDocentes.map((doc: any) => {
+        const chList = cargaHorariaList.filter((ch: any) => ch.docente_id === doc.id);
+        const primeraCarga = chList[0];
+
+        let adicional: any = null;
+        if (primeraCarga?.adicional) {
+          try {
+            adicional = typeof primeraCarga.adicional === 'string'
+              ? JSON.parse(primeraCarga.adicional)
+              : primeraCarga.adicional;
+          } catch (e) {}
+        }
+
+        const modStr = (adicional?.regimen_dedicacion || doc.modalidad || primeraCarga?.modalidad || '').toString().toUpperCase();
+        let horasModalidad = 40;
+        const match = modStr.match(/(\d+)\s*H/i);
+        if (match) {
+          horasModalidad = parseInt(match[1], 10);
+        } else if (modStr.includes('DE') || modStr.includes('DEDICACION EXCLUSIVA') || modStr.includes('TC') || modStr.includes('TIEMPO COMPLETO')) {
+          horasModalidad = 40;
+        } else if (modStr.includes('TP') || modStr.includes('TIEMPO PARCIAL')) {
+          horasModalidad = 20;
+        } else if (doc.horas_max_semana && doc.horas_max_semana > 0) {
+          horasModalidad = doc.horas_max_semana;
+        }
+
+        let chl = 0;
+        chList.forEach((ch: any) => {
+          if (ch.cursos && Array.isArray(ch.cursos)) {
+            ch.cursos.forEach((c: any) => {
+              const hrsTeo = c.hrs_teo || 0;
+              const gTeo = c.teoria_grupos ?? 1;
+              const hrsPra = c.hrs_pra || 0;
+              const gPra = c.practica_grupos ?? 1;
+              const hrsLab = c.hrs_lab || 0;
+              const gLab = c.laboratorio_grupos ?? 1;
+              chl += (hrsTeo * gTeo) + (hrsPra * gPra) + (hrsLab * gLab);
+            });
+          }
+        });
+
+        let chnl = 0;
+        const secKeys = ['preparacion', 'consejeria', 'investigacion', 'capacitacion', 'gobierno', 'administracion', 'asesoria', 'rsu', 'comites'];
+        chList.forEach((ch: any) => {
+          for (const key of secKeys) {
+            const secVal = ch[key];
+            if (secVal) {
+              if (typeof secVal === 'object' && secVal !== null && 'horas' in secVal) {
+                chnl += parseFloat(secVal.horas || '0');
+              } else if (Array.isArray(secVal)) {
+                secVal.forEach((item: any) => {
+                  if (item && item.horas) chnl += parseFloat(item.horas || '0');
+                });
+              }
+            }
+          }
+        });
+
+        let chla = 0;
+        if (adicional) {
+          if (adicional.total_horas_adicional) {
+            const val = parseFloat(adicional.total_horas_adicional || '0');
+            if (val > 0) chla = val;
+          } else if (Array.isArray(adicional.cursos)) {
+            chla = adicional.cursos.reduce((sum: number, c: any) => sum + parseFloat(c.total_horas || '0'), 0);
+          }
+        }
+
+        const horasColocadas = chl + chnl;
+        const porcentajeCarga = horasModalidad > 0 ? Math.round((horasColocadas * 100) / horasModalidad) : 0;
+
+        return {
+          id: doc.id,
+          nombre: doc.nombre,
+          categoria: doc.categoria,
+          condicion: doc.condicion,
+          modalidad: modStr,
+          chl,
+          chnl,
+          chla,
+          horas_colocadas: horasColocadas,
+          horas_asignadas: horasColocadas,
+          horas_max_semana: horasModalidad,
+          horas_modalidad: horasModalidad,
+          porcentaje_carga: porcentajeCarga,
+        };
+      }).sort((a: any, b: any) => (b.porcentaje_carga || 0) - (a.porcentaje_carga || 0));
+    })() : Promise.resolve([]),
 
     // Distribución por día
     cid ? query(`
