@@ -89,7 +89,7 @@ export default function ReportesPage() {
       const a = d.data?.find((c:any)=>c.activo);
       if(a) setCicloId(a.id);
     });
-    fetch('/api/docentes').then(r=>r.json()).then(d=>setDocentes(d.data||[]));
+    fetch('/api/docentes?limit=1000&activo=true').then(r=>r.json()).then(d=>setDocentes(d.data||[]));
     fetch('/api/aulas').then(r=>r.json()).then(d=>setAmbientes(d.data||[]));
     Promise.all([
       fetch('/api/dashboard').then(r=>r.json()),
@@ -219,16 +219,19 @@ export default function ReportesPage() {
 
       setAsignaciones(normalized);
       if (cicloId) {
-        const [d, chRes] = await Promise.all([
+        const [d, chRes, docRes] = await Promise.all([
           fetch(`/api/dashboard?ciclo_id=${cicloId}`).then(r => r.json()),
           fetch(`/api/carga-horaria?ciclo_academico_id=${cicloId}`).then(r => r.json()),
+          fetch('/api/docentes?limit=1000&activo=true').then(r => r.json()),
         ]);
 
         let finalDash = d;
         const cargaHorariaList = chRes.data || [];
+        const allLoadedDocentes = docRes.data || [];
+        if (allLoadedDocentes.length > 0) setDocentes(allLoadedDocentes);
 
         if (tipoReporte === 'gestion') {
-          const listDocentes = docentes && docentes.length > 0 ? docentes : (d.cargaDocentes || []);
+          const listDocentes = allLoadedDocentes.length > 0 ? allLoadedDocentes : (docentes && docentes.length > 0 ? docentes : (d.cargaDocentes || []));
           const cargaDocentes = listDocentes.map((doc: any) => {
             const chList = cargaHorariaList.filter((ch: any) => ch.docente_id === doc.id);
             const primeraCarga = chList[0];
@@ -529,10 +532,18 @@ export default function ReportesPage() {
         columnStyles: { 3:{halign:'center'}, 4:{halign:'center'}, 5:{halign:'center'}, 6:{halign:'center'}, 7:{halign:'center'}, 8:{halign:'center'} },
         margin:{left:14,right:14}
       });
-      y = (doc as any).lastAutoTable.finalY + 10;
-      if (y > 160) { doc.addPage(); y = 20; }
+      y = (doc as any).lastAutoTable.finalY + 12;
+      if (y > 150) { doc.addPage(); y = 20; }
       doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59); doc.text('OCUPACIÓN DE AMBIENTES', 14, y); y += 6;
       autoTable(doc, { startY: y, head:[['Ambiente','Tipo','Horas Usadas','% Ocupación']], body: dashData?.ocupacionAmbientes?.map((a:any)=>[a.nombre, a.tipo.toUpperCase(), `${a.horas_usadas}h`, `${a.porcentaje}%`])||[], theme:'striped', headStyles:{fillColor:[30,41,59], textColor:[255,255,255], fontStyle:'bold', halign:'center'}, bodyStyles:{textColor:[51,65,85], fontSize:8}, columnStyles: { 2:{halign:'center'}, 3:{halign:'center'} }, margin:{left:14,right:14} });
+      
+      const pageCountGestion = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCountGestion; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(148, 163, 184);
+        doc.text(`SiHorarios UNT — Universidad Nacional de Trujillo`, 14, doc.internal.pageSize.getHeight() - 8);
+        doc.text(`Página ${i} de ${pageCountGestion}`, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 8, { align: 'right' });
+      }
     } else {
       const docGrp: Record<string,any[]> = {};
       if (tipoReporte === 'docente' && docenteId) {
@@ -1012,7 +1023,7 @@ export default function ReportesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(dashData.cargaDocentes || []).slice(0, 15).map((d: any, i: number) => (
+                  {(dashData.cargaDocentes || []).map((d: any, i: number) => (
                     <tr key={i} style={{ borderBottom: '1px solid #F1F5F9' }}>
                       <td style={{ padding: '8px 12px', color: AZUL.text, fontWeight: 500 }}>{d.nombre}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px' }}>
@@ -1040,11 +1051,6 @@ export default function ReportesPage() {
                 </tbody>
               </table>
             </div>
-            {(dashData.cargaDocentes || []).length > 15 && (
-              <div style={{ textAlign: 'center', padding: '8px', fontSize: '13px', color: AZUL.textSec }}>
-                + {(dashData.cargaDocentes || []).length - 15} docentes más (usa PDF para ver completo)
-              </div>
-            )}
           </div>
         </div>
       )}
