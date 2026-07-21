@@ -738,45 +738,48 @@ setDeclaracionJuradaOpcion(opcionSugerida);
     
     const validCursos = cursosAsignados.filter(curso => curso.curso_id && curso.curso_id.length > 0);
     
-    if (parseFloat(totalHoras) <= 0) {
-      setAlertType('error'); setAlertMessage('El total de horas debe ser mayor a 0');
-      return;
-    }
-
-    if (horasEsperadas > 0 && diffHoras !== 0) {
-      setAlertType('error');
-      setAlertMessage(`Las horas totales (${totalHoras}h) no coinciden con las horas establecidas para la modalidad ${modalidad} (${horasEsperadas}h). ${diffHoras > 0 ? `Excede por ${diffHoras}h.` : `Faltan ${Math.abs(diffHoras)}h.`} Ajuste las horas lectivas o no lectivas.`);
-      return;
-    }
-    
     const cursosSinAlumnos = validCursos.filter(c => parseFloat(c.numeroAlumnos) <= 0);
     if (cursosSinAlumnos.length > 0) {
-      setAlertType('error'); setAlertMessage('Todos los cursos deben tener al menos 1 alumno');
+      setAlertType('error'); setAlertMessage('Todos los cursos asignados deben tener al menos 1 alumno');
       return;
     }
 
-    const prepHoras = parseFloat(secciones.preparacionEvaluacion.horas || '0');
-    const consejHoras = parseFloat(secciones.consejeriaTutoria.horas || '0');
-    const investHoras = parseFloat(secciones.investigacion.horas || '0');
-    const capacHoras = parseFloat(secciones.capacitacion.horas || '0');
-    const regimen = mapModalidad(modalidad);
-    const investMin = regimen === 'TC' ? 5 : 4;
+    // Validaciones estrictas de horas totales y carga no lectiva solo aplican a docentes rellenando su propia carga
+    if (isDocente) {
+      if (parseFloat(totalHoras) <= 0) {
+        setAlertType('error'); setAlertMessage('El total de horas debe ser mayor a 0');
+        return;
+      }
 
-    if (prepHoras > totalTrabajoLectivo * 0.5) {
-      setAlertType('error'); setAlertMessage(`Preparación y Evaluación (${prepHoras}h) excede el 50% del Trabajo Lectivo (${(totalTrabajoLectivo * 0.5).toFixed(1)}h)`);
-      return;
-    }
-    if (consejHoras < 1) {
-      setAlertType('error'); setAlertMessage('Consejería y Tutoría debe tener al menos 1 hora semanal');
-      return;
-    }
-    if (investHoras < investMin) {
-      setAlertType('error'); setAlertMessage(`Investigación debe tener al menos ${investMin} horas semanales según modalidad (${modalidad.replace(/(\d+)\s*H/, '$1 Hr')})`);
-      return;
-    }
-    if (capacHoras > 5) {
-      setAlertType('error'); setAlertMessage(`Capacitación (${capacHoras}h) excede el máximo de 5 horas semanales`);
-      return;
+      if (horasEsperadas > 0 && diffHoras !== 0) {
+        setAlertType('error');
+        setAlertMessage(`Las horas totales (${totalHoras}h) no coinciden con las horas establecidas para la modalidad ${modalidad} (${horasEsperadas}h). ${diffHoras > 0 ? `Excede por ${diffHoras}h.` : `Faltan ${Math.abs(diffHoras)}h.`} Ajuste las horas lectivas o no lectivas.`);
+        return;
+      }
+
+      const prepHoras = parseFloat(secciones.preparacionEvaluacion.horas || '0');
+      const consejHoras = parseFloat(secciones.consejeriaTutoria.horas || '0');
+      const investHoras = parseFloat(secciones.investigacion.horas || '0');
+      const capacHoras = parseFloat(secciones.capacitacion.horas || '0');
+      const regimen = mapModalidad(modalidad);
+      const investMin = regimen === 'TC' ? 5 : 4;
+
+      if (prepHoras > totalTrabajoLectivo * 0.5) {
+        setAlertType('error'); setAlertMessage(`Preparación y Evaluación (${prepHoras}h) excede el 50% del Trabajo Lectivo (${(totalTrabajoLectivo * 0.5).toFixed(1)}h)`);
+        return;
+      }
+      if (consejHoras < 1) {
+        setAlertType('error'); setAlertMessage('Consejería y Tutoría debe tener al menos 1 hora semanal');
+        return;
+      }
+      if (investHoras < investMin) {
+        setAlertType('error'); setAlertMessage(`Investigación debe tener al menos ${investMin} horas semanales según modalidad (${modalidad.replace(/(\d+)\s*H/, '$1 Hr')})`);
+        return;
+      }
+      if (capacHoras > 5) {
+        setAlertType('error'); setAlertMessage(`Capacitación (${capacHoras}h) excede el máximo de 5 horas semanales`);
+        return;
+      }
     }
 
     // Auto-fill or sync the general fields from Form 1 into Form 2
@@ -928,49 +931,51 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
       return;
     }
     
-    // Filter out any courses that don't have curso_id!
     const validCursos = cursosAsignados.filter(curso => curso.curso_id && curso.curso_id.length > 0);
-    
-    if (parseFloat(totalHoras) <= 0) {
-      setAlertType('error'); setAlertMessage('El total de horas debe ser mayor a 0');
-      return;
-    }
-
-    if (horasEsperadas > 0 && diffHoras !== 0) {
-      setAlertType('error');
-      setAlertMessage(`Las horas totales (${totalHoras}h) no coinciden con las horas establecidas para la modalidad ${modalidad} (${horasEsperadas}h). ${diffHoras > 0 ? `Excede por ${diffHoras}h.` : `Faltan ${Math.abs(diffHoras)}h.`} Ajuste las horas lectivas o no lectivas.`);
-      return;
-    }
-
-    const prepHoras = parseFloat(secciones.preparacionEvaluacion.horas || '0');
-    const consejHoras = parseFloat(secciones.consejeriaTutoria.horas || '0');
-    const investHoras = parseFloat(secciones.investigacion.horas || '0');
-    const capacHoras = parseFloat(secciones.capacitacion.horas || '0');
-    const regimen = mapModalidad(modalidad);
-    const investMin = regimen === 'TC' ? 5 : 4;
-
-    if (prepHoras > totalTrabajoLectivo * 0.5) {
-      setAlertType('error'); setAlertMessage(`Preparación y Evaluación (${prepHoras}h) excede el 50% del Trabajo Lectivo (${(totalTrabajoLectivo * 0.5).toFixed(1)}h)`);
-      return;
-    }
-    if (consejHoras < 1) {
-      setAlertType('error'); setAlertMessage('Consejería y Tutoría debe tener al menos 1 hora semanal');
-      return;
-    }
-    if (investHoras < investMin) {
-      setAlertType('error'); setAlertMessage(`Investigación debe tener al menos ${investMin} horas semanales según modalidad (${modalidad.replace(/(\d+)\s*H/, '$1 Hr')})`);
-      return;
-    }
-    if (capacHoras > 5) {
-      setAlertType('error'); setAlertMessage(`Capacitación (${capacHoras}h) excede el máximo de 5 horas semanales`);
-      return;
-    }
     
     // Check that all cursos have numeroAlumnos > 0
     const cursosSinAlumnos = validCursos.filter(c => parseFloat(c.numeroAlumnos) <= 0);
     if (cursosSinAlumnos.length > 0) {
       setAlertType('error'); setAlertMessage('Todos los cursos deben tener al menos 1 alumno');
       return;
+    }
+
+    // Validaciones estrictas de horas totales y carga no lectiva solo aplican a docentes rellenando su propia carga
+    if (isDocente) {
+      if (parseFloat(totalHoras) <= 0) {
+        setAlertType('error'); setAlertMessage('El total de horas debe ser mayor a 0');
+        return;
+      }
+
+      if (horasEsperadas > 0 && diffHoras !== 0) {
+        setAlertType('error');
+        setAlertMessage(`Las horas totales (${totalHoras}h) no coinciden con las horas establecidas para la modalidad ${modalidad} (${horasEsperadas}h). ${diffHoras > 0 ? `Excede por ${diffHoras}h.` : `Faltan ${Math.abs(diffHoras)}h.`} Ajuste las horas lectivas o no lectivas.`);
+        return;
+      }
+
+      const prepHoras = parseFloat(secciones.preparacionEvaluacion.horas || '0');
+      const consejHoras = parseFloat(secciones.consejeriaTutoria.horas || '0');
+      const investHoras = parseFloat(secciones.investigacion.horas || '0');
+      const capacHoras = parseFloat(secciones.capacitacion.horas || '0');
+      const regimen = mapModalidad(modalidad);
+      const investMin = regimen === 'TC' ? 5 : 4;
+
+      if (prepHoras > totalTrabajoLectivo * 0.5) {
+        setAlertType('error'); setAlertMessage(`Preparación y Evaluación (${prepHoras}h) excede el 50% del Trabajo Lectivo (${(totalTrabajoLectivo * 0.5).toFixed(1)}h)`);
+        return;
+      }
+      if (consejHoras < 1) {
+        setAlertType('error'); setAlertMessage('Consejería y Tutoría debe tener al menos 1 hora semanal');
+        return;
+      }
+      if (investHoras < investMin) {
+        setAlertType('error'); setAlertMessage(`Investigación debe tener al menos ${investMin} horas semanales según modalidad (${modalidad.replace(/(\d+)\s*H/, '$1 Hr')})`);
+        return;
+      }
+      if (capacHoras > 5) {
+        setAlertType('error'); setAlertMessage(`Capacitación (${capacHoras}h) excede el máximo de 5 horas semanales`);
+        return;
+      }
     }
     
     // Sanitize adicionalData cursos
