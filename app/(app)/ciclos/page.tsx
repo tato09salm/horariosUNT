@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { format, parseISO } from 'date-fns';
 import { useTheme } from '@/lib/theme';
 import { useUser } from '../layout';
 
@@ -255,8 +256,8 @@ export default function CiclosPage() {
         c.nombre,
         c.año.toString(),
         c.semestre,
-        c.fecha_inicio ? new Date(c.fecha_inicio).toLocaleDateString('es-PE') : '-',
-        c.fecha_fin    ? new Date(c.fecha_fin).toLocaleDateString('es-PE')    : '-',
+        c.fecha_inicio ? format(parseISO(c.fecha_inicio), 'dd/MM/yyyy') : '-',
+        c.fecha_fin ? format(parseISO(c.fecha_fin), 'dd/MM/yyyy') : '-',
         c.estado ? c.estado.toUpperCase() : 'PENDIENTE',
       ]);
 
@@ -474,8 +475,8 @@ export default function CiclosPage() {
                   <td style={{ fontWeight: '500' }}>{c.nombre}</td>
                   <td>{c.año}</td>
                   <td>{c.semestre}</td>
-                  <td className="hide-sm" style={{ fontSize: '12px', color: '#64748b' }}>{c.fecha_inicio?.split('T')[0] || '-'}</td>
-                  <td className="hide-sm" style={{ fontSize: '12px', color: '#64748b' }}>{c.fecha_fin?.split('T')[0] || '-'}</td>
+                  <td className="hide-sm" style={{ fontSize: '12px', color: '#64748b' }}>{c.fecha_inicio ? format(parseISO(c.fecha_inicio), 'dd/MM/yyyy') : '-'}</td>
+                  <td className="hide-sm" style={{ fontSize: '12px', color: '#64748b' }}>{c.fecha_fin ? format(parseISO(c.fecha_fin), 'dd/MM/yyyy') : '-'}</td>
                   <td>
                     <span className={`docentes-status-badge ${
                       c.activo ? 'docentes-status-badge--activo' :
