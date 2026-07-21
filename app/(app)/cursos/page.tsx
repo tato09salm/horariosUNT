@@ -255,7 +255,9 @@ export default function CursosPage() {
           doc.text('Sistema de Gestión de Horarios - UNT', 14, doc.internal.pageSize.height - 10);
         },
       });
-      doc.save(`plan_estudios_${new Date().getTime()}.pdf`);
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
     } catch {
       setToast({ type:'error', text:'Error al generar el reporte' });
     } finally { setLoadingPDF(false); }

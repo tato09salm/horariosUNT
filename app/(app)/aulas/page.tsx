@@ -197,7 +197,9 @@ export default function AulasPage() {
         }
       });
 
-      doc.save(`reporte_ambientes_${new Date().getTime()}.pdf`);
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
     } catch (error) {
       setMsg({type:'error', text:'Error al generar el reporte formal'});
     } finally {
