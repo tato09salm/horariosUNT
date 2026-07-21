@@ -458,14 +458,14 @@ export default function CiclosPage() {
                 <th className="hide-sm">Inicio</th>
                 <th className="hide-sm">Fin</th>
                 <th>Estado</th>
-                <th>Acciones</th>
+                {canWrite && <th>Acciones</th>}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>Cargando...</td></tr>
+                <tr><td colSpan={canWrite ? 8 : 7} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>Cargando...</td></tr>
               ) : ciclos.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                <tr><td colSpan={canWrite ? 8 : 7} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
                   {hayFiltrosActivos ? 'No se encontraron ciclos con esos filtros' : 'No hay ciclos registrados'}
                 </td></tr>
               ) : ciclos.map((c, i) => (
@@ -485,8 +485,9 @@ export default function CiclosPage() {
                        '○ Inactivo'}
                     </span>
                   </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                  {canWrite && (
+                    <td>
+                      <div style={{ display: 'flex', gap: '6px' }}>
                         {!c.activo && (
                           <button
                             className="btn-primary"
@@ -499,27 +500,24 @@ export default function CiclosPage() {
                           </button>
                         )}
 
-                        {canWrite && (
-                          <>
-                            <button
-                              className="btn-secondary btn-crud-edit"
-                              style={{ padding: '5px 10px', fontSize: '12px' }}
-                              onClick={() => editar(c)}
-                            >
-                              <span className="hide-sm">Editar</span>
-                            </button>
+                        <button
+                          className="btn-secondary btn-crud-edit"
+                          style={{ padding: '5px 10px', fontSize: '12px' }}
+                          onClick={() => editar(c)}
+                        >
+                          <span className="hide-sm">Editar</span>
+                        </button>
 
-                            <button
-                              className="btn-secondary btn-crud-deactivate"
-                              style={{ padding: '5px 10px', fontSize: '12px' }}
-                              onClick={() => handleEliminar(c)}
-                            >
-                              <span className="hide-sm">Desactivar</span>
-                            </button>
-                          </>
-                        )}
+                        <button
+                          className="btn-secondary btn-crud-deactivate"
+                          style={{ padding: '5px 10px', fontSize: '12px' }}
+                          onClick={() => handleEliminar(c)}
+                        >
+                          <span className="hide-sm">Desactivar</span>
+                        </button>
                       </div>
-                  </td>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
