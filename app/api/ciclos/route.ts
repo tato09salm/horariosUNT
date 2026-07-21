@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     paramIndex++;
   }
 
-  querySql += ` ORDER BY año DESC, semestre`;
+  querySql += ` ORDER BY fecha_fin DESC NULLS LAST, año DESC, semestre DESC`;
 
   if (reporte) {
     const ciclos = await query(querySql, params);
