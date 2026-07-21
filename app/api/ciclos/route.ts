@@ -74,14 +74,17 @@ export async function POST(req: NextRequest) {
   if (!session || !['admin', 'director_escuela'].includes(session.rol)) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
   try {
     const body = await req.json();
+    const tipo = body.tipo === 'extraordinario' || body.semestre === 'EXT' ? 'extraordinario' : 'regular';
+    const semestre = tipo === 'extraordinario' ? 'EXT' : (body.semestre || 'I');
+
     const ciclo = await queryOne(
       `INSERT INTO ciclos (nombre, año, semestre, tipo, fecha_inicio, fecha_fin, activo)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [
         body.nombre, 
         body.año, 
-        body.semestre, 
-        body.tipo || 'regular', 
+        semestre, 
+        tipo, 
         body.fecha_inicio || null, 
         body.fecha_fin || null, 
         body.activo || false

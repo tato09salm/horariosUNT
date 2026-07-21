@@ -19,11 +19,12 @@ module.exports = {
       console.log('ℹ️ La columna tipo ya existe en la tabla ciclos');
     }
 
-    // Paso 3: Eliminar la antigua restricción de semestre (si existe)
+    // Paso 3: Eliminar cualquier restricción de semestre antigua
     try {
-      await qi.removeConstraint('ciclos', 'ciclos_semestre_check');
+      await qi.sequelize.query('ALTER TABLE ciclos DROP CONSTRAINT IF EXISTS ciclos_semestre_check CASCADE;');
+      await qi.sequelize.query('ALTER TABLE ciclos DROP CONSTRAINT IF EXISTS ciclos_semestre_tipo_ck CASCADE;');
     } catch (e) {
-      console.log('ℹ️ No se encontró la restricción ciclos_semestre_check');
+      console.log('ℹ️ No se encontraron restricciones de semestre');
     }
 
     // Paso 4: Modificar la columna semestre para admitir 'EXT' (cambiar de VARCHAR(2) a VARCHAR(3))
@@ -31,20 +32,6 @@ module.exports = {
       type: S.STRING(3),
       allowNull: false
     });
-
-    // Paso 5: Agregar nueva restricción de semestre según tipo de ciclo
-    try {
-      await qi.addConstraint('ciclos', {
-        fields: ['semestre', 'tipo'],
-        type: 'check',
-        where: S.where(S.literal(`
-          (tipo = 'regular' AND semestre IN ('I', 'II')) OR
-          (tipo = 'extraordinario' AND semestre IN ('EXT'))
-        `))
-      });
-    } catch (e) {
-      console.log('ℹ️ La restricción ciclos_semestre_check ya existe');
-    }
 
     console.log('✅ Migración 017 completada: Columna tipo agregada a ciclos');
   },

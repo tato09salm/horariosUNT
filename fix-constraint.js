@@ -28,26 +28,11 @@ const sequelize = new Sequelize(
     
     console.log('Restricciones encontradas:', results);
     
-    // Eliminar la restricción antigua si existe
+    // Eliminar las restricciones de check si existen
     console.log('\n🔄 Actualizando restricciones...');
-    
-    // Intentamos eliminar restricciones relacionadas con semestre primero
-    for (const constraint of results) {
-      console.log(`👉 Eliminando restricción: ${constraint.conname}`);
-      await sequelize.query(`ALTER TABLE ciclos DROP CONSTRAINT IF EXISTS "${constraint.conname}" CASCADE;`);
-      console.log(`✅ Restricción ${constraint.conname} eliminada`);
-    }
-    
-    // Agregar la nueva restricción
-    await sequelize.query(`
-      ALTER TABLE ciclos 
-      ADD CONSTRAINT ciclos_semestre_check 
-      CHECK (
-        (tipo = 'regular' AND semestre IN ('I', 'II')) OR
-        (tipo = 'extraordinario' AND semestre IN ('EXT'))
-      );
-    `);
-    console.log('✅ Nueva restricción agregada exitosamente!');
+    await sequelize.query(`ALTER TABLE ciclos DROP CONSTRAINT IF EXISTS "ciclos_semestre_check" CASCADE;`);
+    await sequelize.query(`ALTER TABLE ciclos DROP CONSTRAINT IF EXISTS "ciclos_semestre_tipo_ck" CASCADE;`);
+    console.log('✅ Restricciones de check eliminadas exitosamente!');
     
     // Verificar la estructura final
     const [finalResults] = await sequelize.query(`

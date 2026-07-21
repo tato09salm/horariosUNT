@@ -19,15 +19,6 @@ module.exports = {
           activo: { type: S.BOOLEAN, defaultValue: false },
           created_at: { type: S.DATE, defaultValue: S.literal('NOW()') }
         });
-        
-        await qi.addConstraint('ciclos', { 
-          fields: ['semestre', 'tipo'], 
-          type: 'check', 
-          where: S.where(S.literal(`
-            (tipo = 'regular' AND semestre IN ('I', 'II')) OR
-            (tipo = 'extraordinario' AND semestre IN ('EXT'))
-          `))
-        });
       },
       down: async qi => {
         await qi.dropTable('ciclos');
