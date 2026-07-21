@@ -140,7 +140,7 @@ export default function NuevaCargaHorariaPage() {
   const isDirector = user?.rol.codigo === 'director_escuela';
   const isSecretaria = user?.rol.codigo === 'secretaria';
   const isDocente = user?.rol.codigo === 'docente';
-  const canWrite = isAdmin || isDirector;
+  const canWrite = isAdmin || isDirector || isSecretaria;
   const canEditForm = isAdmin || isDirector || isSecretaria;
 
   const formatDate = (dateStr: string | null | undefined): string => {
@@ -412,7 +412,16 @@ export default function NuevaCargaHorariaPage() {
         setDocentes(docentesData.data || []);
         setAllCursos(cursosData.data || []);
         setCursos(cursosData.data || []);
-        setCiclosAcademicos(ciclosData.data || []);
+        const cycles = ciclosData.data || [];
+        setCiclosAcademicos(cycles);
+        if (!initialCicloAcademico && cycles.length > 0) {
+          const activeCycle = cycles.find((c: any) => c.activo === true || c.activo);
+          if (activeCycle) {
+            setCicloAcademicoSeleccionado(activeCycle.id);
+          } else {
+            setCicloAcademicoSeleccionado(cycles[0].id);
+          }
+        }
         setAmbientes(aulasData.data || []);
         setCurriculas(curriculasData.data || []);
         
