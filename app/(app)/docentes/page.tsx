@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { format, parseISO } from 'date-fns';
 import { useTheme } from '@/lib/theme';
 import { useUser } from '../layout';
 
@@ -72,22 +73,28 @@ export default function DocentesPage() {
   const [buscar,          setBuscar]          = useState(() => getParam('buscar'));
   const [filtroCategoria, setFiltroCategoria] = useState(() => getParam('categoria'));
   const [filtroCondicion, setFiltroCondicion] = useState(() => getParam('condicion'));
+  const [filtroGrado,     setFiltroGrado]     = useState(() => getParam('grado'));
+  const [filtroModalidad, setFiltroModalidad] = useState(() => getParam('modalidad'));
 
   useEffect(() => {
     const params = new URLSearchParams();
     if (buscar)          params.set('buscar',    buscar);
     if (filtroCategoria) params.set('categoria', filtroCategoria);
     if (filtroCondicion) params.set('condicion', filtroCondicion);
+    if (filtroGrado)     params.set('grado',     filtroGrado);
+    if (filtroModalidad) params.set('modalidad', filtroModalidad);
     const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
     window.history.replaceState(null, '', newUrl);
-  }, [buscar, filtroCategoria, filtroCondicion]);
+  }, [buscar, filtroCategoria, filtroCondicion, filtroGrado, filtroModalidad]);
 
-  const hayFiltrosActivos = !!(buscar || filtroCategoria || filtroCondicion);
+  const hayFiltrosActivos = !!(buscar || filtroCategoria || filtroCondicion || filtroGrado || filtroModalidad);
 
   function limpiarFiltros() {
     setBuscar('');
     setFiltroCategoria('');
     setFiltroCondicion('');
+    setFiltroGrado('');
+    setFiltroModalidad('');
     setPagina(1);
   }
 
@@ -122,6 +129,8 @@ export default function DocentesPage() {
     if (buscar)          q.set('buscar',    buscar);
     if (filtroCategoria) q.set('categoria', filtroCategoria);
     if (filtroCondicion) q.set('condicion', filtroCondicion);
+    if (filtroGrado)     q.set('grado',     filtroGrado);
+    if (filtroModalidad) q.set('modalidad', filtroModalidad);
     q.set('page',              pagina.toString());
     q.set('limit',             limit.toString());
     fetch(`/api/docentes?${q}`)
@@ -129,10 +138,10 @@ export default function DocentesPage() {
       .then(d => { setDocentes(d.data || []); setTotal(d.total || 0); })
       .catch(() => setToast({ type: 'error', text: 'Error al cargar docentes. Verifica tu conexión.' }))
       .finally(() => setLoadingTabla(false));
-  }, [buscar, filtroCategoria, filtroCondicion, pagina]);
+  }, [buscar, filtroCategoria, filtroCondicion, filtroGrado, filtroModalidad, pagina]);
 
   useEffect(() => { const t = setTimeout(cargar, 400); return () => clearTimeout(t); }, [cargar]);
-  useEffect(() => { setPagina(1); }, [buscar, filtroCategoria, filtroCondicion]);
+  useEffect(() => { setPagina(1); }, [buscar, filtroCategoria, filtroCondicion, filtroGrado, filtroModalidad]);
 
   useEffect(() => {
     if (showModal) setFormErrors(validarForm(editando));
@@ -232,6 +241,8 @@ export default function DocentesPage() {
       if (buscar)          q.set('buscar',    buscar);
       if (filtroCategoria) q.set('categoria', filtroCategoria);
       if (filtroCondicion) q.set('condicion', filtroCondicion);
+      if (filtroGrado)     q.set('grado',     filtroGrado);
+      if (filtroModalidad) q.set('modalidad', filtroModalidad);
       q.set('reporte', 'true');
       const res  = await fetch(`/api/docentes?${q}`);
       const data = await res.json();
@@ -249,13 +260,13 @@ export default function DocentesPage() {
       doc.text(`Total de registros: ${todos.length}`, 14, 57);
       autoTable(doc, {
         startY: 65,
-        head: [['ORD.', 'APELLIDOS Y NOMBRES', 'DNI', 'CATEGORÍA', 'CONDICIÓN', 'GRADO', 'HRS', 'ESTADO']],
+        head: [['ORD.', 'APELLIDOS Y NOMBRES', 'DNI', 'CATEGORÍA', 'CONDICIÓN', 'GRADO', 'MODALIDAD', 'ESTADO']],
         body: todos.map((d: Docente, i: number) => [
           i + 1,
           `${d.apellidos.toUpperCase()} ${d.nombre.toUpperCase()}`,
           d.dni || '—', d.categoria.replace('_', ' ').toUpperCase(),
           d.condicion.toUpperCase(), d.grado_academico.toUpperCase(),
-          d.horas_max_semana + 'h', d.activo ? 'ACTIVO' : 'INACTIVO',
+          d.modalidad || '—', d.activo ? 'ACTIVO' : 'INACTIVO',
         ]),
         theme: 'striped',
         headStyles: { fillColor: [30,41,59], textColor: [255,255,255], fontSize: 9, fontStyle: 'bold', halign: 'center' },
@@ -263,7 +274,7 @@ export default function DocentesPage() {
         columnStyles: {
           0: { halign:'center', cellWidth:12 }, 2: { halign:'center', cellWidth:20 },
           3: { halign:'center' }, 4: { halign:'center' }, 5: { halign:'center' },
-          6: { halign:'center', cellWidth:15 }, 7: { halign:'center' },
+          6: { halign:'center' }, 7: { halign:'center' },
         },
         didDrawPage: () => {
           doc.setFontSize(8); doc.setTextColor(148, 163, 184);
@@ -337,16 +348,16 @@ export default function DocentesPage() {
 
       {/* Filtros */}
       <div className="card" style={{marginBottom:'16px',padding:'16px'}}>
-        <div style={{display:'flex', gap:'12px', alignItems:'center', width:'100%'}}>
+        <div style={{display:'flex', gap:'12px', alignItems:'center', width:'100%', flexWrap:'wrap'}}>
 
           {/* Buscador */}
-          <div style={{position:'relative', flex:'1 1 0', minWidth:0}}>
+          <div style={{position:'relative', flex:'1 1 200px', minWidth:'200px'}}>
             <input
               className="form-input"
               placeholder="Buscar por nombre o DNI..."
               value={buscar}
               onChange={e => setBuscar(e.target.value.toUpperCase())}
-              style={{width:'100%', paddingRight: loadingTabla && buscar ? 36 : undefined, textTransform:'uppercase'}}
+              style={{width:'100%', paddingRight: loadingTabla && buscar ? 36 : undefined}}
             />
             {loadingTabla && buscar && (
               <span style={{
@@ -361,23 +372,53 @@ export default function DocentesPage() {
           {/* Select categoría */}
           <select
             className="form-input"
-            style={{flex:'0 0 200px'}}
+            style={{flex:'0 0 180px'}}
             value={filtroCategoria}
             onChange={e => setFiltroCategoria(e.target.value)}
           >
-            <option value="">Todas las categorías</option>
-            {categorias.map(c => <option key={c} value={c}>{c.replace('_',' ')}</option>)}
+            <option value="">TODAS LAS CATEGORÍAS</option>
+            {categorias.map(c => <option key={c} value={c}>{c.replace('_',' ').toUpperCase()}</option>)}
           </select>
 
           {/* Select condición */}
           <select
             className="form-input"
-            style={{flex:'0 0 200px'}}
+            style={{flex:'0 0 180px'}}
             value={filtroCondicion}
             onChange={e => setFiltroCondicion(e.target.value)}
           >
-            <option value="">Todas las condiciones</option>
-            {condiciones.map(c => <option key={c} value={c}>{c}</option>)}
+            <option value="">TODAS LAS CONDICIONES</option>
+            {condiciones.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}
+          </select>
+
+          {/* Select grado */}
+          <select
+            className="form-input"
+            style={{flex:'0 0 180px'}}
+            value={filtroGrado}
+            onChange={e => setFiltroGrado(e.target.value)}
+          >
+            <option value="">TODOS LOS GRADOS</option>
+            <option value="doctor">DOCTOR</option>
+            <option value="magister">MAGISTER</option>
+            <option value="licenciado">LICENCIADO</option>
+            <option value="bachiller">BACHILLER</option>
+          </select>
+
+          {/* Select modalidad */}
+          <select
+            className="form-input"
+            style={{flex:'0 0 200px'}}
+            value={filtroModalidad}
+            onChange={e => setFiltroModalidad(e.target.value)}
+          >
+            <option value="">TODAS LAS MODALIDADES</option>
+            <option value="TIEMPO COMPLETO 40 H">TIEMPO COMPLETO 40 H</option>
+            <option value="TIEMPO PARCIAL 20 H">TIEMPO PARCIAL 20 H</option>
+            <option value="TIEMPO PARCIAL 16 H">TIEMPO PARCIAL 16 H</option>
+            <option value="TIEMPO PARCIAL 12 H">TIEMPO PARCIAL 12 H</option>
+            <option value="TIEMPO PARCIAL 10 H">TIEMPO PARCIAL 10 H</option>
+            <option value="TIEMPO PARCIAL 8 H">TIEMPO PARCIAL 8 H</option>
           </select>
 
           {/* ── MEJORA: Botón limpiar filtros ── */}
@@ -424,7 +465,7 @@ export default function DocentesPage() {
                 <th className="hide-sm">Condición</th>
                 <th className="hide-sm">Grado</th>
                 <th className="hide-sm">Ingreso</th>
-                <th className="hide-sm">Horas</th>
+                <th className="hide-sm">Modalidad</th>
                 <th className="hide-sm">Estado</th>
                 <th>Acciones</th>
               </tr>
@@ -445,8 +486,8 @@ export default function DocentesPage() {
                   <td className="hide-sm"><span className={`badge badge-${d.categoria}`}>{d.categoria.replace('_',' ').toUpperCase()}</span></td>
                   <td className="hide-sm"><span className={`badge badge-${d.condicion}`}>{d.condicion.toUpperCase()}</span></td>
                   <td className="hide-sm" style={{fontSize:'12px',color:'#64748b'}}>{d.grado_academico.toUpperCase()}</td>
-                  <td className="hide-sm" style={{fontSize:'12px',color:'#64748b'}}>{d.fecha_ingreso?.split('T')[0]}</td>
-                  <td className="hide-sm" style={{textAlign:'center',fontWeight:'600'}}>{d.horas_max_semana}h</td>
+                  <td className="hide-sm" style={{fontSize:'12px',color:'#64748b'}}>{d.fecha_ingreso ? format(parseISO(d.fecha_ingreso.split('T')[0]), 'dd/MM/yyyy') : '—'}</td>
+                  <td className="hide-sm" style={{fontSize:'12px',color:'#64748b'}}>{d.modalidad || '—'}</td>
                   <td className="hide-sm">
                     <span className={`docentes-status-badge ${d.activo ? 'docentes-status-badge--activo' : 'docentes-status-badge--inactivo'}`}>
                       {d.activo ? '● Activo' : '○ Inactivo'}
