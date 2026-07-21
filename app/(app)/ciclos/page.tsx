@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { format, parseISO } from 'date-fns';
 import { useTheme } from '@/lib/theme';
 import { useUser } from '../layout';
 
@@ -255,8 +256,8 @@ export default function CiclosPage() {
         c.nombre,
         c.año.toString(),
         c.semestre,
-        c.fecha_inicio ? new Date(c.fecha_inicio).toLocaleDateString('es-PE') : '-',
-        c.fecha_fin    ? new Date(c.fecha_fin).toLocaleDateString('es-PE')    : '-',
+        c.fecha_inicio ? format(parseISO(c.fecha_inicio), 'dd/MM/yyyy') : '-',
+        c.fecha_fin ? format(parseISO(c.fecha_fin), 'dd/MM/yyyy') : '-',
         c.estado ? c.estado.toUpperCase() : 'PENDIENTE',
       ]);
 
@@ -458,14 +459,14 @@ export default function CiclosPage() {
                 <th className="hide-sm">Inicio</th>
                 <th className="hide-sm">Fin</th>
                 <th>Estado</th>
-                <th>Acciones</th>
+                {canWrite && <th>Acciones</th>}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>Cargando...</td></tr>
+                <tr><td colSpan={canWrite ? 8 : 7} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>Cargando...</td></tr>
               ) : ciclos.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                <tr><td colSpan={canWrite ? 8 : 7} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
                   {hayFiltrosActivos ? 'No se encontraron ciclos con esos filtros' : 'No hay ciclos registrados'}
                 </td></tr>
               ) : ciclos.map((c, i) => (
@@ -474,8 +475,8 @@ export default function CiclosPage() {
                   <td style={{ fontWeight: '500' }}>{c.nombre}</td>
                   <td>{c.año}</td>
                   <td>{c.semestre}</td>
-                  <td className="hide-sm" style={{ fontSize: '12px', color: '#64748b' }}>{c.fecha_inicio?.split('T')[0] || '-'}</td>
-                  <td className="hide-sm" style={{ fontSize: '12px', color: '#64748b' }}>{c.fecha_fin?.split('T')[0] || '-'}</td>
+                  <td className="hide-sm" style={{ fontSize: '12px', color: '#64748b' }}>{c.fecha_inicio ? format(parseISO(c.fecha_inicio), 'dd/MM/yyyy') : '-'}</td>
+                  <td className="hide-sm" style={{ fontSize: '12px', color: '#64748b' }}>{c.fecha_fin ? format(parseISO(c.fecha_fin), 'dd/MM/yyyy') : '-'}</td>
                   <td>
                     <span className={`docentes-status-badge ${
                       c.activo ? 'docentes-status-badge--activo' :
@@ -485,8 +486,9 @@ export default function CiclosPage() {
                        '○ Inactivo'}
                     </span>
                   </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                  {canWrite && (
+                    <td>
+                      <div style={{ display: 'flex', gap: '6px' }}>
                         {!c.activo && (
                           <button
                             className="btn-primary"
@@ -499,27 +501,24 @@ export default function CiclosPage() {
                           </button>
                         )}
 
-                        {canWrite && (
-                          <>
-                            <button
-                              className="btn-secondary btn-crud-edit"
-                              style={{ padding: '5px 10px', fontSize: '12px' }}
-                              onClick={() => editar(c)}
-                            >
-                              <span className="hide-sm">Editar</span>
-                            </button>
+                        <button
+                          className="btn-secondary btn-crud-edit"
+                          style={{ padding: '5px 10px', fontSize: '12px' }}
+                          onClick={() => editar(c)}
+                        >
+                          <span className="hide-sm">Editar</span>
+                        </button>
 
-                            <button
-                              className="btn-secondary btn-crud-deactivate"
-                              style={{ padding: '5px 10px', fontSize: '12px' }}
-                              onClick={() => handleEliminar(c)}
-                            >
-                              <span className="hide-sm">Desactivar</span>
-                            </button>
-                          </>
-                        )}
+                        <button
+                          className="btn-secondary btn-crud-deactivate"
+                          style={{ padding: '5px 10px', fontSize: '12px' }}
+                          onClick={() => handleEliminar(c)}
+                        >
+                          <span className="hide-sm">Desactivar</span>
+                        </button>
                       </div>
-                  </td>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

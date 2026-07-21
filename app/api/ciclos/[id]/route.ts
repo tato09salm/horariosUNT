@@ -31,12 +31,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const anterior = await queryOne('SELECT * FROM ciclos WHERE id = $1', [id]);
     if (!anterior) return NextResponse.json({ error: 'Ciclo no encontrado' }, { status: 404 });
 
+    const tipo = body.tipo === 'extraordinario' || body.semestre === 'EXT' ? 'extraordinario' : 'regular';
+    const semestre = tipo === 'extraordinario' ? 'EXT' : (body.semestre || 'I');
+
     const ciclo = await queryOne(
       `UPDATE ciclos
-       SET nombre = $1, año = $2, semestre = $3, fecha_inicio = $4, fecha_fin = $5
-       WHERE id = $6
+       SET nombre = $1, año = $2, semestre = $3, tipo = $4, fecha_inicio = $5, fecha_fin = $6
+       WHERE id = $7
        RETURNING *`,
-      [body.nombre, body.año, body.semestre, body.fecha_inicio || null, body.fecha_fin || null, id]
+      [body.nombre, body.año, semestre, tipo, body.fecha_inicio || null, body.fecha_fin || null, id]
     );
 
     const mappedCiclo = ciclo ? { ...ciclo, estado: ciclo.activo ? 'activo' : 'inactivo' } : null;
