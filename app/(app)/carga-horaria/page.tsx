@@ -118,7 +118,7 @@ export default function CargaHorariaPage() {
   const [activeTab, setActiveTab] = useState<'carga-horaria' | 'carga-aula' | 'carga-docentes' | 'reportes' | 'carga-observaciones'>('carga-horaria');
   const [aulaData, setAulaData] = useState<any[]>([]);
   const [loadingAula, setLoadingAula] = useState(false);
-  
+
   // Estado para pestaña Carga por Docentes
   const [docentesCarga, setDocentesCarga] = useState<any[]>([]);
   const [loadingDocentesCarga, setLoadingDocentesCarga] = useState(false);
@@ -126,11 +126,11 @@ export default function CargaHorariaPage() {
   const [filtroEstadoCarga, setFiltroEstadoCarga] = useState<'todos' | 'llenado' | 'no_llenado'>('todos');
   const [filtroCurso, setFiltroCurso] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   const [buscarDocenteReporte, setBuscarDocenteReporte] = useState('');
   const [filtroCursoReporte, setFiltroCursoReporte] = useState('');
   const [currentPageReporte, setCurrentPageReporte] = useState(1);
-  
+
   // Resetear página cuando cambian los filtros
   useEffect(() => {
     setCurrentPage(1);
@@ -139,7 +139,7 @@ export default function CargaHorariaPage() {
   useEffect(() => {
     setCurrentPageReporte(1);
   }, [buscarDocenteReporte, filtroCursoReporte]);
-  
+
   // Guardar el ciclo academico seleccionado en sessionStorage
   useEffect(() => {
     if (cicloAcademicoSeleccionado) {
@@ -150,12 +150,12 @@ export default function CargaHorariaPage() {
   const [docentes, setDocentes] = useState<Docente[]>([]);
   const [allDocentes, setAllDocentes] = useState<Docente[]>([]);
   const [totalCursosPorCiclo, setTotalCursosPorCiclo] = useState<Record<number, number>>({});
-  
+
   const [loading, setLoading] = useState(true);
   const [loadingCiclos, setLoadingCiclos] = useState(false);
   const [loadingDocentes, setLoadingDocentes] = useState(false);
   const [loadingAllDocentes, setLoadingAllDocentes] = useState(false);
-  
+
   const [showModal, setShowModal] = useState(false);
   const [cicloPlanSeleccionado, setCicloPlanSeleccionado] = useState<number | null>(null);
   const [buscarCiclo, setBuscarCiclo] = useState('');
@@ -194,11 +194,11 @@ export default function CargaHorariaPage() {
         console.log('📦 Received response from /api/ciclos, status:', r.status);
         return r.json();
       })
-      .then(data => { 
+      .then(data => {
         console.log('✅ Ciclos academicos data:', data);
         const ciclos = data.data || [];
         setCiclosAcademicos(ciclos);
-        
+
         // Auto-seleccionar ciclo activo por defecto
         const activeCiclo = ciclos.find((c: any) => c.activo === true || c.activo);
         if (activeCiclo) {
@@ -261,7 +261,7 @@ export default function CargaHorariaPage() {
   // Cargar docentes cuando se abre el modal - no pagination!
   useEffect(() => {
     if (!showModal) return;
-    
+
     setLoadingDocentes(true);
     const params = new URLSearchParams();
     if (buscarDocente) {
@@ -308,25 +308,25 @@ export default function CargaHorariaPage() {
   useEffect(() => {
     if ((activeTab !== 'carga-docentes' && activeTab !== 'reportes') || !cicloAcademicoSeleccionado) return;
     setLoadingDocentesCarga(true);
-    
+
     // Cargar todos los docentes activos
     fetch('/api/docentes?limit=1000&activo=true')
       .then(r => r.json())
       .then(data => {
         const todosDocentes = data.data || [];
-        
+
         // Cargar carga horaria para el ciclo seleccionado
         return fetch(`/api/carga-horaria?ciclo_academico_id=${cicloAcademicoSeleccionado}`)
           .then(r => r.json())
           .then(cargaData => {
             const cargaHoraria = cargaData.data || [];
             const docentesConCarga = new Set(cargaHoraria.map((ch: any) => ch.docente_id));
-            
+
             // Combinar datos y calcular horas
             const docentesConEstado = todosDocentes.map((d: any) => {
               const tieneCarga = docentesConCarga.has(d.id);
               const cargaDocente = cargaHoraria.find((ch: any) => ch.docente_id === d.id);
-              
+
               // Calcular horas lectivas desde cursos
               let horasLectivas = 0;
               if (cargaDocente?.cursos) {
@@ -340,7 +340,7 @@ export default function CargaHorariaPage() {
                   return sum + (ht * tG) + (hp * pG) + (hl * lG);
                 }, 0);
               }
-              
+
               // Calcular horas no lectivas desde secciones
               let horasNoLectivas = 0;
               const secciones = ['preparacion', 'consejeria', 'investigacion', 'capacitacion', 'gobierno', 'administracion', 'asesoria', 'rsu', 'comites'];
@@ -356,7 +356,7 @@ export default function CargaHorariaPage() {
                   }
                 }
               }
-              
+
               return {
                 ...d,
                 tiene_carga: tieneCarga,
@@ -366,7 +366,7 @@ export default function CargaHorariaPage() {
                 horas_no_lectivas: horasNoLectivas
               };
             });
-            
+
             setDocentesCarga(docentesConEstado);
           });
       })
@@ -400,7 +400,7 @@ export default function CargaHorariaPage() {
 
       setToast({ type: 'success', text: 'Docente asignado correctamente' });
       setDocenteSeleccionado('');
-      
+
       // Recargar carga horaria completa
       const params = new URLSearchParams();
       params.set('ciclo_academico_id', cicloAcademicoSeleccionado);
@@ -420,7 +420,7 @@ export default function CargaHorariaPage() {
       if (!res.ok) throw new Error('Error al eliminar curso');
 
       setToast({ type: 'success', text: 'Curso eliminado correctamente' });
-      
+
       // Recargar carga horaria completa
       const params = new URLSearchParams();
       params.set('ciclo_academico_id', cicloAcademicoSeleccionado);
@@ -440,7 +440,7 @@ export default function CargaHorariaPage() {
       if (!res.ok) throw new Error('Error al eliminar asignación');
 
       setToast({ type: 'success', text: 'Asignación eliminada correctamente' });
-      
+
       // Recargar carga horaria completa
       const params = new URLSearchParams();
       params.set('ciclo_academico_id', cicloAcademicoSeleccionado);
@@ -476,97 +476,97 @@ export default function CargaHorariaPage() {
     }
     setCiclosExpandidos(newExpandidos);
   }
-async function marcarFormatosGenerados(docenteId: string) {
-  const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
-  for (const ch of cargasDocente) {
-    await fetch(`/api/carga-horaria/${ch.id}/bloquear`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ formatos_generados: true })
-    });
-    // Actualizar estado local
-    setCargaHoraria(prev => prev.map(c =>
-      c.id === ch.id ? { ...c, formatos_generados: true } : c
-    ));
-  }
-}
-
-function validarHorasDocenteParaDescarga(docenteId: string): { valido: boolean; mensaje?: string } {
-  const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
-  if (cargasDocente.length === 0) {
-    return { valido: false, mensaje: 'No hay datos de carga horaria para este docente' };
-  }
-
-  const docenteCompleto = allDocentes.find(d => d.id === docenteId);
-  const primeraCarga = cargasDocente[0];
-
-  let adicional: any = null;
-  if (primeraCarga?.adicional) {
-    try {
-      adicional = typeof primeraCarga.adicional === 'string'
-        ? JSON.parse(primeraCarga.adicional)
-        : primeraCarga.adicional;
-    } catch (err) {}
-  }
-
-  const modStr = (adicional?.regimen_dedicacion || docenteCompleto?.modalidad || primeraCarga?.modalidad || '').toString().toUpperCase();
-  
-  let horasEsperadas = 0;
-  const match = modStr.match(/(\d+)\s*H/i);
-  if (match) {
-    horasEsperadas = parseInt(match[1], 10);
-  } else if (modStr.includes('DE') || modStr.includes('DEDICACION EXCLUSIVA') || modStr.includes('TC') || modStr.includes('TIEMPO COMPLETO')) {
-    horasEsperadas = 40;
-  } else if (modStr.includes('TP') || modStr.includes('TIEMPO PARCIAL')) {
-    horasEsperadas = 20;
-  }
-
-  let totalLectiva = 0;
-  cargasDocente.forEach(ch => {
-    if (ch.cursos && Array.isArray(ch.cursos)) {
-      ch.cursos.forEach((c: any) => {
-        const hrsTeo = c.hrs_teo || 0;
-        const gTeo = c.teoria_grupos ?? 1;
-        const hrsPra = c.hrs_pra || 0;
-        const gPra = c.practica_grupos ?? 1;
-        const hrsLab = c.hrs_lab || 0;
-        const gLab = c.laboratorio_grupos ?? 1;
-        totalLectiva += (hrsTeo * gTeo) + (hrsPra * gPra) + (hrsLab * gLab);
+  async function marcarFormatosGenerados(docenteId: string) {
+    const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
+    for (const ch of cargasDocente) {
+      await fetch(`/api/carga-horaria/${ch.id}/bloquear`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ formatos_generados: true })
       });
+      // Actualizar estado local
+      setCargaHoraria(prev => prev.map(c =>
+        c.id === ch.id ? { ...c, formatos_generados: true } : c
+      ));
     }
-  });
+  }
 
-  let totalNoLectiva = 0;
-  const secKeys = ['preparacion', 'consejeria', 'investigacion', 'capacitacion', 'gobierno', 'administracion', 'asesoria', 'rsu', 'comites'];
-  cargasDocente.forEach(ch => {
-    for (const key of secKeys) {
-      const secVal = ch[key];
-      if (secVal) {
-        if (typeof secVal === 'object' && secVal !== null && 'horas' in secVal) {
-          totalNoLectiva += parseFloat(secVal.horas || '0');
-        } else if (Array.isArray(secVal)) {
-          secVal.forEach((item: any) => {
-            if (item && item.horas) totalNoLectiva += parseFloat(item.horas || '0');
-          });
+  function validarHorasDocenteParaDescarga(docenteId: string): { valido: boolean; mensaje?: string } {
+    const cargasDocente = cargaHoraria.filter(ch => ch.docente_id === docenteId);
+    if (cargasDocente.length === 0) {
+      return { valido: false, mensaje: 'No hay datos de carga horaria para este docente' };
+    }
+
+    const docenteCompleto = allDocentes.find(d => d.id === docenteId);
+    const primeraCarga = cargasDocente[0];
+
+    let adicional: any = null;
+    if (primeraCarga?.adicional) {
+      try {
+        adicional = typeof primeraCarga.adicional === 'string'
+          ? JSON.parse(primeraCarga.adicional)
+          : primeraCarga.adicional;
+      } catch (err) { }
+    }
+
+    const modStr = (adicional?.regimen_dedicacion || docenteCompleto?.modalidad || primeraCarga?.modalidad || '').toString().toUpperCase();
+
+    let horasEsperadas = 0;
+    const match = modStr.match(/(\d+)\s*H/i);
+    if (match) {
+      horasEsperadas = parseInt(match[1], 10);
+    } else if (modStr.includes('DE') || modStr.includes('DEDICACION EXCLUSIVA') || modStr.includes('TC') || modStr.includes('TIEMPO COMPLETO')) {
+      horasEsperadas = 40;
+    } else if (modStr.includes('TP') || modStr.includes('TIEMPO PARCIAL')) {
+      horasEsperadas = 20;
+    }
+
+    let totalLectiva = 0;
+    cargasDocente.forEach(ch => {
+      if (ch.cursos && Array.isArray(ch.cursos)) {
+        ch.cursos.forEach((c: any) => {
+          const hrsTeo = c.hrs_teo || 0;
+          const gTeo = c.teoria_grupos ?? 1;
+          const hrsPra = c.hrs_pra || 0;
+          const gPra = c.practica_grupos ?? 1;
+          const hrsLab = c.hrs_lab || 0;
+          const gLab = c.laboratorio_grupos ?? 1;
+          totalLectiva += (hrsTeo * gTeo) + (hrsPra * gPra) + (hrsLab * gLab);
+        });
+      }
+    });
+
+    let totalNoLectiva = 0;
+    const secKeys = ['preparacion', 'consejeria', 'investigacion', 'capacitacion', 'gobierno', 'administracion', 'asesoria', 'rsu', 'comites'];
+    cargasDocente.forEach(ch => {
+      for (const key of secKeys) {
+        const secVal = ch[key];
+        if (secVal) {
+          if (typeof secVal === 'object' && secVal !== null && 'horas' in secVal) {
+            totalNoLectiva += parseFloat(secVal.horas || '0');
+          } else if (Array.isArray(secVal)) {
+            secVal.forEach((item: any) => {
+              if (item && item.horas) totalNoLectiva += parseFloat(item.horas || '0');
+            });
+          }
         }
       }
+    });
+
+    const totalHorasGenerales = totalLectiva + totalNoLectiva;
+
+    if (horasEsperadas > 0 && totalHorasGenerales !== horasEsperadas) {
+      const modNombre = modStr || 'su modalidad';
+      return {
+        valido: false,
+        mensaje: `No se pueden descargar los formatos porque la carga horaria no ha completado las horas requeridas para la modalidad ${modNombre} (${totalHorasGenerales}h de ${horasEsperadas}h establecidas).`
+      };
     }
-  });
 
-  const totalHorasGenerales = totalLectiva + totalNoLectiva;
-
-  if (horasEsperadas > 0 && totalHorasGenerales !== horasEsperadas) {
-    const modNombre = modStr || 'su modalidad';
-    return {
-      valido: false,
-      mensaje: `No se pueden descargar los formatos porque la carga horaria no ha completado las horas requeridas para la modalidad ${modNombre} (${totalHorasGenerales}h de ${horasEsperadas}h establecidas).`
-    };
+    return { valido: true };
   }
 
-  return { valido: true };
-}
-
-async function generarTodosFormatosZip(docenteId: string) {
+  async function generarTodosFormatosZip(docenteId: string) {
     const val = validarHorasDocenteParaDescarga(docenteId);
     if (!val.valido) {
       setToast({ type: 'error', text: val.mensaje || 'Horas incompletas para la modalidad.' });
@@ -611,7 +611,7 @@ async function generarTodosFormatosZip(docenteId: string) {
     }
   }
 
-function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false): jsPDF | null {
+  function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false): jsPDF | null {
     const val = validarHorasDocenteParaDescarga(docenteId);
     if (!val.valido) {
       if (!returnBlob && val.mensaje) setToast({ type: 'error', text: val.mensaje });
@@ -637,8 +637,8 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
       }
     }
 
-    const nombreDocente = (adicional?.nombre_docente || (primeraCarga 
-      ? `${primeraCarga.docente_apellidos}, ${primeraCarga.docente_nombre}` 
+    const nombreDocente = (adicional?.nombre_docente || (primeraCarga
+      ? `${primeraCarga.docente_apellidos}, ${primeraCarga.docente_nombre}`
       : 'DOCENTE')).toUpperCase();
 
     const codigoDocente = adicional?.codigo_docente || docenteCompleto?.codigo || '';
@@ -669,7 +669,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     const isDE = regStr.includes('DE');
     const isTC = regStr.includes('TC');
     const isTP = regStr.includes('TP');
-    
+
     let tpHoras = '';
     if (isTP) {
       const match = (adicional?.regimen_dedicacion || modalidad || '').match(/(\d+)\s*H/i);
@@ -682,7 +682,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
 
     const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
     const añoAcademico = adicional?.periodo_academico || cicloAcademico?.nombre || '';
-    
+
     const formatDate = (dateStr?: string) => {
       if (!dateStr) return '..../..../....';
       const clean = dateStr.trim();
@@ -833,11 +833,11 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     // 7. SIGNATURES BLOCK
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'bold');
-    
+
     // Left signatures
     doc.line(ml, y, ml + 65, y);
     doc.text('Firma del Profesor', ml + 32.5, y + 4, { align: 'center' });
-    
+
     // Right signatures (Decano V° B°)
     doc.line(pw - ml - 65, y, pw - ml, y);
     doc.text('V° B°', pw - ml - 32.5, y + 4, { align: 'center' });
@@ -872,7 +872,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
       setToast({ type: 'error', text: 'No hay datos de carga horaria para este docente' });
       return null;
     }
-    
+
     // Combinar todos los cursos de todas las cargas horarias del docente
     const cursosDocente: any[] = [];
     let totalHorasLectivas = 0;
@@ -886,7 +886,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
           const hrsLab = curso.hrs_lab || 0;
           const gruposLab = (curso as any).laboratorio_grupos ?? 1;
           const totalHrs = (hrsTeo * gruposTeo) + (hrsPra * gruposPra) + (hrsLab * gruposLab);
-          
+
           const cursoData = {
             id: curso.id,
             curso_id: curso.curso_id,
@@ -925,22 +925,22 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
         console.error('Error parsing adicional in PDF generator:', err);
       }
     }
-    
-    const nombreDocente = (adicional?.nombre_docente || (primeraCarga 
-      ? `${primeraCarga.docente_apellidos}, ${primeraCarga.docente_nombre}` 
+
+    const nombreDocente = (adicional?.nombre_docente || (primeraCarga
+      ? `${primeraCarga.docente_apellidos}, ${primeraCarga.docente_nombre}`
       : 'DOCENTE')).toUpperCase();
-    
+
     const dniDocente = adicional?.dni_docente || docenteCompleto?.dni || '';
     const condicion = (adicional?.condicion || docenteCompleto?.condicion || 'NOMBRADO').toUpperCase();
     const categoria = (adicional?.categoria || docenteCompleto?.categoria || 'ASOCIADO').toUpperCase();
     const modalidad = (adicional?.regimen_dedicacion || docenteCompleto?.modalidad || primeraCarga?.modalidad || 'TIEMPO COMPLETO').toUpperCase();
     const facultad = (adicional?.facultad || docenteCompleto?.facultad || primeraCarga?.docente_facultad || primeraCarga?.facultad || '—').toUpperCase();
     const dptoAcademico = (adicional?.dpto_academico || docenteCompleto?.dpto_academico || primeraCarga?.docente_dpto_academico || primeraCarga?.dpto_academico || '—').toUpperCase();
-    
+
     // Obtener nombre del ciclo académico
     const cicloAcademico = ciclosAcademicos.find(c => c.id === cicloAcademicoSeleccionado);
     const añoAcademico = adicional?.periodo_academico || cicloAcademico?.nombre || '';
-    
+
     // Obtener datos de las secciones (combinar todas las cargas)
     const secciones: Record<string, any> = {
       preparacion: null,
@@ -953,7 +953,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
       rsu: null,
       comites: null
     };
-    
+
     cargasDocente.forEach(ch => {
       for (const key of Object.keys(secciones)) {
         if (ch[key]) {
@@ -976,11 +976,11 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
       format: 'a4'
     });
     const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
-    
+
     const marginLeft = 10;
     const marginRight = 10;
     let currentY = 12;
-    
+
     // Título principal
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
@@ -1219,7 +1219,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     doc.line(15, firmaY, 65, firmaY);
     doc.line(80, firmaY, 130, firmaY);
     doc.line(145, firmaY, 195, firmaY);
-    
+
     doc.setFontSize(8);
     doc.text('Firma del Docente', 40, firmaY + 4, { align: 'center' });
     doc.text('Firma del Director de Dpto.', 105, firmaY + 4, { align: 'center' });
@@ -1256,7 +1256,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
         adicional = typeof primeraCarga.adicional === 'string'
           ? JSON.parse(primeraCarga.adicional)
           : primeraCarga.adicional;
-      } catch {}
+      } catch { }
     }
 
     const nombreDocente = (adicional?.nombre_docente ||
@@ -1298,7 +1298,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     doc.setFontSize(9.5);
     doc.setFont('helvetica', 'normal');
     const parrafo1 = `Yo, ${nombreDocente}, identificado(a) con DNI N° ${dniDocente}, adscrito al Departamento Académico de ${dptoAcademico} de la Facultad de ${facultad}, en el marco de la Ley Universitaria 30220, D.S. N° 418-2017-EF, Estatuto Reformado 2021 y el reglamento de asignación de la Carga Académica de los Docentes de la UNT, `;
-    
+
     // Texto con parte en negrita
     const lines1 = doc.splitTextToSize(parrafo1, contentWidth);
     doc.text(lines1, ml, y);
@@ -1320,22 +1320,22 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     // Renderizar párrafo con negritas inline
     const fullP2 = p2start + p2rest + p2bold2 + p2rest2;
     const linesP2 = doc.splitTextToSize(fullP2, contentWidth);
-    
+
     // Dibujar línea por línea con negritas aproximadas
     let xCursor = ml;
     doc.setFont('helvetica', 'bold');
     doc.text('NO ESTOY INCURSO', xCursor, y);
     const w1 = doc.getTextWidth('NO ESTOY INCURSO');
     doc.setFont('helvetica', 'normal');
-    
+
     const restLine1 = ' en causales de incompatibilidad laboral y ';
     doc.text(restLine1, xCursor + w1, y);
     const w2 = doc.getTextWidth(restLine1);
-    
+
     doc.setFont('helvetica', 'bold');
     doc.text('NO TENGO', xCursor + w1 + w2, y);
     y += 4.5;
-    
+
     doc.setFont('helvetica', 'normal');
     const restP2 = 'impedimento para ejercer la docencia en la Universidad Nacional de Trujillo, de conformidad con lo previsto en el Capítulo VIII de las Incompatibilidades, Impedimentos y sanciones, del Título XII: de los docentes, del Estatuto institucional vigente, según la especificación siguiente:';
     const linesRestP2 = doc.splitTextToSize(restP2, contentWidth);
@@ -1348,7 +1348,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
       const prefijo = `${opcion.num}.( ${marca} ) `;
       const textoCompleto = prefijo + opcion.texto;
       const lineas = doc.splitTextToSize(textoCompleto, contentWidth);
-      
+
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9.5);
       doc.text(lineas, ml, y);
@@ -1375,7 +1375,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     doc.setFont('helvetica', 'bolditalic');
     const parrafoFinal2 = 'Y AUTORIZO AL FUNCIONARIO COMPETENTE DISPONGA EL DESCUENTO DE MI PLANILLA DE HABERES, DEL MONTO QUE LA UNIDAD DE REMUNERACIONES LIQUIDE COMO PAGOS INDEBIDOS POR EL LAPSO DE TIEMPO LABORADO ILEGALMENTE.';
     const linesFinal2 = doc.splitTextToSize(parrafoFinal2, contentWidth);
-    
+
     // Subrayado manual
     for (const line of linesFinal2) {
       doc.text(line, ml, y);
@@ -1385,15 +1385,15 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     }
     y += 10;
 
-// FECHA Y FIRMA
+    // FECHA Y FIRMA
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9.5);
     const now = new Date();
-    const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
     doc.text(`Trujillo, ${now.getDate()} de ${meses[now.getMonth()]} de ${now.getFullYear()}`, ml, y);
     y += 20;
 
-// Línea de firma centrada
+    // Línea de firma centrada
     const firmaX = pw / 2;
     doc.line(firmaX - 35, y, firmaX + 35, y);
     y += 5;
@@ -1401,14 +1401,14 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     doc.text(`DNI N° ${dniDocente}`, firmaX, y, { align: 'center' });
 
     if (returnBlob) {
-          return doc;
-        }
-        const blob = doc.output('blob');
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        return null;
-      }
-  
+      return doc;
+    }
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    return null;
+  }
+
   async function generarF03CAD(docenteId: string, returnBlob: boolean = false): Promise<jsPDF | null> {
     const val = validarHorasDocenteParaDescarga(docenteId);
     if (!val.valido) {
@@ -1448,7 +1448,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     const formatDate = (ds: string) => {
       if (!ds) return '—';
       const d = new Date(ds);
-      return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+      return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
     };
     const fechaInicio = formatDate((cicloAcademico as any)?.fecha_inicio);
     const fechaFin = formatDate((cicloAcademico as any)?.fecha_fin);
@@ -1800,12 +1800,12 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     doc.text(`FECHA DE REGISTRO: (${fechaReg})    EMAIL: ${email}`, ml, y);
 
     if (returnBlob) {
-          return doc;
-        }
-        const blob = doc.output('blob');
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        return null;
+      return doc;
+    }
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    return null;
   }
 
   // Obtener todos los ciclos de estudio (I-X)
@@ -1816,9 +1816,9 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
   const cursoCicloMap: Record<number, { curso: Curso, cargaHoraria: CargaHoraria }[]> = {};
   const cursosAsignadosPorCiclo: Record<number, number> = {};
   const totalCursosPorCicloFromDB = totalCursosPorCiclo; // From API
-  
+
   console.log('🔹 Processing cargaHoraria array:', cargaHoraria);
-  
+
   cargaHoraria.forEach((ch, index) => {
     console.log(`🔹 Processing cargaHoraria index ${index}:`, ch);
     // Add carga horaria to its ciclo_plan group (even if no cursos)
@@ -1828,7 +1828,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     }
     cargaPorCiclo[cp].push(ch);
     console.log(`🔹 cargaPorCiclo[${cp}] updated to:`, cargaPorCiclo[cp]);
-    
+
     // Also add any cursos to cursoCicloMap
     if (ch.cursos && ch.cursos.length > 0) {
       ch.cursos.forEach(curso => {
@@ -1841,7 +1841,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
       });
     }
   });
-  
+
   console.log('🔹 Carga horaria state after grouping:', cargaHoraria);
   console.log('🔹 cursoCicloMap after grouping:', cursoCicloMap);
   console.log('🔹 cargaPorCiclo:', cargaPorCiclo);
@@ -1875,10 +1875,10 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
   );
 
   const miCargaBloqueada = isDocente && user?.docente_id
-      ? cargaHoraria.some(ch => ch.docente_id === user.docente_id && ch.formatos_generados)
-      : false;
+    ? cargaHoraria.some(ch => ch.docente_id === user.docente_id && ch.formatos_generados)
+    : false;
 
-    const docentesFiltradosReporte = allDocentes.filter(d =>
+  const docentesFiltradosReporte = allDocentes.filter(d =>
     d.activo && (
       normalizeText(d.nombre || '').includes(normalizeText(buscarDocenteReporte)) ||
       normalizeText(d.apellidos || '').includes(normalizeText(buscarDocenteReporte)) ||
@@ -1886,7 +1886,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
     )
   );
 
-  
+
   return (
     <div className="page-container">
       {/* Toast */}
@@ -1903,8 +1903,8 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
           animation: 'slideIn 0.2s ease',
         }}>
           {toast.type === 'success'
-            ? <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
-            : <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/></svg>
+            ? <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+            : <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
           }
           {toast.text}
         </div>
@@ -1923,7 +1923,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
               <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>Asignación de carga horaria a docentes por ciclo</p>
             )}
           </div>
-          
+
           {/* Selector de ciclo académico - mostrar en ambas pestañas */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <label style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-secondary)' }}>Ciclo académico:</label>
@@ -1950,7 +1950,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
             </select>
           </div>
         </div>
-        
+
         {isDocente && cargaHoraria.length > 0 && (
           <div style={{
             background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
@@ -1987,8 +1987,8 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
         )}
 
         {/* Tabs */}
-        <div style={{ 
-          display: 'flex', 
+        <div style={{
+          display: 'flex',
           borderBottom: '1px solid var(--border-color)',
           marginBottom: '24px'
         }}>
@@ -2101,65 +2101,65 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
             <>
               {/* Filtros */}
               {(!isDocente || !miCargaBloqueada) && (
-             <div className="card" style={{ marginBottom: '16px', padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end', justifyContent: 'space-between' }}>
-                  {!isDocente ? (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Buscar ciclo</label>
-                        <input
-                          className="form-input"
-                          style={{ width: '200px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
-                          placeholder="I, II, III..."
-                          value={buscarCiclo}
-                          onChange={e => setBuscarCiclo(e.target.value)}
-                        />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Filtros</label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px' }}>
+                <div className="card" style={{ marginBottom: '16px', padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end', justifyContent: 'space-between' }}>
+                    {!isDocente ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Buscar ciclo</label>
                           <input
-                            type="checkbox"
-                            checked={filtroSinAsignacion}
-                            onChange={e => setFiltroSinAsignacion(e.target.checked)}
-                            style={{ cursor: 'pointer' }}
+                            className="form-input"
+                            style={{ width: '200px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
+                            placeholder="I, II, III..."
+                            value={buscarCiclo}
+                            onChange={e => setBuscarCiclo(e.target.value)}
                           />
-                          Solo sin asignación
-                        </label>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Filtros</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px' }}>
+                            <input
+                              type="checkbox"
+                              checked={filtroSinAsignacion}
+                              onChange={e => setFiltroSinAsignacion(e.target.checked)}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            Solo sin asignación
+                          </label>
+                        </div>
                       </div>
+                    ) : <div />}
+                    <div>
+                      {(canWrite || isDocente) && !miCargaBloqueada && (
+                        <button
+                          className="btn-primary"
+                          onClick={() => {
+                            if (cicloAcademicoSeleccionado) {
+                              const docenteParam = isDocente && user?.docente_id ? `&docenteId=${user.docente_id}` : '';
+                              router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&reset=true${docenteParam}`);
+                            } else {
+                              setToast({ type: 'error', text: 'Primero selecciona un ciclo académico' });
+                            }
+                          }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                          disabled={!cicloAcademicoSeleccionado}
+                        >
+                          {isDocente && cargaHoraria.length > 0 ? (
+                            <Edit2 size={18} />
+                          ) : (
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          )}
+                          {isDocente
+                            ? (cargaHoraria.length > 0 ? 'Editar Carga' : 'Agregar Carga')
+                            : 'Asignar'}
+                        </button>
+                      )}
                     </div>
-                  ) : <div />}
-                  <div>
-                    {(canWrite || isDocente) && !miCargaBloqueada && (
-                      <button
-                        className="btn-primary"
-                        onClick={() => {
-                          if (cicloAcademicoSeleccionado) {
-                            const docenteParam = isDocente && user?.docente_id ? `&docenteId=${user.docente_id}` : '';
-                            router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&reset=true${docenteParam}`);
-                          } else {
-                            setToast({ type: 'error', text: 'Primero selecciona un ciclo académico' });
-                          }
-                        }}
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                        disabled={!cicloAcademicoSeleccionado}
-                      >
-                        {isDocente && cargaHoraria.length > 0 ? (
-                          <Edit2 size={18} />
-                        ) : (
-                          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-                          </svg>
-                        )}
-                        {isDocente
-                          ? (cargaHoraria.length > 0 ? 'Editar Carga' : 'Agregar Carga')
-                          : 'Asignar'}
-                      </button>
-                    )}
                   </div>
                 </div>
-              </div>
-            )}
+              )}
               {/* Accordion de ciclos de estudio */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {loadingCiclos ? (
@@ -2222,7 +2222,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                     ...cursosEnCiclo.map(c => c.cargaHoraria.docente_id),
                     ...cargasEnCiclo.map(ch => ch.docente_id)
                   ]));
-                  
+
                   return (
                     <div key={ciclo} className="card" style={{ overflow: 'hidden' }}>
                       <div
@@ -2280,7 +2280,6 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                       </div>
                       {isExpanded && (
                         <div style={{ padding: '0' }}>
-                          {/* First check if we have any courses in this ciclo */}
                           {(!cursoCicloMap[ciclo] || cursoCicloMap[ciclo].length === 0) && cargasEnCiclo.length === 0 ? (
                             <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
                               {isDocente ? 'No tienes cursos asignados en este ciclo' : 'Aún no se asigna a los docentes carga horaria para este ciclo'}
@@ -2288,29 +2287,63 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                           ) : (
                             <div className="table-container">
                               <table className="data-table" style={{ border: 'none', margin: 0 }}>
-                                  <thead>
-                                    <tr>
-                                      <th>Ciclo</th>
-                                      <th>Curso</th>
-                                      <th>Docente</th>
-                                      <th>H.T</th>
-                                      <th>H.P</th>
-                                      <th>H.L</th>
-                                      <th>Total</th>
-                                      <th>Acciones</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {/* Render docentes with courses first */}
-                                    {(cursoCicloMap[ciclo] || []).map(({ curso, cargaHoraria: ch }) => {
-                                      const ht = curso.hrs_teo || 0;
-                                      const hp = curso.hrs_pra || 0;
-                                      const hl = curso.hrs_lab || 0;
-                                      const tG = (curso as any).teoria_grupos ?? 1;
-                                      const pG = (curso as any).practica_grupos ?? 1;
-                                      const lG = (curso as any).laboratorio_grupos ?? 1;
-                                      const total = (ht * tG) + (hp * pG) + (hl * lG);
-                                      return (
+                                <thead>
+                                  <tr>
+                                    <th>Ciclo</th>
+                                    <th>Curso</th>
+                                    <th>Docente</th>
+                                    <th>H.T</th>
+                                    <th>H.P</th>
+                                    <th>H.L</th>
+                                    <th>CHNL</th>
+                                    <th>Total</th>
+                                    <th>Acciones</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {/* Render docentes with courses first */}
+                                  {(cursoCicloMap[ciclo] || []).map(({ curso, cargaHoraria: ch }) => {
+                                    const ht = curso.hrs_teo || 0;
+                                    const hp = curso.hrs_pra || 0;
+                                    const hl = curso.hrs_lab || 0;
+                                    const tG = (curso as any).teoria_grupos ?? 1;
+                                    const pG = (curso as any).practica_grupos ?? 1;
+                                    const lG = (curso as any).laboratorio_grupos ?? 1;
+                                    const chl = (ht * tG) + (hp * pG) + (hl * lG);
+
+                                    const chnl = (() => {
+                                      const secs = ['preparacion', 'consejeria', 'investigacion', 'capacitacion', 'gobierno', 'administracion', 'asesoria', 'rsu', 'comites'] as const;
+                                      let sum = 0;
+                                      for (const key of secs) {
+                                        const d = (ch as any)[key];
+                                        if (d) {
+                                          if (typeof d === 'object' && d !== null && 'horas' in d) {
+                                            sum += parseFloat(d.horas || '0');
+                                          } else if (Array.isArray(d)) {
+                                            d.forEach((item: any) => { if (item && item.horas) sum += parseFloat(item.horas || '0'); });
+                                          }
+                                        }
+                                      }
+                                      return sum;
+                                    })();
+
+                                    const chla = (() => {
+                                      let adicional: any = null;
+                                      if (ch?.adicional) {
+                                        try { adicional = typeof ch.adicional === 'string' ? JSON.parse(ch.adicional) : ch.adicional; } catch (e) { }
+                                      }
+                                      if (!adicional) return 0;
+                                      if (adicional.total_horas_adicional) {
+                                        const val = parseFloat(adicional.total_horas_adicional || '0');
+                                        if (val > 0) return val;
+                                      }
+                                      if (Array.isArray(adicional.cursos)) {
+                                        return adicional.cursos.reduce((sum: number, c: any) => sum + parseFloat(c.total_horas || '0'), 0);
+                                      }
+                                      return 0;
+                                    })();
+
+                                    return (
                                       <tr key={`${ch.id}-${curso.id || curso.curso_id}`}>
                                         <td style={{ verticalAlign: 'middle' }}>
                                           {getRomanNumeral(ciclo)}
@@ -2322,167 +2355,215 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                                         <td style={{ textAlign: 'center' }}>{ht > 0 ? `${ht}×${tG}` : '—'}</td>
                                         <td style={{ textAlign: 'center' }}>{hp > 0 ? `${hp}×${pG}` : '—'}</td>
                                         <td style={{ textAlign: 'center' }}>{hl > 0 ? `${hl}×${lG}` : '—'}</td>
-                                        <td style={{ textAlign: 'center', fontWeight: 600 }}>{total}h</td>
-                                      <td style={{ verticalAlign: 'middle' }}>
-                                        {(canManageCarga || (isDocente && user?.docente_id === ch.docente_id)) && (
-                                          <div style={{ display: 'flex', gap: '8px' }}>
-                                            {canManageCarga && (
-                                              <button
-                                                className="btn-secondary"
-                                                style={{ 
-                                                  padding: '6px 8px', 
-                                                  fontSize: '11px',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  gap: '6px'
-                                                }}
-                                                onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
-                                              >
-                                                <Edit2 size={14} />
-                                                {isSecretaria ? 'Visualizar' : 'Editar'}
-                                              </button>)}
-                                            {isDocente && user?.docente_id === ch.docente_id && (
-                                              <button
-                                                className="btn-secondary"
-                                                style={{ 
-                                                  padding: '6px 8px', 
-                                                  fontSize: '11px',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  gap: '6px'
-                                                }}
-                                                onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
-                                              >
-                                                {ch.formatos_generados ? <Eye size={14} /> : <Edit2 size={14} />}
-                                                {ch.formatos_generados ? 'Visualizar' : 'Editar'}
-                                              </button>
-                                            )}
-                                            {canManageCarga && (
-                                              <button
-                                                className="btn-secondary btn-crud-deactivate"
-                                                style={{ 
-                                                  padding: '6px 8px', 
-                                                  fontSize: '11px',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  gap: '6px'
-                                                }}
-                                                onClick={() => eliminarCargaHoraria(ch.id)}
-                                                disabled={saving}
-                                              >
-                                                <Trash2 size={14} />
-                                                Eliminar
-                                              </button>
-                                            )}
-                                          </div>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                                {/* Now render docentes with no courses */}
+                                        <td style={{ textAlign: 'center' }}>{chnl > 0 ? `${chnl}h` : '—'}</td>
+                                        <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                                          {chl + chnl}h
+                                          {chla > 0 && (
+                                            <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '4px' }}>
+                                              (+{chla}h CHLA)
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td style={{ verticalAlign: 'middle' }}>
+                                          {(canManageCarga || (isDocente && user?.docente_id === ch.docente_id)) && (
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                              {canManageCarga && (
+                                                <button
+                                                  className="btn-secondary"
+                                                  style={{
+                                                    padding: '6px 8px',
+                                                    fontSize: '11px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                  }}
+                                                  onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
+                                                >
+                                                  <Edit2 size={14} />
+                                                  {isSecretaria ? 'Visualizar' : 'Editar'}
+                                                </button>)}
+                                              {isDocente && user?.docente_id === ch.docente_id && (
+                                                <button
+                                                  className="btn-secondary"
+                                                  style={{
+                                                    padding: '6px 8px',
+                                                    fontSize: '11px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                  }}
+                                                  onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
+                                                >
+                                                  {ch.formatos_generados ? <Eye size={14} /> : <Edit2 size={14} />}
+                                                  {ch.formatos_generados ? 'Visualizar' : 'Editar'}
+                                                </button>
+                                              )}
+                                              {canManageCarga && (
+                                                <button
+                                                  className="btn-secondary btn-crud-deactivate"
+                                                  style={{
+                                                    padding: '6px 8px',
+                                                    fontSize: '11px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                  }}
+                                                  onClick={() => eliminarCargaHoraria(ch.id)}
+                                                  disabled={saving}
+                                                >
+                                                  <Trash2 size={14} />
+                                                  Eliminar
+                                                </button>
+                                              )}
+                                            </div>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                  {/* Now render docentes with no courses */}
                                   {cargasEnCiclo.map((ch) => {
                                     // Skip if this docente already has courses shown
-                                     if ((cursoCicloMap[ciclo] || []).some(c => c.cargaHoraria.id === ch.id)) {
-                                       return null;
-                                     }
-                                      return (
-                                        <tr key={`${ch.id}-no-course`} style={{ opacity: 0.7 }}>
-                                          <td style={{ verticalAlign: 'middle' }}>
-                                            {getRomanNumeral(ciclo)}
-                                          </td>
-                                          <td style={{ color: '#94a3b8', fontSize: '12px' }}>
-                                            {(() => {
-                                              const secs = ['preparacion','consejeria','investigacion','capacitacion','gobierno','administracion','asesoria','rsu','comites'] as const;
-                                              const items = secs.map(k => { const d = ch[k]; if (!d) return null; if (Array.isArray(d)) return d.reduce((s: number, i: any) => s + (i.horas||0), 0); return d.horas||0; }).filter((v): v is number => v !== null && v > 0);
-                                              return items.length > 0 ? `Act. no lectivas: ${items.join('+')}h` : 'Sin cursos asignados';
-                                            })()}
-                                          </td>
-                                          <td style={{ verticalAlign: 'middle' }}>
-                                            {ch.docente_apellidos}, {ch.docente_nombre}
-                                          </td>
-                                          <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
-                                          <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
-                                          <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
-                                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{ch.horas_asignadas}h</td>
-<td style={{ verticalAlign: 'middle' }}>
-                                        {(canManageCarga || (isDocente && user?.docente_id === ch.docente_id)) && (
-                                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                            {ch.formatos_generados && (
-                                              <span title="Formatos generados — edición bloqueada" style={{ fontSize: '16px' }}>🔒</span>
-                                            )}
-                                            {canManageCarga && (
-                                              <button
-                                                className="btn-secondary"
-                                                style={{ 
-                                                  padding: '6px 8px', 
-                                                  fontSize: '11px',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  gap: '6px'
-                                                }}
-                                                onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
-                                              >
-                                                <Edit2 size={14} />
-                                                {isSecretaria ? 'Visualizar' : 'Editar'}
-                                              </button>
-                                            )}
-                                            {isDocente && user?.docente_id === ch.docente_id && !ch.formatos_generados && (
-                                              <button
-                                                className="btn-secondary"
-                                                style={{ 
-                                                  padding: '6px 8px', 
-                                                  fontSize: '11px',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  gap: '6px'
-                                                }}
-                                                onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
-                                              >
-                                                <Edit2 size={14} />
-                                                Editar
-                                              </button>
-                                            )}
-                                            {canManageCarga && ch.formatos_generados && (
-                                              <button
-                                                className="btn-secondary"
-                                                style={{ padding: '6px 8px', fontSize: '11px', background: '#fef9c3', color: '#854d0e' }}
-                                                onClick={async () => {
-                                                  await fetch(`/api/carga-horaria/${ch.id}/bloquear`, {
-                                                    method: 'PATCH',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ formatos_generados: false })
-                                                  });
-                                                  const params = new URLSearchParams();
-                                                  params.set('ciclo_academico_id', cicloAcademicoSeleccionado);
-                                                  const data = await (await fetch(`/api/carga-horaria?${params}`)).json();
-                                                  setCargaHoraria(data.data || []);
-                                                  setToast({ type: 'success', text: 'Carga horaria desbloqueada' });
-                                                }}
-                                              >
-                                                🔓 Desbloquear
-                                              </button>
-                                            )}
-                                            {canManageCarga && (
-                                              <button
-                                                className="btn-secondary btn-crud-deactivate"
-                                                style={{ 
-                                                  padding: '6px 8px', 
-                                                  fontSize: '11px',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  gap: '6px'
-                                                }}
-                                                onClick={() => eliminarCargaHoraria(ch.id)}
-                                                disabled={saving}
-                                              >
-                                                <Trash2 size={14} />
-                                                Eliminar
-                                              </button>
-                                            )}
-                                          </div>
-                                        )}
-                                      </td>
+                                    if ((cursoCicloMap[ciclo] || []).some(c => c.cargaHoraria.id === ch.id)) {
+                                      return null;
+                                    }
+                                    const chnl = (() => {
+                                      const secs = ['preparacion', 'consejeria', 'investigacion', 'capacitacion', 'gobierno', 'administracion', 'asesoria', 'rsu', 'comites'] as const;
+                                      let sum = 0;
+                                      for (const key of secs) {
+                                        const d = (ch as any)[key];
+                                        if (d) {
+                                          if (typeof d === 'object' && d !== null && 'horas' in d) {
+                                            sum += parseFloat(d.horas || '0');
+                                          } else if (Array.isArray(d)) {
+                                            d.forEach((item: any) => { if (item && item.horas) sum += parseFloat(item.horas || '0'); });
+                                          }
+                                        }
+                                      }
+                                      return sum;
+                                    })();
+
+                                    const chla = (() => {
+                                      let adicional: any = null;
+                                      if (ch?.adicional) {
+                                        try { adicional = typeof ch.adicional === 'string' ? JSON.parse(ch.adicional) : ch.adicional; } catch (e) { }
+                                      }
+                                      if (!adicional) return 0;
+                                      if (adicional.total_horas_adicional) {
+                                        const val = parseFloat(adicional.total_horas_adicional || '0');
+                                        if (val > 0) return val;
+                                      }
+                                      if (Array.isArray(adicional.cursos)) {
+                                        return adicional.cursos.reduce((sum: number, c: any) => sum + parseFloat(c.total_horas || '0'), 0);
+                                      }
+                                      return 0;
+                                    })();
+
+                                    return (
+                                      <tr key={`${ch.id}-no-course`} style={{ opacity: 0.7 }}>
+                                        <td style={{ verticalAlign: 'middle' }}>
+                                          {getRomanNumeral(ciclo)}
+                                        </td>
+                                        <td style={{ color: '#94a3b8', fontSize: '12px' }}>
+                                          {(() => {
+                                            const secs = ['preparacion', 'consejeria', 'investigacion', 'capacitacion', 'gobierno', 'administracion', 'asesoria', 'rsu', 'comites'] as const;
+                                            const items = secs.map(k => { const d = ch[k]; if (!d) return null; if (Array.isArray(d)) return d.reduce((s: number, i: any) => s + (i.horas || 0), 0); return d.horas || 0; }).filter((v): v is number => v !== null && v > 0);
+                                            return items.length > 0 ? `Act. no lectivas: ${items.join('+')}h` : 'Sin cursos asignados';
+                                          })()}
+                                        </td>
+                                        <td style={{ verticalAlign: 'middle' }}>
+                                          {ch.docente_apellidos}, {ch.docente_nombre}
+                                        </td>
+                                        <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
+                                        <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
+                                        <td style={{ textAlign: 'center', color: '#94a3b8' }}>—</td>
+                                        <td style={{ textAlign: 'center' }}>{chnl > 0 ? `${chnl}h` : '—'}</td>
+                                        <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                                          {chnl}h&nbsp;
+                                          {chla > 0 && (
+                                            <span>
+                                              (+{chla}h CHLA)
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td style={{ verticalAlign: 'middle' }}>
+                                          {(canManageCarga || (isDocente && user?.docente_id === ch.docente_id)) && (
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                              {ch.formatos_generados && (
+                                                <span title="Formatos generados — edición bloqueada" style={{ fontSize: '16px' }}>🔒</span>
+                                              )}
+                                              {canManageCarga && (
+                                                <button
+                                                  className="btn-secondary"
+                                                  style={{
+                                                    padding: '6px 8px',
+                                                    fontSize: '11px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                  }}
+                                                  onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
+                                                >
+                                                  <Edit2 size={14} />
+                                                  {isSecretaria ? 'Visualizar' : 'Editar'}
+                                                </button>
+                                              )}
+                                              {isDocente && user?.docente_id === ch.docente_id && !ch.formatos_generados && (
+                                                <button
+                                                  className="btn-secondary"
+                                                  style={{
+                                                    padding: '6px 8px',
+                                                    fontSize: '11px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                  }}
+                                                  onClick={() => router.push(`/carga-horaria/nuevo?cicloAcademico=${cicloAcademicoSeleccionado}&docenteId=${ch.docente_id}`)}
+                                                >
+                                                  <Edit2 size={14} />
+                                                  Editar
+                                                </button>
+                                              )}
+                                              {canManageCarga && ch.formatos_generados && (
+                                                <button
+                                                  className="btn-secondary"
+                                                  style={{ padding: '6px 8px', fontSize: '11px', background: '#fef9c3', color: '#854d0e' }}
+                                                  onClick={async () => {
+                                                    await fetch(`/api/carga-horaria/${ch.id}/bloquear`, {
+                                                      method: 'PATCH',
+                                                      headers: { 'Content-Type': 'application/json' },
+                                                      body: JSON.stringify({ formatos_generados: false })
+                                                    });
+                                                    const params = new URLSearchParams();
+                                                    params.set('ciclo_academico_id', cicloAcademicoSeleccionado);
+                                                    const data = await (await fetch(`/api/carga-horaria?${params}`)).json();
+                                                    setCargaHoraria(data.data || []);
+                                                    setToast({ type: 'success', text: 'Carga horaria desbloqueada' });
+                                                  }}
+                                                >
+                                                  🔓 Desbloquear
+                                                </button>
+                                              )}
+                                              {canManageCarga && (
+                                                <button
+                                                  className="btn-secondary btn-crud-deactivate"
+                                                  style={{
+                                                    padding: '6px 8px',
+                                                    fontSize: '11px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                  }}
+                                                  onClick={() => eliminarCargaHoraria(ch.id)}
+                                                  disabled={saving}
+                                                >
+                                                  <Trash2 size={14} />
+                                                  Eliminar
+                                                </button>
+                                              )}
+                                            </div>
+                                          )}
+                                        </td>
                                       </tr>
                                     );
                                   })}
@@ -2508,7 +2589,7 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                     Asignar docentes - Ciclo {getRomanNumeral(cicloPlanSeleccionado || 0)}
                   </h2>
                   <button onClick={cerrarModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px' }}>
-                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 </div>
                 <div className="modal-body">
@@ -2664,8 +2745,8 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                           for (const e of entries) {
                             const last = merged[merged.length - 1];
                             if (last && last.dia === e.dia && last.curso_codigo === e.curso_codigo &&
-                                last.numero_grupo === e.numero_grupo && last.docente_nombre === e.docente_nombre &&
-                                last.hora_fin === e.hora_inicio) {
+                              last.numero_grupo === e.numero_grupo && last.docente_nombre === e.docente_nombre &&
+                              last.hora_fin === e.hora_inicio) {
                               last.hora_fin = e.hora_fin;
                             } else {
                               merged.push({ ...e });
@@ -2700,292 +2781,292 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
         </>
       ) : activeTab === 'carga-docentes' ? (
         <>
-        <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-          {!cicloAcademicoSeleccionado ? (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: '200px',
-              textAlign: 'center',
-              color: 'var(--text-secondary)'
-            }}>
-              Selecciona un ciclo académico para ver la carga por docentes
-            </div>
-          ) : (
-            <>
-              {/* Filtros */}
-              <div style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Buscar por nombre</label>
-                  <input
-                    className="form-input"
-                    style={{ width: '250px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
-                    placeholder="Nombre, apellidos o código..."
-                    value={filtroNombreDocente}
-                    onChange={e => setFiltroNombreDocente(e.target.value)}
-                  />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Estado de carga</label>
-                  <select
-                    value={filtroEstadoCarga}
-                    onChange={e => setFiltroEstadoCarga(e.target.value as 'todos' | 'llenado' | 'no_llenado')}
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-color)',
-                      background: 'var(--bg-card)',
-                      color: 'var(--text-primary)',
-                      fontSize: '14px',
-                      cursor: 'pointer',
-                      minWidth: '150px'
-                    }}
-                  >
-                    <option value="todos">Todos</option>
-                    <option value="llenado">Con carga</option>
-                    <option value="no_llenado">Sin carga</option>
-                  </select>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Filtrar por curso</label>
-                  <input
-                    className="form-input"
-                    style={{ width: '200px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
-                    placeholder="Código de curso..."
-                    value={filtroCurso}
-                    onChange={e => setFiltroCurso(e.target.value)}
-                  />
-                </div>
+          <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
+            {!cicloAcademicoSeleccionado ? (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '200px',
+                textAlign: 'center',
+                color: 'var(--text-secondary)'
+              }}>
+                Selecciona un ciclo académico para ver la carga por docentes
               </div>
-
-              {/* Estadísticas */}
-              <div style={{ marginBottom: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                <div style={{ padding: '12px 16px', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                  <strong>Total docentes:</strong> {docentesCarga.length}
-                </div>
-                <div style={{ padding: '12px 16px', borderRadius: '8px', background: '#f0fdf4', border: '1px solid #86efac', fontSize: '14px', color: '#166534' }}>
-                  <strong>Con carga:</strong> {docentesCarga.filter(d => d.tiene_carga).length}
-                </div>
-                <div style={{ padding: '12px 16px', borderRadius: '8px', background: '#fef2f2', border: '1px solid #fca5a5', fontSize: '14px', color: '#991b1b' }}>
-                  <strong>Sin carga:</strong> {docentesCarga.filter(d => !d.tiene_carga).length}
-                </div>
-              </div>
-
-              {/* Tabla de docentes */}
-              {loadingDocentesCarga ? (
-                <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                  Cargando...
-                </div>
-              ) : (
-                <div className="table-container">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Estado</th>
-                        <th>Docente</th>
-                        <th>Condición</th>
-                        <th>Categoría</th>
-                        <th>Cursos asignados</th>
-                        <th>Horas lectivas</th>
-                        <th>Horas no lectivas</th>
-                        <th>Horas totales</th>
-                        <th>Acción</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        const filtrados = docentesCarga.filter(d => {
-                          const matchNombre = !filtroNombreDocente || 
-                            (d.nombre?.toLowerCase().includes(filtroNombreDocente.toLowerCase()) ||
-                             d.apellidos?.toLowerCase().includes(filtroNombreDocente.toLowerCase()) ||
-                             d.codigo?.toLowerCase().includes(filtroNombreDocente.toLowerCase()));
-                          
-                          const matchEstado = filtroEstadoCarga === 'todos' ||
-                            (filtroEstadoCarga === 'llenado' && d.tiene_carga) ||
-                            (filtroEstadoCarga === 'no_llenado' && !d.tiene_carga);
-                          
-                          const matchCurso = !filtroCurso || 
-                            d.cursos_asignados?.some((c: any) => c.curso_codigo?.toLowerCase().includes(filtroCurso.toLowerCase()));
-                          
-                          return matchNombre && matchEstado && matchCurso;
-                        });
-
-                        if (filtrados.length === 0) {
-                          return (
-                            <tr>
-                              <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-                                No se encontraron docentes con los filtros aplicados
-                              </td>
-                            </tr>
-                          );
-                        }
-
-                        // Paginación
-                        const ITEMS_PER_PAGE = 10;
-                        const totalPages = Math.ceil(filtrados.length / ITEMS_PER_PAGE);
-                        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-                        const endIndex = startIndex + ITEMS_PER_PAGE;
-                        const paginados = filtrados.slice(startIndex, endIndex);
-
-                        return paginados.map(d => (
-                          <tr key={d.id}>
-                            <td style={{ textAlign: 'center' }}>
-                              {d.tiene_carga ? (
-                                <span style={{ 
-                                  padding: '4px 8px', 
-                                  borderRadius: '12px', 
-                                  background: '#f0fdf4', 
-                                  color: '#166534', 
-                                  fontSize: '11px', 
-                                  fontWeight: '600' 
-                                }}>
-                                  ✅ Llenado
-                                </span>
-                              ) : (
-                                <span style={{ 
-                                  padding: '4px 8px', 
-                                  borderRadius: '12px', 
-                                  background: '#fef2f2', 
-                                  color: '#991b1b', 
-                                  fontSize: '11px', 
-                                  fontWeight: '600' 
-                                }}>
-                                  ❌ Sin carga
-                                </span>
-                              )}
-                            </td>
-                            <td>{d.apellidos}, {d.nombre}</td>
-                            <td>{d.condicion ? d.condicion.toUpperCase() : '—'}</td>
-                            <td>{d.categoria ? d.categoria.toUpperCase() : '—'}</td>
-                            <td>
-                              {d.cursos_asignados?.length > 0 ? (
-                                <div style={{ fontSize: '12px' }}>
-                                  {d.cursos_asignados.map((c: any) => c.curso_codigo).join(', ')}
-                                </div>
-                              ) : '—'}
-                            </td>
-                            <td style={{ textAlign: 'center' }}>{d.horas_lectivas || 0}</td>
-                            <td style={{ textAlign: 'center' }}>{d.horas_no_lectivas || 0}</td>
-                            <td style={{ textAlign: 'center' }}>{(d.horas_lectivas || 0) + (d.horas_no_lectivas || 0)}</td>
-                            <td>
-                              <button
-                                onClick={() => router.push(`/carga-horaria/nuevo?docenteId=${d.id}&cicloAcademico=${cicloAcademicoSeleccionado}`)}
-                                style={{
-                                  padding: '4px 10px',
-                                  borderRadius: '6px',
-                                  border: '1px solid #3b82f6',
-                                  background: 'transparent',
-                                  color: '#3b82f6',
-                                  cursor: 'pointer',
-                                  fontSize: '12px',
-                                  fontWeight: '500'
-                                }}
-                              >
-                                Ver
-                              </button>
-                            </td>
-                          </tr>
-                        ));
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Controles de paginación */}
-              {(() => {
-                const ITEMS_PER_PAGE = 10;
-                const filtrados = docentesCarga.filter(d => {
-                  const matchNombre = !filtroNombreDocente || 
-                    (d.nombre?.toLowerCase().includes(filtroNombreDocente.toLowerCase()) ||
-                     d.apellidos?.toLowerCase().includes(filtroNombreDocente.toLowerCase()) ||
-                     d.codigo?.toLowerCase().includes(filtroNombreDocente.toLowerCase()));
-                  
-                  const matchEstado = filtroEstadoCarga === 'todos' ||
-                    (filtroEstadoCarga === 'llenado' && d.tiene_carga) ||
-                    (filtroEstadoCarga === 'no_llenado' && !d.tiene_carga);
-                  
-                  const matchCurso = !filtroCurso || 
-                    d.cursos_asignados?.some((c: any) => c.curso_codigo?.toLowerCase().includes(filtroCurso.toLowerCase()));
-                  
-                  return matchNombre && matchEstado && matchCurso;
-                });
-
-                const totalPages = Math.ceil(filtrados.length / ITEMS_PER_PAGE);
-                
-                if (totalPages <= 1) return null;
-
-                return (
-                  <div style={{ 
-                    marginTop: '20px', 
-                    display: 'flex', 
-                    justifyContent: 'center', 
-                    alignItems: 'center', 
-                    gap: '8px' 
-                  }}>
-                    <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
+            ) : (
+              <>
+                {/* Filtros */}
+                <div style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Buscar por nombre</label>
+                    <input
+                      className="form-input"
+                      style={{ width: '250px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
+                      placeholder="Nombre, apellidos o código..."
+                      value={filtroNombreDocente}
+                      onChange={e => setFiltroNombreDocente(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Estado de carga</label>
+                    <select
+                      value={filtroEstadoCarga}
+                      onChange={e => setFiltroEstadoCarga(e.target.value as 'todos' | 'llenado' | 'no_llenado')}
                       style={{
-                        padding: '8px 12px',
-                        borderRadius: '6px',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
                         border: '1px solid var(--border-color)',
                         background: 'var(--bg-card)',
                         color: 'var(--text-primary)',
-                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                        opacity: currentPage === 1 ? 0.5 : 1,
-                        fontSize: '14px'
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        minWidth: '150px'
                       }}
                     >
-                      Anterior
-                    </button>
-                    
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <option value="todos">Todos</option>
+                      <option value="llenado">Con carga</option>
+                      <option value="no_llenado">Sin carga</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>Filtrar por curso</label>
+                    <input
+                      className="form-input"
+                      style={{ width: '200px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
+                      placeholder="Código de curso..."
+                      value={filtroCurso}
+                      onChange={e => setFiltroCurso(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Estadísticas */}
+                <div style={{ marginBottom: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                  <div style={{ padding: '12px 16px', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                    <strong>Total docentes:</strong> {docentesCarga.length}
+                  </div>
+                  <div style={{ padding: '12px 16px', borderRadius: '8px', background: '#f0fdf4', border: '1px solid #86efac', fontSize: '14px', color: '#166534' }}>
+                    <strong>Con carga:</strong> {docentesCarga.filter(d => d.tiene_carga).length}
+                  </div>
+                  <div style={{ padding: '12px 16px', borderRadius: '8px', background: '#fef2f2', border: '1px solid #fca5a5', fontSize: '14px', color: '#991b1b' }}>
+                    <strong>Sin carga:</strong> {docentesCarga.filter(d => !d.tiene_carga).length}
+                  </div>
+                </div>
+
+                {/* Tabla de docentes */}
+                {loadingDocentesCarga ? (
+                  <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                    Cargando...
+                  </div>
+                ) : (
+                  <div className="table-container">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Estado</th>
+                          <th>Docente</th>
+                          <th>Condición</th>
+                          <th>Categoría</th>
+                          <th>Cursos asignados</th>
+                          <th>Horas lectivas</th>
+                          <th>Horas no lectivas</th>
+                          <th>Horas totales</th>
+                          <th>Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const filtrados = docentesCarga.filter(d => {
+                            const matchNombre = !filtroNombreDocente ||
+                              (d.nombre?.toLowerCase().includes(filtroNombreDocente.toLowerCase()) ||
+                                d.apellidos?.toLowerCase().includes(filtroNombreDocente.toLowerCase()) ||
+                                d.codigo?.toLowerCase().includes(filtroNombreDocente.toLowerCase()));
+
+                            const matchEstado = filtroEstadoCarga === 'todos' ||
+                              (filtroEstadoCarga === 'llenado' && d.tiene_carga) ||
+                              (filtroEstadoCarga === 'no_llenado' && !d.tiene_carga);
+
+                            const matchCurso = !filtroCurso ||
+                              d.cursos_asignados?.some((c: any) => c.curso_codigo?.toLowerCase().includes(filtroCurso.toLowerCase()));
+
+                            return matchNombre && matchEstado && matchCurso;
+                          });
+
+                          if (filtrados.length === 0) {
+                            return (
+                              <tr>
+                                <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                                  No se encontraron docentes con los filtros aplicados
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          // Paginación
+                          const ITEMS_PER_PAGE = 10;
+                          const totalPages = Math.ceil(filtrados.length / ITEMS_PER_PAGE);
+                          const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+                          const endIndex = startIndex + ITEMS_PER_PAGE;
+                          const paginados = filtrados.slice(startIndex, endIndex);
+
+                          return paginados.map(d => (
+                            <tr key={d.id}>
+                              <td style={{ textAlign: 'center' }}>
+                                {d.tiene_carga ? (
+                                  <span style={{
+                                    padding: '4px 8px',
+                                    borderRadius: '12px',
+                                    background: '#f0fdf4',
+                                    color: '#166534',
+                                    fontSize: '11px',
+                                    fontWeight: '600'
+                                  }}>
+                                    ✅ Llenado
+                                  </span>
+                                ) : (
+                                  <span style={{
+                                    padding: '4px 8px',
+                                    borderRadius: '12px',
+                                    background: '#fef2f2',
+                                    color: '#991b1b',
+                                    fontSize: '11px',
+                                    fontWeight: '600'
+                                  }}>
+                                    ❌ Sin carga
+                                  </span>
+                                )}
+                              </td>
+                              <td>{d.apellidos}, {d.nombre}</td>
+                              <td>{d.condicion ? d.condicion.toUpperCase() : '—'}</td>
+                              <td>{d.categoria ? d.categoria.toUpperCase() : '—'}</td>
+                              <td>
+                                {d.cursos_asignados?.length > 0 ? (
+                                  <div style={{ fontSize: '12px' }}>
+                                    {d.cursos_asignados.map((c: any) => c.curso_codigo).join(', ')}
+                                  </div>
+                                ) : '—'}
+                              </td>
+                              <td style={{ textAlign: 'center' }}>{d.horas_lectivas || 0}</td>
+                              <td style={{ textAlign: 'center' }}>{d.horas_no_lectivas || 0}</td>
+                              <td style={{ textAlign: 'center' }}>{(d.horas_lectivas || 0) + (d.horas_no_lectivas || 0)}</td>
+                              <td>
+                                <button
+                                  onClick={() => router.push(`/carga-horaria/nuevo?docenteId=${d.id}&cicloAcademico=${cicloAcademicoSeleccionado}`)}
+                                  style={{
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #3b82f6',
+                                    background: 'transparent',
+                                    color: '#3b82f6',
+                                    cursor: 'pointer',
+                                    fontSize: '12px',
+                                    fontWeight: '500'
+                                  }}
+                                >
+                                  Ver
+                                </button>
+                              </td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Controles de paginación */}
+                {(() => {
+                  const ITEMS_PER_PAGE = 10;
+                  const filtrados = docentesCarga.filter(d => {
+                    const matchNombre = !filtroNombreDocente ||
+                      (d.nombre?.toLowerCase().includes(filtroNombreDocente.toLowerCase()) ||
+                        d.apellidos?.toLowerCase().includes(filtroNombreDocente.toLowerCase()) ||
+                        d.codigo?.toLowerCase().includes(filtroNombreDocente.toLowerCase()));
+
+                    const matchEstado = filtroEstadoCarga === 'todos' ||
+                      (filtroEstadoCarga === 'llenado' && d.tiene_carga) ||
+                      (filtroEstadoCarga === 'no_llenado' && !d.tiene_carga);
+
+                    const matchCurso = !filtroCurso ||
+                      d.cursos_asignados?.some((c: any) => c.curso_codigo?.toLowerCase().includes(filtroCurso.toLowerCase()));
+
+                    return matchNombre && matchEstado && matchCurso;
+                  });
+
+                  const totalPages = Math.ceil(filtrados.length / ITEMS_PER_PAGE);
+
+                  if (totalPages <= 1) return null;
+
+                  return (
+                    <div style={{
+                      marginTop: '20px',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
                       <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
                         style={{
                           padding: '8px 12px',
                           borderRadius: '6px',
-                          border: currentPage === page ? '1px solid #3b82f6' : '1px solid var(--border-color)',
-                          background: currentPage === page ? '#3b82f6' : 'var(--bg-card)',
-                          color: currentPage === page ? '#ffffff' : 'var(--text-primary)',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          fontWeight: currentPage === page ? '600' : '400'
+                          border: '1px solid var(--border-color)',
+                          background: 'var(--bg-card)',
+                          color: 'var(--text-primary)',
+                          cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                          opacity: currentPage === 1 ? 0.5 : 1,
+                          fontSize: '14px'
                         }}
                       >
-                        {page}
+                        Anterior
                       </button>
-                    ))}
-                    
-                    <button
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        border: '1px solid var(--border-color)',
-                        background: 'var(--bg-card)',
-                        color: 'var(--text-primary)',
-                        cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                        opacity: currentPage === totalPages ? 0.5 : 1,
-                        fontSize: '14px'
-                      }}
-                    >
-                      Siguiente
-                    </button>
-                    
-                    <span style={{ marginLeft: '16px', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                      Página {currentPage} de {totalPages} ({filtrados.length} registros)
-                    </span>
-                  </div>
-                );
-              })()}
-            </>
-          )}
-        </div>
+
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: '6px',
+                            border: currentPage === page ? '1px solid #3b82f6' : '1px solid var(--border-color)',
+                            background: currentPage === page ? '#3b82f6' : 'var(--bg-card)',
+                            color: currentPage === page ? '#ffffff' : 'var(--text-primary)',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: currentPage === page ? '600' : '400'
+                          }}
+                        >
+                          {page}
+                        </button>
+                      ))}
+
+                      <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-color)',
+                          background: 'var(--bg-card)',
+                          color: 'var(--text-primary)',
+                          cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                          opacity: currentPage === totalPages ? 0.5 : 1,
+                          fontSize: '14px'
+                        }}
+                      >
+                        Siguiente
+                      </button>
+
+                      <span style={{ marginLeft: '16px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                        Página {currentPage} de {totalPages} ({filtrados.length} registros)
+                      </span>
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+          </div>
         </>
       ) : activeTab === 'carga-observaciones' ? (
         // Pestaña Carga Observaciones (per-course observations from carga_horaria_cursos)
@@ -3017,15 +3098,15 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                   );
                 if (filas.length === 0) {
                   return (
-                    <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'200px',textAlign:'center',color:'var(--text-secondary)'}}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '200px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                       No hay observaciones de carga horaria para este ciclo académico
                     </div>
                   );
                 }
                 return (
                   <>
-                    <div style={{marginBottom:'20px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                      <h3 style={{fontSize:'16px',fontWeight:'600',color:'var(--text-primary)',margin:0}}>
+                    <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
                         Observaciones de Carga Horaria ({filas.length})
                       </h3>
                     </div>
@@ -3043,57 +3124,57 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
                         <tbody>
                           {filas.map((curso: any, idx: number) => (
                             <tr key={curso.id || idx}>
-                              <td style={{fontWeight:'500'}}>{curso.docente_apellidos}, {curso.docente_nombre}</td>
+                              <td style={{ fontWeight: '500' }}>{curso.docente_apellidos}, {curso.docente_nombre}</td>
                               <td>{curso.curso_codigo} - {curso.curso_nombre}</td>
-                              <td style={{maxWidth:'300px',wordWrap:'break-word'}}>{curso.observaciones}</td>
-                              <td style={{textAlign:'center'}}>
+                              <td style={{ maxWidth: '300px', wordWrap: 'break-word' }}>{curso.observaciones}</td>
+                              <td style={{ textAlign: 'center' }}>
                                 <span className={`badge-${curso.estado_observaciones === 'validada' ? 'success' : curso.estado_observaciones === 'rechazada' ? 'danger' : 'warning'}`}
-                                  style={{fontSize:'11px',padding:'2px 8px',borderRadius:'9999px',fontWeight:'600',textTransform:'uppercase'}}>
+                                  style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '9999px', fontWeight: '600', textTransform: 'uppercase' }}>
                                   {curso.estado_observaciones || 'pendiente'}
                                 </span>
                               </td>
                               <td>
-                                <div style={{display:'flex',gap:'4px',flexWrap:'wrap'}}>
+                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                                   {(isAdmin || isSecretaria) && curso.estado_observaciones !== 'validada' && (
-                                    <button className="btn-primary" style={{padding:'4px 10px',fontSize:'11px'}}
+                                    <button className="btn-primary" style={{ padding: '4px 10px', fontSize: '11px' }}
                                       onClick={async () => {
                                         try {
                                           const res = await fetch(`/api/carga-horaria/cursos/${curso.id}`, {
                                             method: 'PATCH',
-                                            headers: {'Content-Type':'application/json'},
-                                            body: JSON.stringify({estado_observaciones:'validada'}),
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ estado_observaciones: 'validada' }),
                                           });
                                           if (res.ok) {
                                             setCargaHoraria(prev => prev.map(ch => ({
                                               ...ch,
                                               cursos: (ch.cursos || []).map((c: any) =>
-                                                c.id === curso.id ? {...c, estado_observaciones:'validada'} : c
+                                                c.id === curso.id ? { ...c, estado_observaciones: 'validada' } : c
                                               ),
                                             })));
                                           }
-                                        } catch(e) {}
+                                        } catch (e) { }
                                       }}>
                                       Validar
                                     </button>
                                   )}
                                   {(isAdmin || isSecretaria) && curso.estado_observaciones !== 'rechazada' && (
-                                    <button className="btn-danger" style={{padding:'4px 10px',fontSize:'11px'}}
+                                    <button className="btn-danger" style={{ padding: '4px 10px', fontSize: '11px' }}
                                       onClick={async () => {
                                         try {
                                           const res = await fetch(`/api/carga-horaria/cursos/${curso.id}`, {
                                             method: 'PATCH',
-                                            headers: {'Content-Type':'application/json'},
-                                            body: JSON.stringify({estado_observaciones:'rechazada'}),
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ estado_observaciones: 'rechazada' }),
                                           });
                                           if (res.ok) {
                                             setCargaHoraria(prev => prev.map(ch => ({
                                               ...ch,
                                               cursos: (ch.cursos || []).map((c: any) =>
-                                                c.id === curso.id ? {...c, estado_observaciones:'rechazada'} : c
+                                                c.id === curso.id ? { ...c, estado_observaciones: 'rechazada' } : c
                                               ),
                                             })));
                                           }
-                                        } catch(e) {}
+                                        } catch (e) { }
                                       }}>
                                       Rechazar
                                     </button>
@@ -3114,295 +3195,295 @@ function generarCargaAdicionalPDF(docenteId: string, returnBlob: boolean = false
       ) : activeTab === 'reportes' ? (
         // Pestaña Reportes
         <>
-        <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-          {!cicloAcademicoSeleccionado ? (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              minHeight: '200px',
-              textAlign: 'center',
-              color: 'var(--text-secondary)'
-            }}>
-              Selecciona un ciclo académico para ver los reportes
-            </div>
-          ) : (
-            <>
-              {!isDocente && (
-                <div style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>
-                      Buscar por nombre, apellidos o código
-                    </label>
-                    <input
-                      className="form-input"
-                      style={{ width: '250px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
-                      placeholder="Nombre, apellidos o código..."
-                      value={buscarDocenteReporte}
-                      onChange={e => setBuscarDocenteReporte(e.target.value)}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>
-                      Filtrar por curso
-                    </label>
-                    <input
-                      className="form-input"
-                      style={{ width: '200px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
-                      placeholder="Nombre o código de curso..."
-                      value={filtroCursoReporte}
-                      onChange={e => setFiltroCursoReporte(e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Tabla de reportes */}
-              <div className="table-container">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Docente</th>
-                      <th>Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loadingDocentesCarga ? (
-                      <tr>
-                        <td colSpan={2} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                          Cargando...
-                        </td>
-                      </tr>
-                    ) : (
-                      (() => {
-                        const listDocentes = isDocente && user?.docente_id
-                          ? docentesCarga.filter(d => d.id === user.docente_id)
-                          : docentesCarga;
-
-                        // Filtrar por búsqueda
-                        const docentesFiltrados = listDocentes.filter(d => {
-                          const matchNombre = !buscarDocenteReporte || 
-                            normalizeText(d.nombre || '').includes(normalizeText(buscarDocenteReporte)) ||
-                            normalizeText(d.apellidos || '').includes(normalizeText(buscarDocenteReporte)) ||
-                            normalizeText(d.codigo || '').includes(normalizeText(buscarDocenteReporte));
-                          
-                          const matchCurso = !filtroCursoReporte ||
-                            d.cursos_asignados?.some((c: any) => 
-                              normalizeText(c.curso_codigo || '').includes(normalizeText(filtroCursoReporte)) ||
-                              normalizeText(c.curso_nombre || c.nombre || '').includes(normalizeText(filtroCursoReporte))
-                            );
-                            
-                          return matchNombre && matchCurso;
-                        });
-
-                        if (docentesFiltrados.length === 0) {
-                          return (
-                            <tr>
-                              <td colSpan={2} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-                                No se encontraron docentes con los filtros aplicados
-                              </td>
-                            </tr>
-                          );
-                        }
-
-                        // Paginación de 10 en 10
-                        const ITEMS_PER_PAGE = 10;
-                        const startIndex = (currentPageReporte - 1) * ITEMS_PER_PAGE;
-                        const endIndex = startIndex + ITEMS_PER_PAGE;
-                        const paginados = docentesFiltrados.slice(startIndex, endIndex);
-
-                        return paginados.map(d => {
-                          const valRes = validarHorasDocenteParaDescarga(d.id);
-                          const esIncompleto = !d.tiene_carga || !d.carga_horaria || !valRes.valido;
-
-                          return (
-                            <tr key={d.id}>
-                              <td style={{ verticalAlign: 'middle' }}>
-                                {d.apellidos}, {d.nombre}
-                              </td>
-                              <td style={{ verticalAlign: 'middle' }}>
-                                {esIncompleto ? (
-                                  <span style={{ color: '#ef4444', fontStyle: 'italic', fontSize: '13px' }}>
-                                    El docente aún no ha completado su carga académica en el ciclo actual.
-                                  </span>
-                                ) : (
-                                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                    <button
-                                      className="btn-secondary"
-                                      style={{ 
-                                        padding: '6px 12px', 
-                                        fontSize: '13px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px'
-                                      }}
-                                      onClick={() => { generarF01CAD(d.id); marcarFormatosGenerados(d.id); }}
-                                    >
-                                      <span style={{ fontSize: '14px' }}>📄</span>
-                                      F01-CAD
-                                    </button>
-                                    <button
-                                      className="btn-secondary"
-                                      style={{ 
-                                        padding: '6px 12px', 
-                                        fontSize: '13px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px'
-                                      }}
-                                      onClick={() => { generarF02CAD(d.id); marcarFormatosGenerados(d.id); }}
-                                    >
-                                      <span style={{ fontSize: '14px' }}>📄</span>
-                                      F02-CAD
-                                    </button>
-                                    <button
-                                      className="btn-secondary"
-                                      style={{ 
-                                        padding: '6px 12px', 
-                                        fontSize: '13px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px'
-                                      }}
-                                      onClick={() => { generarF03CAD(d.id); marcarFormatosGenerados(d.id); }}
-                                    >
-                                      <span style={{ fontSize: '14px' }}>📄</span>
-                                      F03-CAD
-                                    </button>
-                                    <button
-                                      className="btn-secondary"
-                                      style={{ 
-                                        padding: '6px 12px', 
-                                        fontSize: '13px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px'
-                                      }}
-                                      onClick={() => { generarCargaAdicionalPDF(d.id); marcarFormatosGenerados(d.id); }}
-                                    >
-                                      <span style={{ fontSize: '14px' }}>📄</span>
-                                      Dec. Adicional
-                                    </button>
-                                    <button
-                                      className="btn-primary"
-                                      style={{ 
-                                        padding: '6px 12px', 
-                                        fontSize: '13px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px'
-                                      }}
-                                      onClick={() => generarTodosFormatosZip(d.id)}
-                                    >
-                                      <span style={{ fontSize: '14px' }}>📦</span>
-                                      Descargar Todo (.zip)
-                                    </button>
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        });
-                      })()
-                    )}
-                  </tbody>
-                </table>
+          <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
+            {!cicloAcademicoSeleccionado ? (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '200px',
+                textAlign: 'center',
+                color: 'var(--text-secondary)'
+              }}>
+                Selecciona un ciclo académico para ver los reportes
               </div>
+            ) : (
+              <>
+                {!isDocente && (
+                  <div style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                        Buscar por nombre, apellidos o código
+                      </label>
+                      <input
+                        className="form-input"
+                        style={{ width: '250px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
+                        placeholder="Nombre, apellidos o código..."
+                        value={buscarDocenteReporte}
+                        onChange={e => setBuscarDocenteReporte(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                        Filtrar por curso
+                      </label>
+                      <input
+                        className="form-input"
+                        style={{ width: '200px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '14px' }}
+                        placeholder="Nombre o código de curso..."
+                        value={filtroCursoReporte}
+                        onChange={e => setFiltroCursoReporte(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
 
-              {/* Controles de paginación para Reportes */}
-              {(() => {
-                const listDocentes = isDocente && user?.docente_id
-                  ? docentesCarga.filter(d => d.id === user.docente_id)
-                  : docentesCarga;
+                {/* Tabla de reportes */}
+                <div className="table-container">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Docente</th>
+                        <th>Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingDocentesCarga ? (
+                        <tr>
+                          <td colSpan={2} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                            Cargando...
+                          </td>
+                        </tr>
+                      ) : (
+                        (() => {
+                          const listDocentes = isDocente && user?.docente_id
+                            ? docentesCarga.filter(d => d.id === user.docente_id)
+                            : docentesCarga;
 
-                const docentesFiltrados = listDocentes.filter(d => {
-                  const matchNombre = !buscarDocenteReporte || 
-                    normalizeText(d.nombre || '').includes(normalizeText(buscarDocenteReporte)) ||
-                    normalizeText(d.apellidos || '').includes(normalizeText(buscarDocenteReporte)) ||
-                    normalizeText(d.codigo || '').includes(normalizeText(buscarDocenteReporte));
-                  
-                  const matchCurso = !filtroCursoReporte ||
-                    d.cursos_asignados?.some((c: any) => 
-                      normalizeText(c.curso_codigo || '').includes(normalizeText(filtroCursoReporte)) ||
-                      normalizeText(c.curso_nombre || c.nombre || '').includes(normalizeText(filtroCursoReporte))
-                    );
-                    
-                  return matchNombre && matchCurso;
-                });
+                          // Filtrar por búsqueda
+                          const docentesFiltrados = listDocentes.filter(d => {
+                            const matchNombre = !buscarDocenteReporte ||
+                              normalizeText(d.nombre || '').includes(normalizeText(buscarDocenteReporte)) ||
+                              normalizeText(d.apellidos || '').includes(normalizeText(buscarDocenteReporte)) ||
+                              normalizeText(d.codigo || '').includes(normalizeText(buscarDocenteReporte));
 
-                const ITEMS_PER_PAGE = 10;
-                const totalPages = Math.ceil(docentesFiltrados.length / ITEMS_PER_PAGE);
-                
-                if (totalPages <= 1) return null;
+                            const matchCurso = !filtroCursoReporte ||
+                              d.cursos_asignados?.some((c: any) =>
+                                normalizeText(c.curso_codigo || '').includes(normalizeText(filtroCursoReporte)) ||
+                                normalizeText(c.curso_nombre || c.nombre || '').includes(normalizeText(filtroCursoReporte))
+                              );
 
-                return (
-                  <div style={{ 
-                    marginTop: '20px', 
-                    display: 'flex', 
-                    justifyContent: 'center', 
-                    alignItems: 'center', 
-                    gap: '8px' 
-                  }}>
-                    <button
-                      onClick={() => setCurrentPageReporte(p => Math.max(1, p - 1))}
-                      disabled={currentPageReporte === 1}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        border: '1px solid var(--border-color)',
-                        background: 'var(--bg-card)',
-                        color: 'var(--text-primary)',
-                        cursor: currentPageReporte === 1 ? 'not-allowed' : 'pointer',
-                        opacity: currentPageReporte === 1 ? 0.5 : 1,
-                        fontSize: '14px'
-                      }}
-                    >
-                      Anterior
-                    </button>
-                    
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                            return matchNombre && matchCurso;
+                          });
+
+                          if (docentesFiltrados.length === 0) {
+                            return (
+                              <tr>
+                                <td colSpan={2} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                                  No se encontraron docentes con los filtros aplicados
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          // Paginación de 10 en 10
+                          const ITEMS_PER_PAGE = 10;
+                          const startIndex = (currentPageReporte - 1) * ITEMS_PER_PAGE;
+                          const endIndex = startIndex + ITEMS_PER_PAGE;
+                          const paginados = docentesFiltrados.slice(startIndex, endIndex);
+
+                          return paginados.map(d => {
+                            const valRes = validarHorasDocenteParaDescarga(d.id);
+                            const esIncompleto = !d.tiene_carga || !d.carga_horaria || !valRes.valido;
+
+                            return (
+                              <tr key={d.id}>
+                                <td style={{ verticalAlign: 'middle' }}>
+                                  {d.apellidos}, {d.nombre}
+                                </td>
+                                <td style={{ verticalAlign: 'middle' }}>
+                                  {esIncompleto ? (
+                                    <span style={{ color: '#ef4444', fontStyle: 'italic', fontSize: '13px' }}>
+                                      El docente aún no ha completado su carga académica en el ciclo actual.
+                                    </span>
+                                  ) : (
+                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                      <button
+                                        className="btn-secondary"
+                                        style={{
+                                          padding: '6px 12px',
+                                          fontSize: '13px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '6px'
+                                        }}
+                                        onClick={() => { generarF01CAD(d.id); marcarFormatosGenerados(d.id); }}
+                                      >
+                                        <span style={{ fontSize: '14px' }}>📄</span>
+                                        F01-CAD
+                                      </button>
+                                      <button
+                                        className="btn-secondary"
+                                        style={{
+                                          padding: '6px 12px',
+                                          fontSize: '13px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '6px'
+                                        }}
+                                        onClick={() => { generarF02CAD(d.id); marcarFormatosGenerados(d.id); }}
+                                      >
+                                        <span style={{ fontSize: '14px' }}>📄</span>
+                                        F02-CAD
+                                      </button>
+                                      <button
+                                        className="btn-secondary"
+                                        style={{
+                                          padding: '6px 12px',
+                                          fontSize: '13px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '6px'
+                                        }}
+                                        onClick={() => { generarF03CAD(d.id); marcarFormatosGenerados(d.id); }}
+                                      >
+                                        <span style={{ fontSize: '14px' }}>📄</span>
+                                        F03-CAD
+                                      </button>
+                                      <button
+                                        className="btn-secondary"
+                                        style={{
+                                          padding: '6px 12px',
+                                          fontSize: '13px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '6px'
+                                        }}
+                                        onClick={() => { generarCargaAdicionalPDF(d.id); marcarFormatosGenerados(d.id); }}
+                                      >
+                                        <span style={{ fontSize: '14px' }}>📄</span>
+                                        Dec. Adicional
+                                      </button>
+                                      <button
+                                        className="btn-primary"
+                                        style={{
+                                          padding: '6px 12px',
+                                          fontSize: '13px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '6px'
+                                        }}
+                                        onClick={() => generarTodosFormatosZip(d.id)}
+                                      >
+                                        <span style={{ fontSize: '14px' }}>📦</span>
+                                        Descargar Todo (.zip)
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Controles de paginación para Reportes */}
+                {(() => {
+                  const listDocentes = isDocente && user?.docente_id
+                    ? docentesCarga.filter(d => d.id === user.docente_id)
+                    : docentesCarga;
+
+                  const docentesFiltrados = listDocentes.filter(d => {
+                    const matchNombre = !buscarDocenteReporte ||
+                      normalizeText(d.nombre || '').includes(normalizeText(buscarDocenteReporte)) ||
+                      normalizeText(d.apellidos || '').includes(normalizeText(buscarDocenteReporte)) ||
+                      normalizeText(d.codigo || '').includes(normalizeText(buscarDocenteReporte));
+
+                    const matchCurso = !filtroCursoReporte ||
+                      d.cursos_asignados?.some((c: any) =>
+                        normalizeText(c.curso_codigo || '').includes(normalizeText(filtroCursoReporte)) ||
+                        normalizeText(c.curso_nombre || c.nombre || '').includes(normalizeText(filtroCursoReporte))
+                      );
+
+                    return matchNombre && matchCurso;
+                  });
+
+                  const ITEMS_PER_PAGE = 10;
+                  const totalPages = Math.ceil(docentesFiltrados.length / ITEMS_PER_PAGE);
+
+                  if (totalPages <= 1) return null;
+
+                  return (
+                    <div style={{
+                      marginTop: '20px',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
                       <button
-                        key={page}
-                        onClick={() => setCurrentPageReporte(page)}
+                        onClick={() => setCurrentPageReporte(p => Math.max(1, p - 1))}
+                        disabled={currentPageReporte === 1}
                         style={{
                           padding: '8px 12px',
                           borderRadius: '6px',
-                          border: currentPageReporte === page ? '1px solid #3b82f6' : '1px solid var(--border-color)',
-                          background: currentPageReporte === page ? '#3b82f6' : 'var(--bg-card)',
-                          color: currentPageReporte === page ? '#ffffff' : 'var(--text-primary)',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          fontWeight: currentPageReporte === page ? '600' : '400'
+                          border: '1px solid var(--border-color)',
+                          background: 'var(--bg-card)',
+                          color: 'var(--text-primary)',
+                          cursor: currentPageReporte === 1 ? 'not-allowed' : 'pointer',
+                          opacity: currentPageReporte === 1 ? 0.5 : 1,
+                          fontSize: '14px'
                         }}
                       >
-                        {page}
+                        Anterior
                       </button>
-                    ))}
-                    
-                    <button
-                      onClick={() => setCurrentPageReporte(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPageReporte === totalPages}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        border: '1px solid var(--border-color)',
-                        background: 'var(--bg-card)',
-                        color: 'var(--text-primary)',
-                        cursor: currentPageReporte === totalPages ? 'not-allowed' : 'pointer',
-                        opacity: currentPageReporte === totalPages ? 0.5 : 1,
-                        fontSize: '14px'
-                      }}
-                    >
-                      Siguiente
-                    </button>
-                  </div>
-                );
-              })()}
-            </>
-          )}
-        </div>
+
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPageReporte(page)}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: '6px',
+                            border: currentPageReporte === page ? '1px solid #3b82f6' : '1px solid var(--border-color)',
+                            background: currentPageReporte === page ? '#3b82f6' : 'var(--bg-card)',
+                            color: currentPageReporte === page ? '#ffffff' : 'var(--text-primary)',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: currentPageReporte === page ? '600' : '400'
+                          }}
+                        >
+                          {page}
+                        </button>
+                      ))}
+
+                      <button
+                        onClick={() => setCurrentPageReporte(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPageReporte === totalPages}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-color)',
+                          background: 'var(--bg-card)',
+                          color: 'var(--text-primary)',
+                          cursor: currentPageReporte === totalPages ? 'not-allowed' : 'pointer',
+                          opacity: currentPageReporte === totalPages ? 0.5 : 1,
+                          fontSize: '14px'
+                        }}
+                      >
+                        Siguiente
+                      </button>
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+          </div>
         </>
-      ) : <></> }
+      ) : <></>}
 
       <style>{`
         @keyframes slideIn {
