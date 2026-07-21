@@ -136,7 +136,9 @@ export default function UsuariosPage() {
           doc.text('Sistema de Gestión de Horarios - UNT', 14, doc.internal.pageSize.height - 10);
         }
       });
-      doc.save(`reporte_usuarios_${new Date().getTime()}.pdf`);
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
     } catch (error) {
       setMsg({type:'error', text:'Error al generar el reporte'});
     }

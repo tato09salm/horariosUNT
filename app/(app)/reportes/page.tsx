@@ -652,7 +652,9 @@ export default function ReportesPage() {
       });
     }
     const nombre = tipoReporte==='gestion' ? 'reporte-gestion' : tipoReporte==='docente' ? 'horario-docente' : 'reporte-operacional';
-    doc.save(`${nombre}-${ciclo?.nombre||'unt'}.pdf`);
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
   }
 
   async function exportarExcelUNT() {

@@ -286,7 +286,9 @@ export default function CiclosPage() {
         },
       });
 
-      doc.save(`reporte_ciclos_${new Date().getTime()}.pdf`);
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
       setToast({ type: 'success', text: 'Reporte generado correctamente' });
     } catch {
       setToast({ type: 'error', text: 'Error al generar el reporte' });
