@@ -219,63 +219,117 @@ export default function ReportesPage() {
 
       setAsignaciones(normalized);
       if (cicloId) {
-        const d = await fetch(`/api/dashboard?ciclo_id=${cicloId}`).then(r=>r.json());
-        let finalDash = d;
-        const totalAsig = normalized.length;
-        const statsEmpty = (d?.stats?.totalAsignaciones || 0) === 0;
+        const [d, chRes] = await Promise.all([
+          fetch(`/api/dashboard?ciclo_id=${cicloId}`).then(r => r.json()),
+          fetch(`/api/carga-horaria?ciclo_academico_id=${cicloId}`).then(r => r.json()),
+        ]);
 
-        if (tipoReporte === 'gestion' && totalAsig > 0 && statsEmpty) {
-          const uniqueDocentes = new Map<string, any>();
-          const uniqueCursos = new Set<string>();
-          const uniqueAmbientes = new Map<string, any>();
-          const docenteHoras = new Map<string, number>();
-          normalized.forEach((a: any) => {
-            if (a.docente_id) {
-              uniqueDocentes.set(a.docente_id, a.docente_nombre || 'Docente');
-              docenteHoras.set(a.docente_id, (docenteHoras.get(a.docente_id) || 0) + 1);
+        let finalDash = d;
+        const cargaHorariaList = chRes.data || [];
+
+        if (tipoReporte === 'gestion') {
+          const listDocentes = docentes && docentes.length > 0 ? docentes : (d.cargaDocentes || []);
+          const cargaDocentes = listDocentes.map((doc: any) => {
+            const chList = cargaHorariaList.filter((ch: any) => ch.docente_id === doc.id);
+            const primeraCarga = chList[0];
+
+            let adicional: any = null;
+            if (primeraCarga?.adicional) {
+              try {
+                adicional = typeof primeraCarga.adicional === 'string'
+                  ? JSON.parse(primeraCarga.adicional)
+                  : primeraCarga.adicional;
+              } catch (e) {}
             }
-            if (a.curso_codigo) uniqueCursos.add(a.curso_codigo);
-            if (a.ambiente_codigo) {
-              uniqueAmbientes.set(a.ambiente_codigo, { codigo: a.ambiente_codigo, nombre: a.ambiente_nombre || a.ambiente_codigo, tipo: a.ambiente_tipo || 'aula', });
+
+            const modStr = (adicional?.regimen_dedicacion || doc.modalidad || primeraCarga?.modalidad || '').toString().toUpperCase();
+            let horasModalidad = 40;
+            const match = modStr.match(/(\d+)\s*H/i);
+            if (match) {
+              horasModalidad = parseInt(match[1], 10);
+            } else if (modStr.includes('DE') || modStr.includes('DEDICACION EXCLUSIVA') || modStr.includes('TC') || modStr.includes('TIEMPO COMPLETO')) {
+              horasModalidad = 40;
+            } else if (modStr.includes('TP') || modStr.includes('TIEMPO PARCIAL')) {
+              horasModalidad = 20;
+            } else if (doc.horas_max_semana && doc.horas_max_semana > 0) {
+              horasModalidad = doc.horas_max_semana;
             }
-          });
-          const docenteMap = new Map(docentes.map(d => [d.id, d]));
-          const cargaDocentes = Array.from(uniqueDocentes.entries()).map(([id, nombre]) => {
-            const doc = docenteMap.get(id) || {};
-            const horasAsignadas = docenteHoras.get(id) || 0;
+
+            let chl = 0;
+            chList.forEach((ch: any) => {
+              if (ch.cursos && Array.isArray(ch.cursos)) {
+                ch.cursos.forEach((c: any) => {
+                  const hrsTeo = c.hrs_teo || 0;
+                  const gTeo = c.teoria_grupos ?? 1;
+                  const hrsPra = c.hrs_pra || 0;
+                  const gPra = c.practica_grupos ?? 1;
+                  const hrsLab = c.hrs_lab || 0;
+                  const gLab = c.laboratorio_grupos ?? 1;
+                  chl += (hrsTeo * gTeo) + (hrsPra * gPra) + (hrsLab * gLab);
+                });
+              }
+            });
+
+            if (chl === 0) {
+              const docAsig = normalized.filter((a: any) => a.docente_id === doc.id);
+              chl = docAsig.length;
+            }
+
+            let chnl = 0;
+            const secKeys = ['preparacion', 'consejeria', 'investigacion', 'capacitacion', 'gobierno', 'administracion', 'asesoria', 'rsu', 'comites'];
+            chList.forEach((ch: any) => {
+              for (const key of secKeys) {
+                const secVal = ch[key];
+                if (secVal) {
+                  if (typeof secVal === 'object' && secVal !== null && 'horas' in secVal) {
+                    chnl += parseFloat(secVal.horas || '0');
+                  } else if (Array.isArray(secVal)) {
+                    secVal.forEach((item: any) => {
+                      if (item && item.horas) chnl += parseFloat(item.horas || '0');
+                    });
+                  }
+                }
+              }
+            });
+
+            let chla = 0;
+            if (adicional) {
+              if (adicional.total_horas_adicional) {
+                const val = parseFloat(adicional.total_horas_adicional || '0');
+                if (val > 0) chla = val;
+              } else if (Array.isArray(adicional.cursos)) {
+                chla = adicional.cursos.reduce((sum: number, c: any) => sum + parseFloat(c.total_horas || '0'), 0);
+              }
+            }
+
+            const horasColocadas = chl + chnl;
+            const porcentajeCarga = horasModalidad > 0 ? Math.round((horasColocadas * 100) / horasModalidad) : 0;
+
+            const nombreFmt = doc.apellidos ? `${doc.apellidos}, ${doc.nombre}` : (doc.nombre || 'Docente');
+
             return {
-              nombre: doc.nombre ? `${doc.nombre} ${doc.apellidos || ''}`.trim() : nombre,
+              id: doc.id,
+              nombre: nombreFmt,
               categoria: doc.categoria || 'auxiliar',
               condicion: doc.condicion || 'contratado',
-              horas_max_semana: doc.horas_max_semana || 20,
-              horas_asignadas: horasAsignadas,
-              porcentaje_carga: (doc.horas_max_semana || 20) ? Math.round((horasAsignadas * 100) / (doc.horas_max_semana || 20)) : 0,
+              modalidad: modStr || (doc.condicion === 'nombrado' ? 'TC' : 'TP'),
+              chl,
+              chnl,
+              chla,
+              horas_colocadas: horasColocadas,
+              horas_asignadas: horasColocadas,
+              horas_max_semana: horasModalidad,
+              horas_modalidad: horasModalidad,
+              porcentaje_carga: porcentajeCarga,
             };
-          }).sort((a, b) => (b.porcentaje_carga || 0) - (a.porcentaje_carga || 0));
-          const totalSlots = (ambientes.length || uniqueAmbientes.size || 1) * (slots.length || 1) * 5;
-          const ocupacionAmbientes = Array.from(uniqueAmbientes.values()).map((a: any) => ({
-            nombre: a.nombre, tipo: a.tipo, codigo: a.codigo,
-            horas_usadas: normalized.filter((x: any) => x.ambiente_codigo === a.codigo).length,
-            porcentaje: totalSlots ? Math.round((normalized.filter((x: any) => x.ambiente_codigo === a.codigo).length * 1000) / totalSlots) / 10 : 0,
-          })).sort((a, b) => (b.porcentaje || 0) - (a.porcentaje || 0));
-          finalDash = { ...d, stats: { ...d?.stats, totalDocentes: uniqueDocentes.size, totalCursos: uniqueCursos.size, totalAmbientes: uniqueAmbientes.size, totalAsignaciones: totalAsig }, cargaDocentes, ocupacionAmbientes };
+          }).sort((a: any, b: any) => (b.porcentaje_carga || 0) - (a.porcentaje_carga || 0));
+
+          finalDash = {
+            ...d,
+            cargaDocentes,
+          };
         }
 
-        if (tipoReporte === 'gestion' && totalAsig === 0 && statsEmpty) {
-          const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`).then(r => r.json());
-          const progs = progsRes.data || [];
-          const selProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
-          if (selProg) {
-            const pcRes = await fetch(`/api/horarios/programaciones/${selProg.id}/programacion-cursos`);
-            if (pcRes.ok) {
-              const pcData = await pcRes.json();
-              const cursosProg = pcData.data || [];
-              const cargaDocentesProg = pcData.cargaDocentes || [];
-              const docentesProg = new Set(cursosProg.map((c: any) => c.docente_id).filter(Boolean));
-              finalDash = { ...d, stats: { ...d?.stats, totalDocentes: docentesProg.size, totalCursos: cursosProg.length, totalAmbientes: 0, totalAsignaciones: 0 }, cargaDocentes: cargaDocentesProg, ocupacionAmbientes: [], };
-            }
-          }
-        }
         setDashData(finalDash);
       }
 
@@ -455,7 +509,26 @@ export default function ReportesPage() {
       autoTable(doc, { startY: y, head:[['Indicador','Valor']], body: stats, theme:'striped', headStyles:{fillColor:[30,41,59], textColor:[255,255,255], fontStyle:'bold'}, bodyStyles:{textColor:[51,65,85]}, margin:{left:14,right:14}, tableWidth: 100 });
       y = (doc as any).lastAutoTable.finalY + 10;
       doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59); doc.text('CARGA HORARIA POR DOCENTE', 14, y); y += 6;
-      autoTable(doc, { startY: y, head:[['Docente','Categoría','Condición','Horas Asignadas','Horas Máx.','% Carga']], body: dashData?.cargaDocentes?.map((d:any)=>[d.nombre, d.categoria.replace('_',' ').toUpperCase(), d.condicion, `${d.horas_asignadas}h`, `${d.horas_max_semana}h`, `${d.porcentaje_carga||0}%`])||[], theme:'striped', headStyles:{fillColor:[30,41,59], textColor:[255,255,255], fontStyle:'bold', halign:'center'}, bodyStyles:{textColor:[51,65,85], fontSize:8}, columnStyles: { 3:{halign:'center'}, 4:{halign:'center'}, 5:{halign:'center'} }, margin:{left:14,right:14} });
+      autoTable(doc, {
+        startY: y,
+        head:[['Docente','Categoría','Condición','CHL','CHNL','CHLA','Horas Colocadas','Horas Mod.','% Carga']],
+        body: dashData?.cargaDocentes?.map((d:any)=>[
+          d.nombre,
+          (d.categoria || '').replace('_',' ').toUpperCase(),
+          (d.condicion || '').toUpperCase(),
+          d.chl > 0 ? `${d.chl}h` : '—',
+          d.chnl > 0 ? `${d.chnl}h` : '—',
+          d.chla > 0 ? `${d.chla}h` : '—',
+          `${d.horas_colocadas ?? d.horas_asignadas ?? 0}h`,
+          `${d.horas_modalidad ?? d.horas_max_semana ?? 40}h`,
+          `${d.porcentaje_carga||0}%`
+        ])||[],
+        theme:'striped',
+        headStyles:{fillColor:[30,41,59], textColor:[255,255,255], fontStyle:'bold', halign:'center'},
+        bodyStyles:{textColor:[51,65,85], fontSize:8},
+        columnStyles: { 3:{halign:'center'}, 4:{halign:'center'}, 5:{halign:'center'}, 6:{halign:'center'}, 7:{halign:'center'}, 8:{halign:'center'} },
+        margin:{left:14,right:14}
+      });
       y = (doc as any).lastAutoTable.finalY + 10;
       if (y > 160) { doc.addPage(); y = 20; }
       doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(30, 41, 59); doc.text('OCUPACIÓN DE AMBIENTES', 14, y); y += 6;
@@ -590,8 +663,19 @@ export default function ReportesPage() {
     const ciclo = ciclos.find(c=>c.id===cicloId);
     let wb = utils.book_new();
     if (tipoReporte === 'gestion') {
-      const rows = [['Indicador', 'Valor'], ['Docentes activos', dashData?.stats?.totalDocentes], ['Cursos activos', dashData?.stats?.totalCursos], ['Ambientes disponibles', dashData?.stats?.totalAmbientes], ['Total asignaciones', dashData?.stats?.totalAsignaciones]];
-      utils.book_append_sheet(wb, utils.aoa_to_sheet(rows), 'Datos');
+      const headers = ['Docente', 'Categoría', 'Condición', 'CHL', 'CHNL', 'CHLA', 'Horas Colocadas (CHL+CHNL)', 'Horas Modalidad', '% Carga'];
+      const bodyRows = (dashData?.cargaDocentes || []).map((d: any) => [
+        d.nombre,
+        (d.categoria || '').replace('_', ' ').toUpperCase(),
+        (d.condicion || '').toUpperCase(),
+        d.chl || 0,
+        d.chnl || 0,
+        d.chla || 0,
+        d.horas_colocadas ?? d.horas_asignadas ?? 0,
+        d.horas_modalidad ?? d.horas_max_semana ?? 40,
+        `${d.porcentaje_carga || 0}%`
+      ]);
+      utils.book_append_sheet(wb, utils.aoa_to_sheet([headers, ...bodyRows]), 'Carga Docentes');
     } else {
       const rows = asignaciones.sort((a,b)=>DIAS.indexOf(a.dia)-DIAS.indexOf(b.dia)).map(r=>[DIAS_L[r.dia]||r.dia, r.hora_inicio, r.hora_fin, r.curso_nombre, tipoReporte==='docente' ? r.ambiente_nombre : r.docente_nombre, r.tipo, `G${r.numero_grupo}`]);
       utils.book_append_sheet(wb, utils.aoa_to_sheet([['Día','Hora Inicio','Hora Fin','Curso','Ambiente/Docente','Tipo','Grupo'], ...rows]), 'Horarios');
@@ -919,24 +1003,36 @@ export default function ReportesPage() {
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: AZUL.textSec }}>Docente</th>
                     <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: AZUL.textSec }}>Categoría</th>
                     <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: AZUL.textSec }}>Condición</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: AZUL.textSec }}>Horas</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: AZUL.textSec }}>CHL</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: AZUL.textSec }}>CHNL</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: AZUL.textSec }}>CHLA</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: AZUL.textSec }}>Horas Colocadas (CHL+CHNL)</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: AZUL.textSec }}>Horas Mod.</th>
                     <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: AZUL.textSec }}>% Carga</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(dashData.cargaDocentes || []).slice(0, 10).map((d: any, i: number) => (
+                  {(dashData.cargaDocentes || []).slice(0, 15).map((d: any, i: number) => (
                     <tr key={i} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <td style={{ padding: '8px 12px', color: AZUL.text }}>{d.nombre}</td>
+                      <td style={{ padding: '8px 12px', color: AZUL.text, fontWeight: 500 }}>{d.nombre}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px' }}>
-                        <span style={{ background: '#F1F5F9', padding: '2px 8px', borderRadius: '4px', color: AZUL.textSec }}>{d.categoria.replace('_', ' ').toUpperCase()}</span>
+                        <span style={{ background: '#F1F5F9', padding: '2px 8px', borderRadius: '4px', color: AZUL.textSec }}>{(d.categoria || '').replace('_', ' ').toUpperCase()}</span>
                       </td>
-                      <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: AZUL.textSec }}>{d.condicion}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: AZUL.text }}>{d.horas_asignadas}h / {d.horas_max_semana}h</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: '12px', color: AZUL.textSec }}>{(d.condicion || '').toUpperCase()}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', color: AZUL.text }}>{d.chl > 0 ? `${d.chl}h` : '—'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', color: AZUL.text }}>{d.chnl > 0 ? `${d.chnl}h` : '—'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', color: AZUL.text }}>{d.chla > 0 ? `${d.chla}h` : '—'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: AZUL.text }}>
+                        {d.horas_colocadas ?? d.horas_asignadas ?? 0}h
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', color: AZUL.textSec }}>
+                        {d.horas_modalidad ?? d.horas_max_semana ?? 40}h
+                      </td>
                       <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                         <div style={{
                           display: 'inline-block', padding: '2px 10px', borderRadius: '9999px', fontSize: '12px', fontWeight: 600,
-                          background: (d.porcentaje_carga || 0) > 80 ? '#FEF2F2' : (d.porcentaje_carga || 0) > 50 ? '#FFFBEB' : '#F0FDF4',
-                          color: (d.porcentaje_carga || 0) > 80 ? '#991B1B' : (d.porcentaje_carga || 0) > 50 ? '#92400E' : '#166534',
+                          background: (d.porcentaje_carga || 0) === 100 ? '#F0FDF4' : (d.porcentaje_carga || 0) > 100 ? '#EFF6FF' : '#FEF2F2',
+                          color: (d.porcentaje_carga || 0) === 100 ? '#166534' : (d.porcentaje_carga || 0) > 100 ? '#1E40AF' : '#991B1B',
                         }}>{d.porcentaje_carga || 0}%</div>
                       </td>
                     </tr>
@@ -944,9 +1040,9 @@ export default function ReportesPage() {
                 </tbody>
               </table>
             </div>
-            {(dashData.cargaDocentes || []).length > 10 && (
+            {(dashData.cargaDocentes || []).length > 15 && (
               <div style={{ textAlign: 'center', padding: '8px', fontSize: '13px', color: AZUL.textSec }}>
-                + {(dashData.cargaDocentes || []).length - 10} docentes más (usa PDF para ver completo)
+                + {(dashData.cargaDocentes || []).length - 15} docentes más (usa PDF para ver completo)
               </div>
             )}
           </div>
