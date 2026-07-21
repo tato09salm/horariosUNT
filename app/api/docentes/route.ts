@@ -12,6 +12,8 @@ export async function GET(req: NextRequest) {
   const buscar = searchParams.get('buscar');
   const categoria = searchParams.get('categoria');
   const condicion = searchParams.get('condicion');
+  const grado = searchParams.get('grado');
+  const modalidad = searchParams.get('modalidad');
   const activo = searchParams.get('activo');
   const reporte = searchParams.get('reporte') === 'true';
   const verificarUsuarios = searchParams.get('verificarUsuarios') === 'true';
@@ -102,6 +104,8 @@ export async function GET(req: NextRequest) {
   }
   if (categoria) { sql += ` AND d.categoria = $${idx++}`; params.push(categoria); }
   if (condicion) { sql += ` AND d.condicion = $${idx++}`; params.push(condicion); }
+  if (grado) { sql += ` AND d.grado_academico = $${idx++}`; params.push(grado); }
+  if (modalidad) { sql += ` AND d.modalidad = $${idx++}`; params.push(modalidad); }
   if (activo !== null && activo !== undefined && activo !== '') {
     sql += ` AND d.activo = $${idx++}`; params.push(activo === 'true'); }
 
@@ -110,7 +114,7 @@ export async function GET(req: NextRequest) {
   const totalRes = await queryOne(countSql, params);
   const total = parseInt(totalRes?.count || '0');
 
-  sql += ` ORDER BY condicion_orden, categoria_orden, d.fecha_ingreso ASC`;
+  sql += ` ORDER BY d.activo DESC, d.apellidos ASC, d.nombre ASC`;
   
   if (!reporte) {
     sql += ` LIMIT $${idx++} OFFSET $${idx++}`;
