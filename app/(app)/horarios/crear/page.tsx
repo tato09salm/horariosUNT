@@ -418,7 +418,7 @@ export default function CrearHorarioPage() {
       }
 
       // Generar CSV
-      const header = ['CICLO', 'CODIGO', 'CURSO', 'GRUPO', 'DOCENTE', 'T', 'P', 'L', 'C'];
+      const header = ['CICLO', 'CODIGO', 'CURSO', 'GRUPO', 'DOCENTE', 'T', 'P', 'L'];
       const csvRows = [header.join(',')];
       
       // Ordenar filas: ciclo, código, tipo de grupo (Teoria → Practica → Laboratorio)
@@ -693,7 +693,7 @@ export default function CrearHorarioPage() {
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>CURRÍCULA BASE:</label>
-            <select className="form-input" style={{ padding: '6px 12px', fontSize: '13px' }} value={curriculaActual} onChange={e => setCurriculaActual(e.target.value)}>
+            <select className="form-input" style={{ padding: '10px 20px', fontSize: '14px' }} value={curriculaActual} onChange={e => setCurriculaActual(e.target.value)}>
               <option value="">SELECCIONAR CURRÍCULA...</option>
               {curriculas.map(c => (
                 <option key={c.id} value={c.id}>
@@ -836,7 +836,6 @@ export default function CrearHorarioPage() {
                     <th style={{ padding: '10px 12px', textAlign: 'center', width: '60px' }}>T</th>
                     <th style={{ padding: '10px 12px', textAlign: 'center', width: '60px' }}>P</th>
                     <th style={{ padding: '10px 12px', textAlign: 'center', width: '60px' }}>L</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'center', width: '60px' }}>C</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -905,7 +904,7 @@ export default function CrearHorarioPage() {
                                         + AGREGAR GRUPO
                                       </button>
                                     </td>
-                                    <td colSpan={6} style={{ borderTop: '1px solid var(--border-color)' }}></td>
+                                    <td colSpan={5} style={{ borderTop: '1px solid var(--border-color)' }}></td>
                                   </tr>
                                 ) : (
                                   gruposAct.map((grupo, gIdx) => {
@@ -1006,7 +1005,7 @@ export default function CrearHorarioPage() {
                                               </button>
                                             )}
                                           </td>
-                                          <td colSpan={4}></td>
+                                          <td colSpan={3}></td>
                                         </tr>
                                       </React.Fragment>
                                     );

@@ -33,7 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   try {
     const body = await req.json();
-    const { fecha_inicio, fecha_cierre, enviar_notificacion } = body;
+    const { fecha_inicio, fecha_cierre, enviar_notificacion, docente_id } = body;
 
     if (!fecha_inicio || !fecha_cierre) {
       return NextResponse.json({ error: 'fecha_inicio y fecha_cierre son requeridos' }, { status: 400 });
@@ -90,15 +90,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         console.log('=== INICIANDO ENVÍO DE NOTIFICACIONES ===');
         console.log('Programación ID:', programacion_id);
         console.log('Programación nombre:', prog.nombre);
+        console.log('Docente destino:', docente_id || 'TODOS');
 
         // Obtener docentes con asignación en esta programación
-        const docentesAsignados = await query(`
-          SELECT DISTINCT d.id, d.nombre, d.apellidos, d.email
-          FROM docentes d
-          INNER JOIN programacion_cursos pc ON pc.docente_id = d.id
-          WHERE pc.programacion_id = $1
-          ORDER BY d.apellidos, d.nombre
-        `, [programacion_id]);
+        // Si se indica docente_id, notificar solo a ese docente.
+        const docentesAsignados = docente_id
+          ? await query(`
+              SELECT DISTINCT d.id, d.nombre, d.apellidos, d.email
+              FROM docentes d
+              INNER JOIN programacion_cursos pc ON pc.docente_id = d.id
+              WHERE pc.programacion_id = $1 AND d.id = $2
+              ORDER BY d.apellidos, d.nombre
+            `, [programacion_id, docente_id])
+          : await query(`
+              SELECT DISTINCT d.id, d.nombre, d.apellidos, d.email
+              FROM docentes d
+              INNER JOIN programacion_cursos pc ON pc.docente_id = d.id
+              WHERE pc.programacion_id = $1
+              ORDER BY d.apellidos, d.nombre
+            `, [programacion_id]);
 
         console.log('Docentes asignados encontrados:', docentesAsignados.length);
 

@@ -4896,6 +4896,120 @@ function asignarGrupoEnVentanaExacta(
     log.push(`[V2] Reparación: ${postReparacion - antesReparacion}h recuperadas (${antesReparacion}→${postReparacion})`);
   }
 
+  // ── FASE 6: Forzado en sábado (último recurso) ──────────────────────────
+  let fase6AgregoHoras = false;
+  if (asignacionesFinales.length < totalHoras) {
+    const horasPorClaveF6 = contarHorasAsignadasPorBloque(asignacionesFinales);
+    const pendientesF6: PendienteExacto[] = [];
+    for (const bloque of todosLosBloquesNormalizados) {
+      const meta = bloque.units[0]?.meta || {};
+      const clave = claveBloqueAcademico({ ...meta, pc_id: meta.pc_id ?? meta.id });
+      const requeridas = bloque.units.length;
+      const asignadas = horasPorClaveF6.get(clave) ?? 0;
+      if (asignadas < requeridas) {
+        pendientesF6.push({
+          bloque,
+          clave_bloque: clave,
+          horas_requeridas: requeridas,
+          horas_asignadas: asignadas,
+          horas_faltantes: requeridas - asignadas,
+          estado: asignadas === 0 ? 'SIN_ASIGNAR' : 'PARCIAL',
+        });
+      }
+    }
+    pendientesF6.sort((a, b) => {
+      const aPartial = a.estado === 'PARCIAL';
+      const bPartial = b.estado === 'PARCIAL';
+      if (aPartial !== bPartial) return aPartial ? -1 : 1;
+      const tipoOrd = { laboratorio: 0, practica: 1, teoria: 2 };
+      const ta = tipoOrd[a.bloque.tipo_sesion as keyof typeof tipoOrd] ?? 3;
+      const tb = tipoOrd[b.bloque.tipo_sesion as keyof typeof tipoOrd] ?? 3;
+      if (ta !== tb) return ta - tb;
+      return b.horas_requeridas - a.horas_requeridas;
+    });
+
+    for (const pendiente of pendientesF6) {
+      if (asignacionesFinales.length >= totalHoras) break;
+      const meta = pendiente.bloque.units[0]?.meta || {};
+      const docenteId = meta.docente_id || '';
+      if (!docenteId) continue;
+
+      // Clonar disponibilidad e inyectar sábado como disponible (prioridad 2)
+      const docAvailSabado = clonarDocAvail(docAvail);
+      const docMapSab = docAvailSabado.get(docenteId);
+      const sabadoMap = new Map<string, number>();
+      for (const s of util) sabadoMap.set(`sabado-${s.id}`, 2);
+      if (docMapSab) {
+        for (const [k, v] of sabadoMap) docMapSab.set(k, v);
+      } else {
+        docAvailSabado.set(docenteId, sabadoMap);
+      }
+
+      // Para PARCIAL: quitar lo asignado y recolocar el bloque completo (rollback implícito)
+      const asignTemp = pendiente.estado === 'PARCIAL'
+        ? asignacionesFinales.filter(a => a.clave_bloque !== pendiente.clave_bloque)
+        : [...asignacionesFinales];
+      const occTemp = cloneOccupancy(occ);
+      rebuildOccupancy(asignTemp, occTemp);
+
+      let bloqueAAsignar = pendiente.bloque;
+      if (bloqueAAsignar.tipo_sesion === 'teoria_practica' || bloqueAAsignar.tipo_sesion === 'mixto') {
+        bloqueAAsignar = {
+          ...pendiente.bloque,
+          tipo_sesion: 'teoria',
+          units: pendiente.bloque.units.map(u => ({ ...u, tipo_sesion: 'teoria' })),
+        };
+      }
+
+      let res: ReturnType<typeof asignarGrupoContinuo> | null = null;
+      for (const p of [2, 1]) {
+        res = asignarGrupoContinuo(bloqueAAsignar, slots, ambientes, docAvailSabado, occTemp, p, ambAvail, { ...cspOpts, incluirSabado: true });
+        if (res.ok) break;
+      }
+      if (!res || !res.ok) {
+        log.push(`[V2] FASE 6 rechazo ${meta.codigo || '?'}: ${(res as any)?.razon || 'sin candidatos'}`);
+        continue;
+      }
+
+      const normalized = res.asignaciones.map(normalizarTipoAsignacion);
+      let tipoValido = true;
+      for (const a of normalized) {
+        a.fuente = 'FORZADO_SABADO';
+        const tipoNormalizado = a.tipo ?? a.tipo_sesion ?? a.meta?.tipo_sesion;
+        if (!tipoNormalizado) { tipoValido = false; break; }
+        a.tipo = tipoNormalizado;
+        a.tipo_sesion = tipoNormalizado;
+      }
+      if (!tipoValido) continue;
+
+      const validacionBloque = puedeAgregarBloqueCompleto(normalized, asignTemp);
+      if (!validacionBloque.valido) continue;
+
+      const candidato = [...asignTemp, ...normalized];
+      const conflictosCandidato = detallarConflictos(candidato);
+      const valCandidato = validarSolucionFinal(candidato, cursos, slots);
+      if (conflictosCandidato.length > 0 ||
+          valCandidato.resumen.conflictosDocente > 0 ||
+          valCandidato.resumen.conflictosGrupo > 0 ||
+          valCandidato.resumen.conflictosAmbiente > 0 ||
+          valCandidato.resumen.duplicados > 0 ||
+          valCandidato.resumen.horasExcedentes > 0) {
+        continue;
+      }
+
+      asignacionesFinales = candidato;
+      rebuildOccupancy(asignacionesFinales, occ);
+      fase6AgregoHoras = true;
+      const horasNetas = normalized.length - (pendiente.estado === 'PARCIAL' ? pendiente.horas_asignadas : 0);
+      const diasUsados = [...new Set(normalized.map(a => a.dia))].join(',');
+      log.push(`[V2] FASE 6 (último recurso): ${meta.codigo || '?'} ${pendiente.bloque.tipo_sesion} +${horasNetas}h netas (${pendiente.estado}) → ${diasUsados}`);
+      auditarBloques('FORZADO_SABADO', asignacionesFinales);
+    }
+  }
+  if (fase6AgregoHoras) {
+    log.push(`[V2] FASE 6: restan ${Math.max(0, totalHoras - asignacionesFinales.length)}h sin asignar tras forzar sábados`);
+  }
+
   // ── Final conflict audit ──
   const conflictosFinales = detallarConflictos(asignacionesFinales);
   if (conflictosFinales.length > 0) {
@@ -4921,6 +5035,9 @@ function asignarGrupoEnVentanaExacta(
       occ = mejorSolucionValida.occ;
       needsRecalculation = true;
     }
+  }
+  if (fase6AgregoHoras) {
+    needsRecalculation = true;
   }
 
   // Recompute totals after repair
@@ -5015,14 +5132,16 @@ function asignarGrupoEnVentanaExacta(
       }
 
       for (const a of asigDoc) {
-        const k = `${a.curso_id}|${a.grupo_id || ''}`;
-        const entry = cursosMap.get(k);
-        if (!entry) continue;
-        entry.asigHoras++;
-        if (a.tipo === 'laboratorio' && a.lab_turno) {
-          const lt = Number(a.lab_turno);
-          if (!entry.labs.has(lt)) entry.labs.set(lt, { turno: lt, req: 0, asig: 0 });
-          entry.labs.get(lt)!.asig++;
+        const aportes = obtenerAportesAsignacion(a);
+        for (const aporte of aportes) {
+          const k = `${aporte.curso_id || ''}|${aporte.grupo_id || ''}`;
+          const entry = cursosMap.get(k);
+          if (!entry) continue;
+          entry.asigHoras += aporte.horas;
+          if (aporte.tipo === 'laboratorio' && aporte.lab_turno) {
+            if (!entry.labs.has(aporte.lab_turno)) entry.labs.set(aporte.lab_turno, { turno: aporte.lab_turno, req: 0, asig: 0 });
+            entry.labs.get(aporte.lab_turno)!.asig += aporte.horas;
+          }
         }
       }
 
