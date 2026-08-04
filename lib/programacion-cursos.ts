@@ -25,15 +25,28 @@ export async function getProgramacionCursosData(programacionId: string) {
   const cargaDocentes = await query(`
     SELECT 
       d.id, d.nombre || ' ' || d.apellidos as nombre, d.horas_max_semana,
-      d.categoria, d.condicion,
+      d.categoria, d.condicion, d.fecha_ingreso,
+      CASE d.condicion WHEN 'nombrado' THEN 0 ELSE 1 END as condicion_orden,
+      CASE d.categoria
+        WHEN 'principal' THEN 0
+        WHEN 'asociado' THEN 1
+        WHEN 'auxiliar' THEN 2
+        WHEN 'jefe_practica' THEN 3
+        ELSE 99
+      END as categoria_orden,
+      EXISTS(
+        SELECT 1
+        FROM disponibilidad_docente dd
+        WHERE dd.programacion_id = $1 AND dd.docente_id = d.id
+      ) as disponibilidad_registrada,
       COALESCE(SUM(
         pc.horas_teoria + pc.horas_practica + COALESCE(pc.horas_laboratorio, 0) + COALESCE(pc.horas_consejeria, 0)
       ), 0)::int as horas_asignadas
     FROM docentes d
     JOIN programacion_cursos pc ON pc.docente_id = d.id
     WHERE pc.programacion_id = $1
-    GROUP BY d.id, d.nombre, d.apellidos, d.horas_max_semana, d.categoria, d.condicion
-    ORDER BY d.apellidos
+    GROUP BY d.id, d.nombre, d.apellidos, d.horas_max_semana, d.categoria, d.condicion, d.fecha_ingreso
+    ORDER BY condicion_orden ASC, categoria_orden ASC, d.fecha_ingreso ASC NULLS LAST, d.apellidos ASC, d.nombre ASC
   `, [programacionId]);
 
   return { cursos, cargaDocentes };

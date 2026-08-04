@@ -9,7 +9,7 @@ import { fetchProgramacionCursos } from '@/lib/fetch-programacion-cursos';
 import { useHorarioHistory } from '@/lib/hooks/useHorarioHistory';
 import {
   Undo2, Redo2, ClipboardList, Cog, RotateCcw, ArrowLeft, ArrowRight,
-  ChartBar, TriangleAlert, CircleX, User, Landmark, Users, Zap,
+  ChartColumnBig, TriangleAlert, CircleX, User, Landmark, Users, Zap,
   Lightbulb, GraduationCap, OctagonAlert, type LucideIcon,
 } from 'lucide-react';
 
@@ -88,6 +88,7 @@ export default function ProgramarPage() {
   const [conflictos, setConflictos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState(false);
+  const [resolveSeconds, setResolveSeconds] = useState(0);
   const [msg, setMsg] = useState<any>(null);
   const [cspStats, setCspStats] = useState<any>(null);
   const [docentesConCarga, setDocentesConCarga] = useState<Set<string>>(new Set());
@@ -97,32 +98,76 @@ export default function ProgramarPage() {
 
   const cargarDatos = useCallback(async () => {
     setLoading(true);
+    // Timeout por petición: evita que un endpoint lento/colgado deje la página
+    // en "Cargando..." para siempre (Promise.all nunca resolvería).
+    const fetchT = (url: string, ms = 10000, fallback: any = { data: [] }) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), ms);
+      return fetch(url, { signal: ctrl.signal })
+        .then(r => r.json())
+        .finally(() => clearTimeout(t))
+        .catch(() => fallback);
+    };
     try {
-      const [progRes, dashRes, confRes, cursosRes, diagRes] = await Promise.all([
-        fetch(`/api/horarios/programaciones/${progId}`).then(r => r.json()),
-        fetch('/api/dashboard').then(r => r.json()),
-        fetch(`/api/horarios/resolver/conflictos?programacion_id=${progId}`).then(r => r.json()).catch(() => ({ data: [] })),
-        fetchProgramacionCursos(progId),
-        fetch(`/api/horarios/resolver/diagnostico?programacion_id=${progId}`).then(r => r.json()).catch(() => ({ data: null })),
-      ]);
+      // Carga secuencial: si un endpoint cuelga o tarda, los demás aún se aplican
+      // y el loading siempre se limpia.
+      const progRes = await fetchT(`/api/horarios/programaciones/${progId}`, 10000, { data: null });
+      const dataProg = progRes?.data ?? null;
+      setProg(dataProg);
+      history.setAsignacionesIniciales(dataProg?.config?.asignaciones || []);
+      setCspStats(dataProg?.config?.csp_stats || null);
 
-      const dataProg = progRes.data;
+      const dashRes = await fetchT('/api/dashboard', 10000, { slots: [] });
+      setSlots(dashRes.slots || []);
+
+      const cursosRes = await Promise.race([
+        fetchProgramacionCursos(progId),
+        new Promise<any>(res => setTimeout(() => res({ cargaDocentes: [] }), 15000)),
+      ]).catch(() => ({ cargaDocentes: [] }));
       const ids = new Set<string>(
         (cursosRes.cargaDocentes || []).map((d: { id: string }) => d.id)
       );
       setDocentesConCarga(ids);
-      setProg(dataProg);
-      setSlots(dashRes.slots || []);
-      history.setAsignacionesIniciales(dataProg?.config?.asignaciones || []);
-      setCspStats(dataProg?.config?.csp_stats || null);
+
+      const confRes = await fetchT(`/api/horarios/resolver/conflictos?programacion_id=${progId}`, 15000, { data: [] });
       setConflictos(confRes.data || []);
-      setDiagnostico(diagRes.data || null);
+
+      const diagRes = await fetchT(`/api/horarios/resolver/diagnostico?programacion_id=${progId}`, 15000, { data: null });
+      setDiagnostico(diagRes.data ?? null);
+    } catch (e) {
+      console.error('cargarDatos (programar):', e);
     } finally {
       setLoading(false);
     }
   }, [progId]);
 
   useEffect(() => { cargarDatos(); }, [cargarDatos]);
+
+  // Temporizador del tiempo transcurrido mientras se resuelve
+  useEffect(() => {
+    if (!resolving) return;
+    setResolveSeconds(0);
+    const iv = setInterval(() => setResolveSeconds(s => s + 1), 1000);
+    return () => clearInterval(iv);
+  }, [resolving]);
+
+  // Al volver atrás con el botón del navegador, la página puede restaurarse
+  // desde BFCache con state congelado (loading=true) y sin re-ejecutar efectos.
+  // En ese caso recargamos los datos explícitamente.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) cargarDatos();
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, [cargarDatos]);
+
+  // Guard: evita quedarse en "Cargando..." si alguna petición cuelga
+  // (p. ej. al volver atrás con el botón del navegador).
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 12000);
+    return () => clearTimeout(t);
+  }, [progId]);
 
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [advertencias, setAdvertencias] = useState<string[]>([]);
@@ -556,7 +601,7 @@ export default function ProgramarPage() {
             Volver a Fase 2
           </button>
           <button className="btn-primary" onClick={avanzarFase} disabled={prog.fase !== 3}>
-            Avanzar a Fase 4
+            Publicar Horario
             <ArrowRight size={15} strokeWidth={2.2} />
           </button>
           <button className="btn-danger" onClick={cancelarProgramacion} disabled={prog.fase !== 3}>
@@ -624,7 +669,7 @@ export default function ProgramarPage() {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: '1 1 auto' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(99,102,241,0.12)', color: '#818cf8', flexShrink: 0 }}>
-                <ChartBar size={19} strokeWidth={2.2} />
+                <ChartColumnBig size={19} strokeWidth={2.2} />
               </span>
               <div style={{ minWidth: 0 }}>
                 <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
@@ -712,7 +757,7 @@ export default function ProgramarPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {diagnostico.docentes.map((doc: any) => {
+                    {diagnostico.docentes.filter((doc: any) => doc.estado !== 'ok').map((doc: any) => {
                       const isExpanded = expandedDocente === doc.docente_id;
                       const estadoConfig: Record<string, { label: string; color: string; bg: string; border: string }> = {
                         horas_insuficientes: { label: 'Horas insuficientes', color: 'var(--color-danger)', bg: 'rgba(239,68,68,0.10)', border: 'rgba(239,68,68,0.22)' },
@@ -1148,6 +1193,42 @@ export default function ProgramarPage() {
               <button className="btn-primary" style={{background:'#b91c1c',borderColor:'#b91c1c'}} onClick={() => ejecutarMotor(true)}>
                 Continuar de todas formas
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Overlay: progreso de la auto-asignación */}
+      {resolving && (
+        <div className="modal-overlay" style={{ alignItems: 'center', zIndex: 100 }}>
+          <div className="modal" style={{ maxWidth: '460px' }}>
+            <div className="modal-body" style={{ padding: '28px', textAlign: 'center' }}>
+              <Cog size={40} strokeWidth={1.6} className="resolve-spin" style={{ margin: '0 auto 16px' }} />
+              <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 6px' }}>
+                Resolviendo horario...
+              </h3>
+              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                {(() => {
+                  const etapa = Math.floor(resolveSeconds / 6) % 4;
+                  const msgs = [
+                    'Preparando bloques y asignando docentes...',
+                    'Asignando teoría y práctica...',
+                    'Optimizando bloques continuos...',
+                    'Validando conflictos y guardando...',
+                  ];
+                  return msgs[etapa];
+                })()}
+              </div>
+              <div className="resolve-bar">
+                <div className="resolve-bar__fill" />
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-tertiary, #94a3b8)', marginTop: '12px', fontVariantNumeric: 'tabular-nums' }}>
+                Tiempo transcurrido: {resolveSeconds}s
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-tertiary, #94a3b8)', margin: '14px 0 0' }}>
+                Puede tardar desde unos segundos hasta un par de minutos según el tamaño del horario.
+                No cierres esta página.
+              </p>
             </div>
           </div>
         </div>

@@ -131,6 +131,24 @@ export default function CrearHorarioPage() {
     cargarConfiguracion().then(() => cargarProgramacion());
   }, [cargarConfiguracion, cargarProgramacion]);
 
+  // Al volver atrás con el botón del navegador, la página puede restaurarse
+  // desde BFCache con state congelado (loading=true) y sin re-ejecutar efectos.
+  // En ese caso recargamos los datos explícitamente.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) cargarConfiguracion().then(() => cargarProgramacion());
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, [cargarConfiguracion, cargarProgramacion]);
+
+  // Guard: evita quedarse en "Cargando..." si alguna petición cuelga
+  // (p. ej. al volver atrás con el botón del navegador).
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 12000);
+    return () => clearTimeout(t);
+  }, [progId]);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {

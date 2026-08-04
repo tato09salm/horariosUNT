@@ -1,6 +1,6 @@
 'use client';
 import { fetchProgramacionCursos } from '@/lib/fetch-programacion-cursos';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { useUser } from '@/app/(app)/layout';
 import { ComboboxOpciones } from '@/components/horarios/ComboboxOpciones';
@@ -54,6 +54,38 @@ export default function DisponibilidadPage() {
 
   const isAdminOrSec = user?.rol.codigo === 'admin' || user?.rol.codigo === 'secretaria';
   const isDocente = user?.rol.codigo === 'docente';
+  const docentesPendientesSet = useMemo(
+    () => new Set((resumenPendientes?.pendientes || []).map(d => d.docente_id)),
+    [resumenPendientes]
+  );
+
+  const opcionesDocentes = useMemo(() => {
+    const formatear = (valor?: string) =>
+      (valor || '')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase());
+
+    return docentes.map((d: any) => {
+      const completado = typeof d.disponibilidad_registrada === 'boolean'
+        ? d.disponibilidad_registrada
+        : (resumenPendientes ? !docentesPendientesSet.has(d.id) : false);
+
+      return {
+        id: d.id,
+        nombre: d.nombre,
+        completado,
+        descripcion: `${formatear(d.condicion)} · ${formatear(d.categoria)}${typeof d.horas_asignadas === 'number' ? ` · ${d.horas_asignadas}h` : ''}`,
+      };
+    });
+  }, [docentes, resumenPendientes, docentesPendientesSet]);
+
+  const opcionesNotifDestino = useMemo(
+    () => [
+      { id: 'todos', nombre: 'Todos los docentes asignados', grupo: true },
+      ...opcionesDocentes,
+    ],
+    [opcionesDocentes]
+  );
 
   // ── Drag-select (estilo Excel / LettuceMeet) ──────────────────────────────
   // isDragging: si hay un arrastre de mouse en curso.
@@ -113,11 +145,12 @@ export default function DisponibilidadPage() {
       const destino = notifDestino === 'todos'
         ? 'todos los docentes asignados'
         : (docentes.find(d => d.id === notifDestino)?.nombre || 'docente');
+      const resumen = data.notificationSummary;
       setMsg({
         type: 'success',
         text: enviarNotificacion
-          ? `Período configurado correctamente. Notificación enviada a ${destino}.`
-          : 'Período de disponibilidad configurado correctamente',
+          ? `Período guardado correctamente. Se notificó a ${destino}${resumen ? ` (${resumen.sent} enviado(s), ${resumen.skipped} omitido(s), ${resumen.failed} fallido(s))` : ''}. También se envió un resumen a tu correo.`
+          : 'Período de disponibilidad guardado correctamente.',
       });
     } catch (e: any) {
       setMsg({ type: 'error', text: e.message });
@@ -163,17 +196,17 @@ export default function DisponibilidadPage() {
   const cargarDatos = useCallback(async () => {
     setLoading(true);
     try {
-      const [progRes, docRes, dashRes, configRes] = await Promise.all([
+      const [progRes, docRes, slotsRes, configRes] = await Promise.all([
         fetch(`/api/horarios/programaciones/${progId}`).then(r => r.json()),
         fetchProgramacionCursos(progId),
-        fetch('/api/dashboard').then(r => r.json()).catch(() => ({ slots: [] })),
+        fetch('/api/slots').then(r => r.json()).catch(() => ({ data: [] })),
         fetch('/api/configuracion?clave=HORARIOS_RESTRINGIDOS').then(r => r.json()).catch(() => ({ data: null })),
       ]);
 
       const progData = progRes.data;
       setProg(progData);
       setDocentes(docRes.cargaDocentes || []);
-      const activeSlots = dashRes?.slots || [];
+      const activeSlots = slotsRes?.data || [];
       setSlots(activeSlots);
 
       let restDict: Record<string, string> = {};
@@ -250,6 +283,28 @@ export default function DisponibilidadPage() {
   useEffect(() => { cargarDatos(); cargarDisponibilidadPeriodo(); }, [cargarDatos, cargarDisponibilidadPeriodo]);
   useEffect(() => { cargarResumenPendientes(); }, [cargarResumenPendientes]);
 
+  // Al volver atrás con el botón del navegador, la página puede restaurarse
+  // desde BFCache con state congelado (loading=true) y sin re-ejecutar efectos.
+  // En ese caso recargamos los datos explícitamente.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        cargarDatos();
+        cargarDisponibilidadPeriodo();
+        cargarResumenPendientes();
+      }
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, [cargarDatos, cargarDisponibilidadPeriodo, cargarResumenPendientes]);
+
+  // Guard: evita quedarse en "Cargando..." si alguna petición cuelga
+  // (p. ej. al volver atrás con el botón del navegador).
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 12000);
+    return () => clearTimeout(t);
+  }, [progId]);
+
   // ── Lógica de pintado de una celda individual ─────────────────────────────
   // modo 'click'   -> alterna: no disponible(0) <-> disponible(1)
   // modo 'drag'    -> vacío(0) -> disponible(1); disponible(1) -> no disponible(0)
@@ -271,6 +326,10 @@ export default function DisponibilidadPage() {
   }, []);
 
   const puedeEditar = !soloLectura && prog?.estado !== 'publicado' && prog?.estado !== 'cancelado';
+  const slotsVisibles = useMemo(
+    () => slots.filter(slot => !(loadedRestringidos && slot.id in restringidos)),
+    [slots, loadedRestringidos, restringidos]
+  );
 
   const handleCellMouseDown = useCallback((key: string) => {
     if (!puedeEditar) return;
@@ -559,6 +618,44 @@ export default function DisponibilidadPage() {
 
       {bannerSoloLectura}
 
+      {/* Aviso grande para el docente: debe registrar disponibilidad antes del plazo */}
+      {isDocente && prog?.fase === 2 && !soloLectura && disponibilidadPeriodo?.fecha_cierre && (() => {
+        const cierre = new Date(disponibilidadPeriodo.fecha_cierre);
+        const vencido = cierre.getTime() < Date.now();
+        const yaCompleto = Object.keys(disponibilidad).length > 0;
+        if (yaCompleto) return null;
+        const fechaStr = cierre.toLocaleString('es-PE', { timeZone: 'America/Lima', dateStyle: 'long', timeStyle: 'short' });
+        return (
+          <div style={{
+            background: '#fff7ed',
+            border: vencido ? '2px solid #ef4444' : '2px solid #fdba74',
+            borderRadius: '10px',
+            padding: '18px 20px',
+            marginBottom: '18px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '14px',
+          }}>
+            <span style={{ fontSize: '30px', lineHeight: 1 }}>⚠️</span>
+            <div>
+              <div style={{
+                fontSize: '20px',
+                fontWeight: '800',
+                color: vencido ? '#b91c1c' : '#c2410c',
+                margin: '0 0 6px',
+              }}>
+                {vencido ? `Tu plazo para registrar disponibilidad venció` : `Debes registrar tu disponibilidad docente`}
+              </div>
+              <p style={{ fontSize: '15px', color: vencido ? '#7f1d1d' : '#7c2d12', margin: 0, lineHeight: 1.5 }}>
+                {vencido
+                  ? `Indica tu disponibilidad lo antes posible. El plazo límite era el ${fechaStr}.`
+                  : <>Tienes hasta el <strong>{fechaStr}</strong> para marcar los horarios en los que puedes dictar tus cursos. Si no lo haces dentro del plazo, tu horario no podrá ser asignado.</>}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Aviso de docentes pendientes (solo admin/secretaria) */}
       {isAdminOrSec && resumenPendientes && !resumenPendientes.listo && (
         <div style={{
@@ -605,7 +702,7 @@ export default function DisponibilidadPage() {
 
       {/* Sección de configuración de período de disponibilidad (solo admin/secretaria) */}
       {isAdminOrSec && (
-        <div className="card" style={{ marginBottom: '20px' }}>
+        <div className="card" style={{ marginBottom: '20px', position: 'relative', zIndex: 30 }}>
           <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 16px' }}>Configuración del Período de Disponibilidad</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '16px' }}>
             <div>
@@ -692,8 +789,8 @@ export default function DisponibilidadPage() {
                   </div>
                   <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
                     {notifDestino === 'todos'
-                      ? 'Se enviará un correo automático a todos los docentes asignados al actualizar el período'
-                      : `Se enviará un correo automático a ${docentes.find(d => d.id === notifDestino)?.nombre || 'un docente'} al actualizar el período`}
+                      ? 'Se enviará un correo automático a todos los docentes asignados y un resumen a tu correo'
+                      : `Se enviará un correo automático a ${docentes.find(d => d.id === notifDestino)?.nombre || 'un docente'} y un resumen a tu correo`}
                   </p>
                 </div>
               </div>
@@ -719,15 +816,12 @@ export default function DisponibilidadPage() {
               </div>
             </div>
             {/* Selector de destinatarios de la notificación */}
-            <div style={{ marginTop: '12px' }}>
+            <div style={{ marginTop: '12px', position: 'relative', zIndex: 4 }}>
               <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 600 }}>Enviar notificación a:</label>
               <ComboboxOpciones
                 value={notifDestino}
                 onChange={setNotifDestino}
-                opciones={[
-                  { id: 'todos', nombre: 'Todos los docentes asignados', grupo: true },
-                  ...docentes.map(d => ({ id: d.id, nombre: d.nombre })),
-                ]}
+                opciones={opcionesNotifDestino}
                 ariaLabel="Enviar notificación a"
                 searchPlaceholder="Buscar docente..."
                 placeholder="Todos los docentes asignados"
@@ -751,20 +845,24 @@ export default function DisponibilidadPage() {
             onClick={guardarDisponibilidadPeriodo}
             disabled={saving || !fechaInicio || !fechaCierre}
           >
-            {saving ? 'ACTUALIZANDO...' : 'ACTUALIZAR PERÍODO'}
+            {saving
+              ? 'GUARDANDO...'
+              : enviarNotificacion
+                ? (notifDestino === 'todos' ? 'GUARDAR Y NOTIFICAR DOCENTES' : 'GUARDAR Y NOTIFICAR DOCENTE')
+                : 'GUARDAR PERÍODO'}
           </button>
         </div>
       )}
 
-      <div className="card" style={{ marginBottom: '20px' }}>
+      <div className="card" style={{ marginBottom: '20px', position: 'relative', zIndex: 20 }}>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           {isAdminOrSec ? (
-            <div className="form-group" style={{ margin: 0, flex: 1 }}>
+            <div className="form-group" style={{ margin: 0, flex: 1, position: 'relative', zIndex: 3 }}>
               <label className="form-label">Seleccionar Docente</label>
               <ComboboxOpciones
                 value={docenteId}
                 onChange={id => { setDocenteId(id); cargarDisponibilidad(id); }}
-                opciones={docentes.map(d => ({ id: d.id, nombre: d.nombre }))}
+                opciones={opcionesDocentes}
                 ariaLabel="Seleccionar Docente"
                 searchPlaceholder="Buscar docente..."
                 placeholder="Seleccionar docente..."
@@ -793,7 +891,7 @@ export default function DisponibilidadPage() {
         </div>
       </div>
 
-      <div className="card" style={{ overflowX: 'auto' }}>
+      <div className="card" style={{ overflowX: 'auto', position: 'relative', zIndex: 10 }}>
         <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap', fontSize: '13px' }}>
           <span className="availability-legend__item availability-legend__preferred">
             <span style={{ display: 'inline-block', width: 14, height: 14, background: '#22c55e', border: '1px solid #16a34a', marginRight: 6 }} />
@@ -804,6 +902,19 @@ export default function DisponibilidadPage() {
             No disponible
           </span>
         </div>
+        {slotsVisibles.length === 0 ? (
+          <div style={{
+            minWidth: '900px',
+            padding: '24px',
+            border: '1px dashed #cbd5e1',
+            borderRadius: '10px',
+            background: '#f8fafc',
+            color: '#475569',
+            textAlign: 'center',
+          }}>
+            No hay franjas horarias disponibles para mostrar en la grilla.
+          </div>
+        ) : (
         <div
           className="horario-grid"
           style={{ minWidth: '900px', userSelect: 'none' }}
@@ -812,9 +923,7 @@ export default function DisponibilidadPage() {
         >
           <div className="horario-header">Hora</div>
           {DIAS.map(d => <div key={d} className="horario-header">{DIAS_LABEL[d]}</div>)}
-          {slots.map((slot) => {
-            const isRestringido = loadedRestringidos && (slot.id in restringidos);
-            if (isRestringido) return null;
+          {slotsVisibles.map((slot) => {
             return (
               <div key={slot.id} style={{ display: 'contents' }}>
                 <div className="horario-time">{slot.hora_inicio}<br />{slot.hora_fin}</div>
@@ -834,8 +943,8 @@ export default function DisponibilidadPage() {
                         borderBottom: '1px solid #e2e8f0',
                         background: st.bg,
                         minHeight: 36,
-                        cursor: soloLectura ? 'default' : 'pointer',
-                        opacity: soloLectura ? 0.85 : 1,
+                        cursor: puedeEditar ? 'pointer' : 'default',
+                        opacity: puedeEditar ? 1 : 0.85,
                       }}
                     />
                   );
@@ -844,6 +953,7 @@ export default function DisponibilidadPage() {
             );
           })}
         </div>
+        )}
       </div>
     </div>
   );

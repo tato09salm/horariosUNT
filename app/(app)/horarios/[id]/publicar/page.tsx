@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import GrillaHorarios from '@/components/horarios/GrillaHorarios';
-import { BotonExportarFormatoUNT } from '@/components/exportar/BotonExportarFormatoUNT';
+import { exportarFormatoUNT } from '@/components/exportar/BotonExportarFormatoUNT';
 
 const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 const DIAS_LABEL: Record<string, string> = { lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado' };
@@ -24,29 +24,32 @@ export default function PublicarPage() {
   const [filtroTipo, setFiltroTipo] = useState('');
   const [filtroDocente, setFiltroDocente] = useState('');
   const [filtroCurso, setFiltroCurso] = useState('');
+  const [exportMenuAbierto, setExportMenuAbierto] = useState(false);
   const itemsPerPage = 20;
   const publicado = prog?.estado === 'publicado';
 
   const cargarDatos = useCallback(async () => {
     setLoading(true);
+    // Timeout por petición: evita que un endpoint lento/colgado deje la página
+    // en "Cargando..." para siempre (Promise.all nunca resolvería).
+    const fetchT = (url: string, ms = 10000) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), ms);
+      return fetch(url, { signal: ctrl.signal })
+        .then(r => r.json())
+        .finally(() => clearTimeout(t))
+        .catch(() => ({}));
+    };
     try {
       const [progRes, dashRes, exportRes] = await Promise.all([
-        fetch(`/api/horarios/programaciones/${progId}`).then(r => {
-          if (!r.ok) throw new Error('Failed to fetch programacion');
-          return r.json();
-        }),
-        fetch('/api/dashboard').then(r => {
-          if (!r.ok) throw new Error('Failed to fetch dashboard');
-          return r.json();
-        }),
-        fetch(`/api/horarios/programaciones/${progId}/exportar`).then(r => {
-          if (!r.ok) throw new Error('Failed to fetch export');
-          return r.json();
-        }).catch(() => ({ asignaciones: [] }))
+        fetchT(`/api/horarios/programaciones/${progId}`),
+        fetchT('/api/dashboard'),
+        fetchT(`/api/horarios/programaciones/${progId}/exportar`, 15000),
       ]);
-      
-      setProg(progRes.data);
-      const slotsData = dashRes.slots || [];
+
+      const progData = progRes?.data ?? null;
+      setProg(progData);
+      const slotsData = dashRes?.slots || [];
       setSlots(slotsData);
       
       // Map export asignaciones to match GrillaHorarios format
@@ -89,6 +92,24 @@ export default function PublicarPage() {
 
   useEffect(() => { cargarDatos(); }, [cargarDatos]);
 
+  // Al volver atrás con el botón del navegador, la página puede restaurarse
+  // desde BFCache con state congelado (loading=true) y sin re-ejecutar efectos.
+  // En ese caso recargamos los datos explícitamente.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) cargarDatos();
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, [cargarDatos]);
+
+  // Guard: evita quedarse en "Cargando..." si alguna petición cuelga
+  // (p. ej. al volver atrás con el botón del navegador).
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 12000);
+    return () => clearTimeout(t);
+  }, [progId]);
+
   const publicarHorario = async () => {
     if (!window.confirm('¿Estás seguro de publicar este horario? Esto sobreescribirá el horario oficial del ciclo.')) return;
     setPublishing(true); setMsg(null);
@@ -100,7 +121,19 @@ export default function PublicarPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setMsg({ type: 'success', text: `¡Horario publicado con éxito! Se insertaron ${data.count} bloques.` });
+      let notifText = '';
+      if (data.notificacionExito === true) {
+        notifText = `Se notificó por correo a ${data.notificados} docente${data.notificados === 1 ? '' : 's'}.`;
+      } else if (data.notificacionExito === false) {
+        notifText = 'No se pudo notificar por correo a los docentes (revisa la configuración SMTP).';
+      } else {
+        notifText = 'La notificación por correo está deshabilitada (EMAILS_DISABLED).';
+      }
+      setMsg({
+        type: 'success',
+        text: `¡Horario publicado con éxito! Se insertaron ${data.count} bloques en el horario oficial.`,
+        detail: notifText,
+      });
       cargarDatos();
     } catch (e: any) {
       setMsg({ type: 'error', text: e.message });
@@ -160,6 +193,15 @@ export default function PublicarPage() {
     a.download = `horario-${prog?.nombre || progId}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const exportarUNT = async () => {
+    try {
+      await exportarFormatoUNT(progId);
+    } catch (err: any) {
+      alert(`Error: ${err?.message || 'desconocido'}`);
+      console.error(err);
+    }
   };
 
   const exportarExcel = async () => {
@@ -294,6 +336,20 @@ export default function PublicarPage() {
   const totalPages = Math.ceil(agrupadas.length / itemsPerPage);
   const paginatedData = agrupadas.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+  const resumenData = useMemo(() => {
+    const docentesSet = new Set<string>();
+    const cursosSet = new Set<string>();
+    for (const a of asignaciones) {
+      if (a.docente_nombre) docentesSet.add(a.docente_nombre);
+      if (a.curso_codigo) cursosSet.add(a.curso_codigo);
+    }
+    return {
+      docentes: prog?.stats?.total_docentes ?? docentesSet.size,
+      cursos: prog?.stats?.total_cursos ?? cursosSet.size,
+      horas: prog?.stats?.total_horas ?? asignaciones.length,
+    };
+  }, [asignaciones, prog]);
+
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando datos...</div>;
   if (!prog) return <div style={{ padding: '40px', textAlign: 'center' }}>Programación no encontrada</div>;
 
@@ -303,6 +359,52 @@ export default function PublicarPage() {
         <a href="/horarios" style={{ fontSize: '13px', color: '#64748b', textDecoration: 'none' }}>← Volver a Horarios</a>
       </div>
 
+      {/* Stepper de fases */}
+      <div className="card" style={{ padding: '14px 18px', marginBottom: '24px', borderRadius: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          {[{ num: 1, label: 'Carga', url: `/horarios/crear?id=${progId}` },
+            { num: 2, label: 'Disponibilidad', url: `/horarios/${progId}/disponibilidad` },
+            { num: 3, label: 'Programación', url: `/horarios/${progId}/programar` },
+            { num: 4, label: 'Publicación', url: `/horarios/${progId}/publicar` }]
+            .map((s, i, arr) => {
+              const done = s.num < 4;
+              const active = s.num === 4;
+              const fill = active
+                ? 'linear-gradient(135deg, #34d399 0%, #059669 100%)'
+                : done ? 'linear-gradient(135deg, #60a5fa 0%, #2563eb 100%)' : 'var(--bg-card-hover)';
+              const fg = active || done ? '#fff' : 'var(--text-muted)';
+              return (
+                <div key={s.num} style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: '1 1 0', minWidth: '150px' }}>
+                  <a href={s.url} style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', minWidth: 0 }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                      background: fill,
+                      border: done || active ? 'none' : `2px solid var(--border-color)`,
+                      color: fg,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 12, fontWeight: 700,
+                      boxShadow: active ? '0 3px 10px rgba(16,185,129,0.35)' : 'none',
+                    }}>
+                      {done ? '✓' : s.num}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 700, color: active ? 'var(--text-primary)' : done ? '#2563eb' : 'var(--text-muted)' }}>
+                        Fase {s.num}
+                      </div>
+                      <div style={{ fontSize: 12, color: active ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: active ? 600 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 110 }}>
+                        {s.label}
+                      </div>
+                    </div>
+                  </a>
+                  {i < arr.length - 1 && (
+                    <div style={{ flex: 1, height: 2, borderRadius: 2, background: s.num < 4 ? '#2563eb' : 'var(--border-color)', minWidth: 10 }} />
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      </div>
+
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', margin: '0 0 4px' }}>{prog.nombre}</h1>
@@ -310,26 +412,66 @@ export default function PublicarPage() {
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {publicado ? (
-            <button className="btn-secondary" onClick={solicitarEditarHorario}>✏️ Editar horario (Volver a Fase 3)</button>
+            <button className="btn-neutral" onClick={solicitarEditarHorario}>✏️ Editar horario</button>
           ) : (
             <>
-              <button className="btn-secondary" onClick={retrocederFase}>← Volver a Fase 3</button>
+              <button className="btn-neutral" onClick={retrocederFase}>← Volver a Fase 3</button>
               <button className="btn-danger" onClick={cancelarProgramacion}>Cancelar</button>
             </>
           )}
-          {asignaciones.length > 0 && <BotonExportarFormatoUNT programacionId={progId} />}
-          <button className="btn-secondary" onClick={exportarCSV} disabled={!asignaciones.length}>
-            📥 Exportar CSV
-          </button>
-          <button className="btn-secondary" onClick={exportarPDF} disabled={!asignaciones.length}>
-            📄 Exportar PDF
-          </button>
+
+          {/* Exportar agrupado en dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button
+              className="btn-secondary"
+              onClick={() => setExportMenuAbierto(o => !o)}
+              disabled={!asignaciones.length}
+            >
+              📥 Exportar <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
+            </button>
+            {exportMenuAbierto && asignaciones.length > 0 && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => setExportMenuAbierto(false)} />
+                <div style={{
+                  position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 20,
+                  background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+                  borderRadius: '10px', boxShadow: '0 10px 28px rgba(0,0,0,0.14)',
+                  padding: '6px', minWidth: '240px',
+                }}>
+                  {[
+                    { label: '📋 Formato Oficial UNT (Excel)', fn: exportarUNT },
+                    { label: '📥 Exportar CSV', fn: exportarCSV },
+                    { label: '📄 Exportar PDF', fn: exportarPDF },
+                  ].map(item => (
+                    <button
+                      key={item.label}
+                      onClick={() => { setExportMenuAbierto(false); item.fn(); }}
+                      style={{
+                        display: 'flex', width: '100%', alignItems: 'center', gap: '8px',
+                        padding: '9px 12px', borderRadius: '8px', border: 'none',
+                        background: 'transparent', color: 'var(--text-primary)',
+                        fontSize: '13px', fontWeight: 500, cursor: 'pointer', textAlign: 'left',
+                        transition: 'background 0.12s ease',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-card-hover)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {msg && (
         <div className={`alert alert-${msg.type}`} style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>{msg.text}</span>
+          <div>
+            <span>{msg.text}</span>
+            {msg.detail && (<div style={{ fontSize: '0.85em', opacity: 0.85, marginTop: 4 }}>{msg.detail}</div>)}
+          </div>
           <button
             onClick={() => setMsg(null)}
             style={{
@@ -388,21 +530,42 @@ export default function PublicarPage() {
         <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#1e293b', marginBottom: '8px' }}>
           {publicado ? 'Horario Publicado Oficialmente' : 'Listo para publicar'}
         </h2>
-        <p style={{ color: '#475569', marginBottom: '24px' }}>
+        <p style={{ color: '#475569', marginBottom: '20px' }}>
           {publicado
-            ? `Publicado el ${new Date(prog.publicado_at).toLocaleDateString('es-PE', { dateStyle: 'long' })}. El horario ya es visible para todos los usuarios.`
+            ? `El horario ${prog.nombre} ya es visible para todos los usuarios del ciclo ${prog.ciclo_nombre || ''}.`
             : `El motor ha generado ${asignaciones.length} bloques. Al publicar, este borrador se convierte en el horario oficial del ciclo.`
           }
         </p>
+
+        {/* Resumen de datos */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '22px' }}>
+          {[
+            { label: 'Docentes', value: resumenData.docentes },
+            { label: 'Cursos', value: resumenData.cursos },
+            { label: 'Horas totales', value: `${resumenData.horas}h` },
+          ].map(stat => (
+            <div key={stat.label} style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '12px 8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-primary)', lineHeight: 1.1 }}>{stat.value}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>{stat.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {publicado && (
+          <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 22px' }}>
+            Publicado el <b>{new Date(prog.publicado_at).toLocaleString('es-PE', { dateStyle: 'long', timeStyle: 'short' })}</b>
+            {prog.publicador_nombre ? <> por <b>{prog.publicador_nombre}</b></> : null}.
+          </p>
+        )}
+
         {!publicado ? (
           <button className="btn-primary" style={{ fontSize: '16px', padding: '12px 32px' }}
             onClick={publicarHorario} disabled={publishing || !asignaciones.length}>
             {publishing ? 'Publicando...' : 'Publicar Horario Oficial'}
           </button>
         ) : (
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-            <a href="/horarios"><button className="btn-secondary">Volver atrás</button></a>
-            <a href="/horarios"><button className="btn-secondary">Ver horario general</button></a>
+          <div style={{ display: 'flex', gap: '14px', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+            <a href={`/horarios?vista=horario&ciclo=${prog?.ciclo_academico_id ?? ''}`}><button className="btn-secondary">👁 Ver horario general</button></a>
             <a href="/reportes"><button className="btn-primary">Ir a Reportes</button></a>
           </div>
         )}

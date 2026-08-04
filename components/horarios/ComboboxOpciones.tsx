@@ -6,6 +6,8 @@ export interface OpcionCombobox {
   id: string;
   nombre: string;
   grupo?: boolean;
+  completado?: boolean;
+  descripcion?: string;
 }
 
 interface ComboboxOpcionesProps {
@@ -43,10 +45,11 @@ export function ComboboxOpciones({
     return opciones.filter(o => !o.grupo && o.nombre.toLowerCase().includes(q));
   }, [opciones, busqueda]);
 
+  const opcionActual = useMemo(() => opciones.find(o => o.id === value), [opciones, value]);
+
   const etiquetaActual = useMemo(() => {
-    const opt = opciones.find(o => o.id === value);
-    return opt ? opt.nombre : (opciones.length ? opciones[0].nombre : '');
-  }, [opciones, value]);
+    return opcionActual ? opcionActual.nombre : (opciones.length ? opciones[0].nombre : '');
+  }, [opcionActual, opciones]);
 
   const elegir = useCallback((id: string) => {
     onChange(id);
@@ -113,7 +116,7 @@ export function ComboboxOpciones({
   }, []);
 
   return (
-    <div ref={contRef} style={{ position: 'relative' }}>
+    <div ref={contRef} style={{ position: 'relative', zIndex: abierto ? 50 : 'auto' }}>
       <button
         type="button"
         role="combobox"
@@ -151,9 +154,26 @@ export function ComboboxOpciones({
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: value ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
           {value ? etiquetaActual : placeholder}
         </span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: 'var(--text-secondary)' }}>
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {value && opcionActual?.completado && !opcionActual?.grupo && (
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#166534',
+                background: 'rgba(34,197,94,0.14)',
+                border: '1px solid rgba(34,197,94,0.30)',
+                borderRadius: '999px',
+                padding: '2px 8px',
+              }}
+            >
+              Listo
+            </span>
+          )}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-secondary)' }}>
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </span>
       </button>
 
       {abierto && (
@@ -166,7 +186,7 @@ export function ComboboxOpciones({
             top: 'calc(100% + 6px)',
             left: 0,
             right: 0,
-            zIndex: 1000,
+            zIndex: 60,
             background: 'var(--bg-card)',
             border: '1px solid var(--border-color)',
             borderRadius: '10px',
@@ -216,6 +236,14 @@ export function ComboboxOpciones({
               opcionesFiltradas.map((opt, idx) => {
                 const seleccionada = value === opt.id;
                 const resaltada = idx === resaltado;
+                const completado = !!opt.completado && !opt.grupo;
+                const background = seleccionada
+                  ? (completado ? 'rgba(34,197,94,0.18)' : 'rgba(59,130,246,0.12)')
+                  : resaltada
+                    ? (completado ? 'rgba(34,197,94,0.12)' : 'var(--bg-card-hover)')
+                    : (completado ? 'rgba(34,197,94,0.08)' : 'transparent');
+                const indicador = completado ? '✓' : (seleccionada ? '✓' : (resaltada ? '▸' : ''));
+                const indicadorColor = completado ? '#16a34a' : '#2563EB';
                 return (
                   <div key={opt.id}>
                     {idx === 1 && !busqueda && (
@@ -232,17 +260,41 @@ export function ComboboxOpciones({
                         fontSize: '13px',
                         cursor: 'pointer',
                         display: 'flex',
-                        alignItems: 'center',
+                        alignItems: 'flex-start',
                         gap: '8px',
-                        background: seleccionada ? 'rgba(59,130,246,0.12)' : resaltada ? 'var(--bg-card-hover)' : 'transparent',
+                        background,
                         fontWeight: seleccionada ? '600' : '400',
                         color: 'var(--text-primary)',
                       }}
                     >
-                      <span style={{ width: '18px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB' }}>
-                        {seleccionada ? '✓' : (resaltada ? '▸' : '')}
+                      <span style={{ width: '18px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: indicador ? indicadorColor : 'transparent', paddingTop: '1px' }}>
+                        {indicador}
                       </span>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.nombre}</span>
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.nombre}</span>
+                        {opt.descripcion && (
+                          <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                            {opt.descripcion}
+                          </span>
+                        )}
+                      </span>
+                      {completado && (
+                        <span
+                          style={{
+                            marginLeft: 'auto',
+                            flexShrink: 0,
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            color: '#166534',
+                            background: 'rgba(34,197,94,0.14)',
+                            border: '1px solid rgba(34,197,94,0.30)',
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                          }}
+                        >
+                          Registrado
+                        </span>
+                      )}
                       {opt.grupo && (
                         <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: '11px', fontWeight: '500', color: 'var(--text-secondary)', background: 'var(--bg-card-hover)', padding: '2px 8px', borderRadius: '10px' }}>{badgeGrupo}</span>
                       )}

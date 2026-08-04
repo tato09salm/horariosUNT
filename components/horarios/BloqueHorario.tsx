@@ -1,4 +1,6 @@
 'use client';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   colorCiclo,
   TIPO_SESION_ICON,
@@ -32,6 +34,7 @@ export interface BloqueHorarioProps {
   movidoManualmente?: boolean;
   bloqueado?: boolean;
   duracion?: number;
+  mini?: boolean;
 }
 
 function IconoTipoSesion({ tipo }: { tipo: string }) {
@@ -60,7 +63,8 @@ function IconoTipoSesion({ tipo }: { tipo: string }) {
         alignItems: 'center',
         justifyContent: 'center',
         verticalAlign: 'middle',
-        lineHeight: '1'
+        lineHeight: '1',
+        flexShrink: 0
       }}
       title={tipo.toUpperCase()}
     >
@@ -69,7 +73,7 @@ function IconoTipoSesion({ tipo }: { tipo: string }) {
   );
 }
 
-export default function BloqueHorario({ asignacion: c, compact = false, mapaColores, movidoManualmente = false, bloqueado = false, duracion = 1 }: BloqueHorarioProps) {
+export default function BloqueHorario({ asignacion: c, compact = false, mini = false, mapaColores, movidoManualmente = false, bloqueado = false, duracion = 1 }: BloqueHorarioProps) {
   const isAsesoria = c.tipo === 'asesoria';
   const cicloColor = colorCiclo(c.ciclo_plan);
   const tipo = c.tipo || 'teoria';
@@ -108,15 +112,145 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
     customStyle.backgroundImage = 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.06) 4px, rgba(0,0,0,0.06) 8px)';
   }
 
+  // Reservar espacio para el badge de ciclo (C1..C10) sin que tape el contenido
+  if (c.ciclo_plan && !compact) {
+    customStyle.paddingRight = '36px';
+  }
+
   const numG = typeof c.numero_grupo === 'string' ? parseInt(c.numero_grupo, 10) : (c.numero_grupo || 1);
   const groupPillColors = ['#64748b', '#64748b', '#2563eb', '#d97706', '#059669', '#7c3aed']; // G1 uses default gray/slate, others get distinct colors
   const pillColor = groupPillColors[numG] || '#475569';
 
+  // ── Tooltip/popover para tarjetas compactas (texto truncado) ────────────────
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [hover, setHover] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [anchorRect, setAnchorRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; placement: 'top' | 'bottom'; width: number }>({ top: 0, left: 0, placement: 'bottom', width: 0 });
+  const [ready, setReady] = useState(false);
+
+  const tooltipVisible = compact && !!(hover || pinned) && !!anchorRect;
+
+  const showTooltip = () => {
+    const el = cardRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setAnchorRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+    setReady(false);
+  };
+
+  const clearHoverTimer = () => {
+    if (hoverTimer.current) { clearTimeout(hoverTimer.current); hoverTimer.current = null; }
+  };
+
+  const hideTooltip = () => {
+    clearHoverTimer();
+    setHover(false);
+    if (!pinned) {
+      setAnchorRect(null);
+      setReady(false);
+    }
+  };
+
+  const togglePinned = () => {
+    setPinned(prev => {
+      const next = !prev;
+      if (next) {
+        clearHoverTimer();
+        setHover(false);
+        showTooltip();
+      } else {
+        setAnchorRect(null);
+        setReady(false);
+      }
+      return next;
+    });
+  };
+
+  // Posicionamiento inteligente tras medir el tooltip
+  useEffect(() => {
+    if (!anchorRect || !tooltipRef.current) return;
+    const t = tooltipRef.current;
+    const tw = t.offsetWidth;
+    const th = t.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const M = 8;
+    const spaceBelow = vh - (anchorRect.top + anchorRect.height);
+    const spaceAbove = anchorRect.top;
+    const placement: 'top' | 'bottom' = (spaceBelow >= spaceAbove && spaceBelow >= 40) ? 'bottom' : 'top';
+    let top = placement === 'bottom'
+      ? anchorRect.top + anchorRect.height + 8
+      : anchorRect.top - th - 8;
+    // Nunca dejar el tooltip fuera de la pantalla
+    top = Math.max(M, Math.min(top, vh - th - M));
+    let left = anchorRect.left + anchorRect.width / 2 - tw / 2;
+    left = Math.max(M, Math.min(left, vw - tw - M));
+    setPos({ top, left, placement, width: tw });
+    setReady(true);
+  }, [anchorRect, compact]);
+
+  // Cerrar con un tap fuera de la tarjeta
+  useEffect(() => {
+    if (!pinned) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (cardRef.current && !cardRef.current.contains(t)) {
+        setPinned(false);
+        setAnchorRect(null);
+        setReady(false);
+      }
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [pinned]);
+
+  // Ocultar al hacer scroll (el tooltip está en fixed y quedaría descolocado)
+  useEffect(() => {
+    if (!tooltipVisible) return;
+    const onScroll = () => {
+      setAnchorRect(null);
+      setReady(false);
+      setPinned(false);
+      setHover(false);
+    };
+    window.addEventListener('scroll', onScroll, true);
+    return () => window.removeEventListener('scroll', onScroll, true);
+  }, [tooltipVisible]);
+
+  const durLabel = duracion > 1
+    ? `${duracion}H`
+    : c.bloque_total && c.bloque_total > 1
+      ? `${c.bloque_parte ?? 1}/${c.bloque_total}`
+      : '1H';
+
+  const tituloCodigo = isAsesoria
+    ? 'ASESORÍA'
+    : tipo === 'no_lectiva'
+      ? (c.curso_nombre || 'NO LECTIVA')
+      : tipo === 'carga_adicional'
+        ? (c.curso_nombre || 'CARGA ADICIONAL')
+        : (c.curso_codigo || c.curso_nombre || '');
+
+  const arrowLeft = pos.width > 0 && anchorRect
+    ? Math.max(14, Math.min((anchorRect.left + anchorRect.width / 2) - pos.left, pos.width - 14))
+    : 14;
+
   return (
+    <>
     <div
-      className={`bloque-horario${compact ? ' bloque-horario--compact' : ''}`}
+      ref={cardRef}
+      className={`bloque-horario${compact ? ' bloque-horario--compact' : ''}${mini ? ' bloque-horario--mini' : ''}`}
       style={customStyle}
-    title={[
+      onMouseEnter={compact ? () => {
+        clearHoverTimer();
+        hoverTimer.current = setTimeout(() => { setHover(true); showTooltip(); }, 160);
+      } : undefined}
+      onMouseLeave={compact ? hideTooltip : undefined}
+      onClick={compact ? togglePinned : undefined}
+    title={compact ? undefined : [
         c.curso_nombre,
         c.tipo !== 'no_lectiva' && c.tipo !== 'carga_adicional' ? `Sección G${c.numero_grupo}` : '',
         tipoLabel,
@@ -128,21 +262,21 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
     >
       <div className="bloque-horario__titulo">
         {isAsesoria ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', minWidth: 0, maxWidth: '100%' }}>
             ASESORÍA <IconoTipoSesion tipo="asesoria" />
           </span>
         ) : tipo === 'no_lectiva' ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px', minWidth: 0, maxWidth: '100%' }}>
             <strong>{c.curso_nombre}</strong>
             <IconoTipoSesion tipo="no_lectiva" />
           </span>
         ) : tipo === 'carga_adicional' ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px', minWidth: 0, maxWidth: '100%' }}>
             <strong>{c.curso_nombre}</strong>
             <IconoTipoSesion tipo="carga_adicional" />
           </span>
         ) : (
-          <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px', minWidth: 0, maxWidth: '100%' }}>
             <strong>{c.curso_codigo}</strong>
             {!compact && c.curso_nombre && (
               <span className="bloque-horario__nombre-curso"> — {c.curso_nombre}</span>
@@ -154,7 +288,8 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
               borderRadius: '12px',
               fontSize: '10px',
               fontWeight: 'bold',
-              marginLeft: '2px'
+              marginLeft: '2px',
+              flexShrink: 0
             }}>
               G{c.numero_grupo}
             </span>
@@ -168,7 +303,7 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
       </div>
       {!compact && (
         <div className="bloque-horario__docente">
-          {formatDocente(c.docente_nombre)}
+          <span className="bloque-horario__docente-nombre">{formatDocente(c.docente_nombre)}</span>
           {c.prioridad_usada ? (
             <span className={`bloque-horario__prio bloque-horario__prio--p${c.prioridad_usada}`}>
               {c.prioridad_usada === 1 ? '★ P1' : '○ P2'}
@@ -227,5 +362,34 @@ export default function BloqueHorario({ asignacion: c, compact = false, mapaColo
         </span>
       )}
     </div>
+    {tooltipVisible && typeof document !== 'undefined' && createPortal(
+      <div
+        ref={tooltipRef}
+        className={`horario-tooltip horario-tooltip--${pos.placement}${ready ? ' horario-tooltip--show' : ''}`}
+        style={{ top: pos.top, left: pos.left }}
+        role="tooltip"
+      >
+        <span className="horario-tooltip__arrow" style={{ left: arrowLeft }} />
+        <div className="horario-tooltip__titulo">
+          <strong>{tituloCodigo}</strong>
+          {c.curso_nombre && c.curso_nombre !== tituloCodigo && (
+            <span> — {c.curso_nombre}</span>
+          )}
+        </div>
+        <div className="horario-tooltip__badges">
+          <span className="horario-tooltip__grupo" style={{ background: pillColor }}>G{c.numero_grupo ?? 1}</span>
+          <IconoTipoSesion tipo={tipo} />
+          <span className="horario-tooltip__tipo">{tipoLabel}</span>
+        </div>
+        <div className="horario-tooltip__fila">Aula: <strong>{ambLabel}</strong></div>
+        <div className="horario-tooltip__fila">Duración: <strong>{durLabel}</strong></div>
+        <div className="horario-tooltip__fila">Docente: {formatDocente(c.docente_nombre) || 'Sin docente'}</div>
+        {c.prioridad_usada ? (
+          <div className="horario-tooltip__fila">Periodo: <strong>{c.prioridad_usada === 1 ? '★ P1' : '○ P2'}</strong></div>
+        ) : null}
+      </div>,
+      document.body
+    )}
+    </>
   );
 }

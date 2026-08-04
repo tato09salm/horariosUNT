@@ -70,6 +70,7 @@ export default function HorariosPage() {
     return () => clearTimeout(t);
   }, [msg]);
   const [showCrear, setShowCrear] = useState(false);
+  const [showCargaHorariaInfo, setShowCargaHorariaInfo] = useState(false);
   const [creando, setCreando] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState<string|null>(null);
   const [restaurandoId, setRestaurandoId] = useState<string|null>(null);
@@ -185,11 +186,13 @@ export default function HorariosPage() {
       if (v === 'programaciones' || v === 'horario' || v === 'mi-horario') {
         setVista(v as any);
       }
+      const c = params.get('ciclo');
+      if (c) setCicloId(c);
     }
   }, []);
 
   // Cargar datos iniciales
-  useEffect(() => {
+  const cargarIniciales = useCallback(() => {
     Promise.all([
       fetch('/api/ciclos').then(r => r.json()),
       fetch('/api/docentes').then(r => r.json()),
@@ -231,6 +234,15 @@ export default function HorariosPage() {
     }).finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => { cargarIniciales(); }, [cargarIniciales]);
+
+  // Guard: evita quedarse en "Cargando..." si alguna petición cuelga
+  // (p. ej. al volver atrás con el botón del navegador).
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 12000);
+    return () => clearTimeout(t);
+  }, []);
+
   // Cargar programaciones cuando cambia el ciclo
   const cargarProgramaciones = useCallback(() => {
     if (!cicloId) return;
@@ -238,6 +250,20 @@ export default function HorariosPage() {
       .then(r => r.json())
       .then(d => setProgramaciones(d.data || []));
   }, [cicloId]);
+
+  // Al volver atrás con el botón del navegador, la página puede restaurarse
+  // desde BFCache con state congelado (loading=true) y sin re-ejecutar efectos.
+  // En ese caso recargamos los datos explícitamente.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        cargarIniciales();
+        cargarProgramaciones();
+      }
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, [cargarIniciales, cargarProgramaciones]);
 
   useEffect(() => { cargarProgramaciones(); }, [cargarProgramaciones]);
 
@@ -455,6 +481,7 @@ export default function HorariosPage() {
       setMsg({ type: 'success', text: `Programación "${data.data.nombre}" creada correctamente` });
       setShowCrear(false);
       cargarProgramaciones();
+      setShowCargaHorariaInfo(true);
     } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
     finally { setCreando(false); }
   }
@@ -481,6 +508,23 @@ export default function HorariosPage() {
       if (!res.ok) throw new Error(data.error);
       setMsg({ type: 'success', text: 'Programación restaurada' });
       setRestaurandoId(null);
+      cargarProgramaciones();
+    } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
+  }
+
+  // Despublicar programación (volver a Fase 3)
+  async function despublicarProgramacion() {
+    if (!showDeleteModal || !window.confirm('¿Deseas despublicar el horario? Volverá a la Fase 3 de programación y podrás editarlo.')) return;
+    try {
+      const res = await fetch(`/api/horarios/programaciones/${showDeleteModal}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fase: 3 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setMsg({ type: 'success', text: 'Horario despublicado. Volvió a la Fase 3.' });
+      setShowDeleteModal(null);
       cargarProgramaciones();
     } catch (e: any) { setMsg({ type: 'error', text: e.message }); }
   }
@@ -648,6 +692,9 @@ export default function HorariosPage() {
     );
   }
 
+  // Si el ciclo seleccionado ya tiene un horario publicado, los horarios restringidos no deben poder editarse.
+  const restringidosBloqueado = (programaciones || []).some((p: any) => p.estado === 'publicado');
+
   return (
     <div className="horarios-index-page" style={{padding:'32px', color: darkMode ? 'var(--text-primary)' : 'var(--text-primary)'}}>
       {/* Header */}
@@ -692,8 +739,10 @@ export default function HorariosPage() {
           {canEdit && (
             <button
               className="btn-secondary"
-              style={{display:'inline-flex',alignItems:'center',gap:'8px',height:'40px',padding:'0 18px'}}
-              onClick={() => setShowConfigRestringidos(true)}
+              style={{display:'inline-flex',alignItems:'center',gap:'8px',height:'40px',padding:'0 18px',...(!restringidosBloqueado ? {} : {opacity:0.5,cursor:'not-allowed'})}}
+              onClick={restringidosBloqueado ? undefined : () => setShowConfigRestringidos(true)}
+              disabled={restringidosBloqueado}
+              title={restringidosBloqueado ? 'El ciclo seleccionado ya tiene un horario publicado. Cambia de ciclo académico para editar los horarios restringidos.' : 'Configurar horarios restringidos del ciclo'}
             >
               <Lock size={15} strokeWidth={2.2} />
               Configurar Horarios Restringidos
@@ -837,15 +886,16 @@ export default function HorariosPage() {
                               background:'var(--border-color)',borderRadius:'99px',
                             }} />
                             <div style={{
-                              position:'absolute',top:'45px',left:'5%',width:`${Math.min(100, ((prog.fase || 1) - 0.5) * 22.5)}%`,height:'4px',
+                              position:'absolute',top:'45px',left:'5%',width:`${prog.estado === 'publicado' ? 90 : Math.min(90, ((prog.fase || 1) - 0.5) * 22.5)}%`,height:'4px',
                               background:'linear-gradient(90deg, var(--color-success), var(--color-warning))',
                               borderRadius:'99px',transition:'width 0.4s ease',
                             }} />
                             <div style={{position:'relative',display:'flex',justifyContent:'space-between',margin:'0 5%'}}>
                               {[1,2,3,4].map(f => {
                                 const fi = getFaseInfo(f, darkMode);
-                                const activa = f === prog.fase;
-                                const completada = f < prog.fase;
+                                const publicadoFase4 = prog.estado === 'publicado' && f === 4;
+                                const activa = f === prog.fase && !publicadoFase4;
+                                const completada = f < prog.fase || publicadoFase4;
                                 return (
                                   <div key={f} style={{display:'flex',flexDirection:'column',alignItems:'center',width:'25%'}}>
                                     <div style={{
@@ -880,6 +930,11 @@ export default function HorariosPage() {
                               {prog.estado !== 'publicado' && prog.estado !== 'cancelado' && canEdit && (
                                 <button style={{padding:'6px 14px',fontSize:'13px',borderRadius:'6px',cursor:'pointer',background:'transparent',color:'#ef4444',border:'1px solid #ef4444',fontWeight:'500'}} onClick={() => setShowDeleteModal(prog.id)}>
                                   Cancelar
+                                </button>
+                              )}
+                              {prog.estado === 'publicado' && canEdit && (
+                                <button style={{padding:'6px 14px',fontSize:'13px',borderRadius:'6px',cursor:'pointer',background:'transparent',color:'#b45309',border:'1px solid #f59e0b',fontWeight:'500'}} onClick={() => setShowDeleteModal(prog.id)}>
+                                  Despublicar
                                 </button>
                               )}
                             </div>
@@ -1335,28 +1390,76 @@ export default function HorariosPage() {
         </div>
       )}
 
-      {/* Modal: Confirmar cancelación */}
-      {showDeleteModal && (
+      {/* Modal: Guía "Importar Carga Horaria" (aparece al crear una programación) */}
+      {showCargaHorariaInfo && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowCargaHorariaInfo(false)} style={{alignItems:'flex-start'}}>
+          <div className="modal" style={{maxWidth:'460px', marginTop:'120px'}}>
+            <div className="modal-header">
+              <h2 style={{fontSize:'18px',fontWeight:'600',margin:0,display:'flex',alignItems:'center',gap:'8px'}}>
+                <Download size={16} strokeWidth={2.2} style={{color:'#2563eb'}} />
+                Usa "Carga Horaria" en tu nueva programación
+              </h2>
+              <button onClick={() => setShowCargaHorariaInfo(false)} style={{background:'none',border:'none',cursor:'pointer',color:'#64748b'}}>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              {/* Mini-tarjeta simulando la del horario, con flecha apuntando al botón */}
+              <div style={{border:'1px solid var(--border-color)',borderRadius:'10px',padding:'12px',background:'var(--bg-card-hover)',marginBottom:'14px'}}>
+                <div style={{fontSize:'13px',fontWeight:'600',color:'var(--text-primary)',marginBottom:'8px'}}>La tarjeta de tu horario tiene este botón:</div>
+                <div style={{position:'relative',display:'inline-flex',alignItems:'center',gap:'6px',padding:'4px 10px',background:'transparent',color:'#2563eb',textDecoration:'underline',textUnderlineOffset:'2px'}}>
+                  <Download size={13} strokeWidth={2} />
+                  Carga Horaria
+                </div>
+              </div>
+              <p style={{fontSize:'13.5px',color:'var(--text-secondary)',margin:'0 0 10px',lineHeight:1.55}}>
+                El botón trae <strong style={{color:'var(--text-primary)'}}>automáticamente la data de los docentes</strong> (cursos y horas)
+                del ciclo <strong style={{color:'var(--text-primary)'}}>{ciclos.find((c: any) => c.id === cicloId)?.nombre || 'seleccionado'}</strong>,
+                el mismo ciclo que está activo en esta vista de Horarios, en vez de cargar todo a mano en la Fase 1.
+                Ahorra tiempo y evita errores de tipeo.
+              </p>
+              <ul style={{margin:'0',paddingLeft:'18px',fontSize:'13px',color:'var(--text-secondary)',display:'flex',flexDirection:'column',gap:'6px'}}>
+                <li><strong style={{color:'var(--text-primary)'}}>Ciclos de estudio:</strong> seleccionas qué cursos (I, II, III...) se importan.</li>
+                <li>La importación rellena <strong style={{color:'var(--text-primary)'}}>docentes y cursos</strong> de la nueva programación.</li>
+              </ul>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-primary" onClick={() => setShowCargaHorariaInfo(false)}>Entendido</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Confirmar cancelación / despublicar */}
+      {showDeleteModal && (() => {
+        const progModal = programaciones.find(p => p.id === showDeleteModal);
+        const esDespublicar = progModal?.estado === 'publicado';
+        return (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowDeleteModal(null)}>
           <div className="modal" style={{maxWidth:'420px'}}>
             <div className="modal-header">
-              <h2 style={{fontSize:'18px',fontWeight:'600',margin:0}}>¿Cancelar programación?</h2>
+              <h2 style={{fontSize:'18px',fontWeight:'600',margin:0}}>{esDespublicar ? '¿Despublicar horario?' : '¿Cancelar programación?'}</h2>
               <button onClick={() => setShowDeleteModal(null)} style={{background:'none',border:'none',cursor:'pointer',color:'#64748b'}}>
                 <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
               </button>
             </div>
             <div className="modal-body">
-              <div className="alert alert-warning">
-                Esta acción cancelará la programación. Los datos no se eliminarán pero no podrá continuar el flujo de creación.
+              <div className={esDespublicar ? 'alert alert-warning' : 'alert alert-warning'}>
+                {esDespublicar
+                  ? 'El horario dejará de ser el oficial y la programación volverá a la Fase 3 para que puedas editarla.'
+                  : 'Esta acción cancelará la programación. Los datos no se eliminarán pero no podrá continuar el flujo de creación.'}
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setShowDeleteModal(null)}>Volver</button>
-              <button className="btn-danger" onClick={cancelarProgramacion}>Sí, cancelar programación</button>
+              <button className="btn-danger" onClick={esDespublicar ? despublicarProgramacion : cancelarProgramacion}>
+                {esDespublicar ? 'Sí, despublicar' : 'Sí, cancelar programación'}
+              </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Modal: Confirmar restauración */}
       {restaurandoId && (
