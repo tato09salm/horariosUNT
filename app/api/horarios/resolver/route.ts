@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
     const advertencias: string[] = [];
     const cicloAcademicoId = prog.ciclo_id;
     for (const [docente_id, info] of horasPorDocente) {
+      // Solo se exigen las horas de cursos; la asesoría no bloquea la programación
       const horasRequeridas = info.horas;
       const rawSlots = await query(`
         SELECT * FROM disponibilidad_docente
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
       const totalSlots = filteredSlots.length;
       if (totalSlots < horasRequeridas) {
         advertencias.push(
-          `⚠️ Alerta: ${info.nombre} requiere ${horasRequeridas}h (${info.horas} cursos) pero solo tiene ${totalSlots}h disponibles. Faltan ${horasRequeridas - totalSlots}h.`
+          `Alerta: ${info.nombre} requiere ${horasRequeridas}h (${info.horas} horas de cursos) pero solo tiene ${totalSlots}h disponibles. Faltan ${horasRequeridas - totalSlots}h.`
         );
       }
     }

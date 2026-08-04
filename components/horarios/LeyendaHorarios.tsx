@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { BookOpen, FlaskConical, PencilLine } from 'lucide-react';
 import { type ColorCurso } from '@/lib/colores-curso';
 
 function romanizar(num: number): string {
@@ -71,16 +72,16 @@ export default function LeyendaHorarios({
           <p className="leyenda-horarios__seccion" style={{ fontWeight: '600', color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 8px' }}>Tipo de Sesión</p>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
             <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ background: '#1e40af', color: 'white', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>T</span> 
-              <span>Teoría (📘)</span>
+              <span style={{ background: '#1e40af', color: 'white', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>T</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><BookOpen size={14} strokeWidth={2.2} /> Teoría</span>
             </li>
             <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ background: '#b45309', color: 'white', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>P</span> 
-              <span>Práctica (✏️)</span>
+              <span style={{ background: '#b45309', color: 'white', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>P</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><PencilLine size={14} strokeWidth={2.2} /> Práctica</span>
             </li>
             <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ background: '#166534', color: 'white', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>L</span> 
-              <span>Laboratorio (🔬)</span>
+              <span style={{ background: '#166534', color: 'white', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', width: '20px', textAlign: 'center' }}>L</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><FlaskConical size={14} strokeWidth={2.2} /> Laboratorio</span>
             </li>
             {/*
             <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

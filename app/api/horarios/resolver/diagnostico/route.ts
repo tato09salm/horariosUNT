@@ -149,7 +149,8 @@ export async function GET(req: NextRequest) {
       const filteredSlots = await filtrarDisponibilidadPorCargaAdicional(rawSlots, cicloAcademicoId);
       
       const horasDisponibles = filteredSlots.length;
-      const horasRequeridas = Number(f.horas_requeridas_sin_asesoria ?? f.horas_requeridas ?? f.horas_cursos ?? 0);
+      // La asesoría/consejería no se considera en la Fase 3 (programación)
+      const horasRequeridas = Number(f.horas_requeridas_sin_asesoria ?? f.horas_cursos ?? f.horas_requeridas ?? 0);
       const horasFaltantes = Math.max(horasRequeridas - horasDisponibles, 0);
 
       const slots_p1 = filteredSlots.filter((s: any) => s.prioridad === 1).length;
@@ -165,9 +166,9 @@ export async function GET(req: NextRequest) {
       } else if (f.max_bloque_continuo != null && f.max_bloque_curso != null && Number(f.max_bloque_continuo) < Number(f.max_bloque_curso)) {
         estado = 'sin_bloque_continuo';
         mensaje = 'Marcar bloques continuos para teoría (lab no requiere contigüidad)';
-      } else if (dias_disponibles < 3) {
+      } else if (dias_disponibles < 2) {
         estado = 'pocos_dias';
-        mensaje = 'Disponibilidad en pocos días';
+        mensaje = 'Disponibilidad en un solo día';
       } else {
         estado = 'ok';
         mensaje = null;

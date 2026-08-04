@@ -17,6 +17,9 @@
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
 }
 
 .dark {
@@ -34,6 +37,9 @@
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4), 0 2px 4px -2px rgba(0,0,0,0.3);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5), 0 4px 6px -4px rgba(0,0,0,0.4);
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
 }
 
 * {
@@ -222,18 +228,18 @@ body {
   align-items: center; 
   gap: 8px; 
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .btn-primary:hover { 
   background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .btn-primary:active {
   transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .btn-primary:disabled { 
@@ -244,7 +250,7 @@ body {
 }
 
 .btn-secondary { 
-  background: var(--bg-card); 
+  background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-card-hover) 100%);
   color: var(--text-primary); 
   padding: 10px 20px; 
   border-radius: 10px; 
@@ -256,11 +262,40 @@ body {
   align-items: center; 
   gap: 8px; 
   transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
 .btn-secondary:hover { 
-  background: var(--bg-card-hover);
+  background: linear-gradient(180deg, var(--bg-card-hover) 0%, var(--bg-card) 100%);
   border-color: var(--input-border);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.btn-secondary:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.dark .btn-secondary {
+  background: linear-gradient(180deg, #1E293B 0%, #111827 100%);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.dark .btn-secondary:hover {
+  background: linear-gradient(180deg, #27364A 0%, #1A2435 100%);
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.4);
+}
+
+.dark .btn-secondary:active {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 .btn-exportar-formato-unt {
@@ -329,13 +364,13 @@ body {
   align-items: center; 
   gap: 8px; 
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .btn-danger:hover { 
   background: linear-gradient(135deg, #F87171 0%, #EF4444 100%);
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .btn-crud-edit {
@@ -1175,11 +1210,6 @@ tbody tr:hover {
   color: var(--text-primary) !important;
 }
 
-.dark .horarios-programar-page .diagnostico-panel .diagnostico-row span,
-.dark .horarios-programar-page .diagnostico-panel .diagnostico-detail-cell span {
-  color: inherit !important;
-}
-
 .dark .horarios-programar-page .diagnostico-panel .btn-secondary,
 .dark .horarios-programar-page .diagnostico-panel .btn-primary,
 .dark .horarios-programar-page .diagnostico-panel .btn-danger {
@@ -1204,6 +1234,11 @@ tbody tr:hover {
 }
 
 .dark .horarios-programar-page .diagnostico-detail-cell {
+  background: var(--bg-card-hover) !important;
+}
+
+.horarios-programar-page .diagnostico-table tbody tr.diagnostico-row:hover,
+.dark .horarios-programar-page .diagnostico-table tbody tr.diagnostico-row:hover {
   background: var(--bg-card-hover) !important;
 }
 

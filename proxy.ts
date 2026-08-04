@@ -4,7 +4,7 @@ import { verifyToken } from './lib/jwt';
 const publicPaths = ['/', '/api/auth/login'];
 const publicExtensions = ['.png', '.jpeg', '.jpg', '.svg', '.ico', '.webp'];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (publicPaths.some(p => pathname === p)) return NextResponse.next();

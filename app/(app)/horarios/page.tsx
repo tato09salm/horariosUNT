@@ -5,16 +5,17 @@ import { useTheme } from '@/lib/theme';
 import GrillaHorarios from '@/components/horarios/GrillaHorarios';
 import { BotonExportarExcel } from '@/components/exportar/BotonExportarExcel';
 import { BotonExportarFormatoUNT } from '@/components/exportar/BotonExportarFormatoUNT';
+import { Calendar, Lock, CalendarRange, LayoutGrid, User, Trash2, Download, RotateCcw, Plus, ClipboardList, Clock, Cog, CheckCircle2, type LucideIcon } from 'lucide-react';
 
 const DIAS = ['lunes','martes','miercoles','jueves','viernes','sabado'];
 const DIAS_LABEL: Record<string,string> = {lunes:'Lunes',martes:'Martes',miercoles:'Miérc.',jueves:'Jueves',viernes:'Viernes',sabado:'Sábado'};
 
 function getFaseInfo(fase: number, darkMode: boolean) {
-  const palette: Record<number, { label: string; color: string; bg: string; icon: string }> = {
-    1: { label: 'Carga de Información', color: darkMode ? '#93c5fd' : '#1e40af', bg: darkMode ? 'rgba(59,130,246,0.14)' : '#dbeafe', icon: '📋' },
-    2: { label: 'Disponibilidad Docente', color: darkMode ? '#6ee7b7' : '#065f46', bg: darkMode ? 'rgba(16,185,129,0.14)' : '#d1fae5', icon: '🕐' },
-    3: { label: 'Programación', color: darkMode ? '#fcd34d' : '#92400e', bg: darkMode ? 'rgba(245,158,11,0.14)' : '#fef3c7', icon: '⚡' },
-    4: { label: 'Publicado', color: darkMode ? '#86efac' : '#166534', bg: darkMode ? 'rgba(34,197,94,0.14)' : '#dcfce7', icon: '✅' },
+  const palette: Record<number, { label: string; color: string; bg: string; icon: LucideIcon }> = {
+    1: { label: 'Carga de Información', color: darkMode ? '#93c5fd' : '#1e40af', bg: darkMode ? 'rgba(59,130,246,0.14)' : '#dbeafe', icon: ClipboardList },
+    2: { label: 'Disponibilidad Docente', color: darkMode ? '#6ee7b7' : '#065f46', bg: darkMode ? 'rgba(16,185,129,0.14)' : '#d1fae5', icon: Clock },
+    3: { label: 'Programación', color: darkMode ? '#fcd34d' : '#92400e', bg: darkMode ? 'rgba(245,158,11,0.14)' : '#fef3c7', icon: Cog },
+    4: { label: 'Publicado', color: darkMode ? '#86efac' : '#166534', bg: darkMode ? 'rgba(34,197,94,0.14)' : '#dcfce7', icon: CheckCircle2 },
   };
   return palette[fase] || palette[1];
 }
@@ -62,6 +63,12 @@ export default function HorariosPage() {
   const [vista, setVista] = useState<'programaciones'|'horario'|'mi-horario'|'observaciones'|'mis-observaciones'>('programaciones');
   const [subVista, setSubVista] = useState<'activas'|'canceladas'>('activas');
   const [msg, setMsg] = useState<any>(null);
+
+  useEffect(() => {
+    if (!msg) return;
+    const t = setTimeout(() => setMsg(null), 5000);
+    return () => clearTimeout(t);
+  }, [msg]);
   const [showCrear, setShowCrear] = useState(false);
   const [creando, setCreando] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState<string|null>(null);
@@ -650,65 +657,15 @@ export default function HorariosPage() {
           <p style={{color:'var(--text-secondary)',fontSize:'14px',margin:0}}>Gestión de horarios académicos por fases</p>
         </div>
         <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
-          {!isDocente && (
-            <div style={{display:'flex',borderRadius:'8px',overflow:'hidden',border:'1px solid var(--border-color)'}}>
-              <button
-                style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',background:vista==='programaciones'?(darkMode ? 'rgba(59,130,246,0.18)' : '#1a3a5c'):'var(--bg-card)',color:vista==='programaciones'?(darkMode ? '#bfdbfe' : 'white'):'var(--text-secondary)'}}
-                onClick={() => setVista('programaciones')}
-              >📋 Programaciones</button>
-              <button
-                style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderLeft:'1px solid var(--border-color)',background:vista==='horario'?(darkMode ? 'rgba(59,130,246,0.18)' : '#1a3a5c'):'var(--bg-card)',color:vista==='horario'?(darkMode ? '#bfdbfe' : 'white'):'var(--text-secondary)'}}
-                onClick={() => setVista('horario')}
-              >📅 Horario General</button>
-            </div>
-          )}
-          {isDocente && (
-            <div style={{display:'flex',borderRadius:'8px',overflow:'hidden',border:'1px solid var(--border-color)'}}>
-              <button
-                style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',background:vista==='programaciones'?(darkMode ? 'rgba(59,130,246,0.18)' : '#1a3a5c'):'var(--bg-card)',color:vista==='programaciones'?(darkMode ? '#bfdbfe' : 'white'):'var(--text-secondary)'}}
-                onClick={() => setVista('programaciones')}
-              >📋 Mis Programaciones</button>
-              <button
-                style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderLeft:'1px solid var(--border-color)',background:vista==='mi-horario'?(darkMode ? 'rgba(59,130,246,0.18)' : '#1a3a5c'):'var(--bg-card)',color:vista==='mi-horario'?(darkMode ? '#bfdbfe' : 'white'):'var(--text-secondary)'}}
-                onClick={() => setVista('mi-horario')}
-              >👤 Mi Horario</button>
-              <button
-                style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderLeft:'1px solid var(--border-color)',background:vista==='horario'?(darkMode ? 'rgba(59,130,246,0.18)' : '#1a3a5c'):'var(--bg-card)',color:vista==='horario'?(darkMode ? '#bfdbfe' : 'white'):'var(--text-secondary)'}}
-                onClick={() => setVista('horario')}
-              >📅 Horario General</button>
-            </div>
-          )}
           {vista === 'programaciones' && canEdit && (
             <>
               <button className="btn-primary" onClick={() => setShowCrear(true)}>
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                <Plus size={16} strokeWidth={2.2} />
                 Nueva programación
               </button>
             </>
           )}
         </div>
-      </div>
-
-      {/* Observaciones tabs (segunda fila) */}
-      <div style={{display:'flex',gap:'8px',marginBottom:'16px',borderBottom:'1px solid var(--border-color)',paddingBottom:'8px'}}>
-        {!isDocente && (
-          <button
-            style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderRadius:'8px',background:vista==='observaciones'?'#1a3a5c':'var(--bg-card)',color:vista==='observaciones'?'white':'var(--text-secondary)'}}
-            onClick={() => setVista('observaciones')}
-          >💬 Observaciones</button>
-        )}
-        {isDocente && (
-          <>
-            <button
-              style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderRadius:'8px',background:vista==='mis-observaciones'?'#1a3a5c':'var(--bg-card)',color:vista==='mis-observaciones'?'white':'var(--text-secondary)'}}
-              onClick={() => setVista('mis-observaciones')}
-            >💬 Mis Observaciones</button>
-            <button
-              style={{padding:'8px 16px',fontSize:'13px',fontWeight:'500',border:'none',cursor:'pointer',borderRadius:'8px',background:vista==='observaciones'?'#1a3a5c':'var(--bg-card)',color:vista==='observaciones'?'white':'var(--text-secondary)'}}
-              onClick={() => setVista('observaciones')}
-            >💬 Todas</button>
-          </>
-        )}
       </div>
 
       {msg && (
@@ -719,52 +676,94 @@ export default function HorariosPage() {
       )}
 
       {/* Selector de ciclo */}
-      <div className="card" style={{marginBottom:'16px',padding:'16px'}}>
-        <div style={{display:'flex',gap:'12px',alignItems:'end',justifyContent:'space-between',width:'100%',flexWrap:'wrap'}}>
-          <div className="form-group" style={{margin:0,minWidth:'200px'}}>
-            <label className="form-label">Ciclo académico</label>
-            <select className="form-input" value={cicloId} onChange={e => setCicloId(e.target.value)}>
-              {ciclos.map(c => <option key={c.id} value={c.id}>{c.nombre} {c.activo ? '(Activo)' : ''}</option>)}
-            </select>
+      <div className="card" style={{marginBottom:'16px',padding:'18px 24px',borderRadius:'16px'}}>
+        <div style={{display:'flex',gap:'16px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}}>
+          <div style={{display:'flex',alignItems:'center',gap:'14px'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'center',width:'42px',height:'42px',borderRadius:'12px',flexShrink:0,background:'rgba(59,130,246,0.14)',color:'#1d4ed8'}}>
+              <Calendar size={20} strokeWidth={2} />
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
+              <label style={{fontSize:'12px',color:'var(--text-secondary)',fontWeight:'500',lineHeight:1}}>Ciclo académico</label>
+              <select className="form-input" style={{width:'auto'}} value={cicloId} onChange={e => setCicloId(e.target.value)}>
+                {ciclos.map(c => <option key={c.id} value={c.id}>{c.nombre} {c.activo ? '(Activo)' : ''}</option>)}
+              </select>
+            </div>
           </div>
           {canEdit && (
-            <button 
-              className="btn-secondary" 
-              style={{height:'40px', display:'flex', alignItems:'center', gap:'6px'}}
+            <button
+              className="btn-secondary"
+              style={{display:'inline-flex',alignItems:'center',gap:'8px',height:'40px',padding:'0 18px'}}
               onClick={() => setShowConfigRestringidos(true)}
             >
-              🔒 Configurar Horarios Restringidos
+              <Lock size={15} strokeWidth={2.2} />
+              Configurar Horarios Restringidos
             </button>
           )}
         </div>
       </div>
 
+      {/* Fila de pestañas: subvista + selector de vista */}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',marginBottom:'24px',flexWrap:'wrap'}}>
+        <div style={{display:'flex',gap:'8px'}}>
+          {canEdit && vista === 'programaciones' && (
+            <>
+              <button
+                style={{padding:'8px 16px',fontSize:'13px',fontWeight:'600',border:'none',cursor:'pointer',borderRadius:'8px',display:'inline-flex',alignItems:'center',gap:'7px',background:subVista==='activas'?'#1a3a5c':'var(--bg-card)',color:subVista==='activas'?'white':'var(--text-secondary)'}}
+                onClick={() => setSubVista('activas')}
+              >
+                <CalendarRange size={15} strokeWidth={2} />
+                Programaciones Activas
+              </button>
+              <button
+                style={{padding:'8px 16px',fontSize:'13px',fontWeight:'600',border:'none',cursor:'pointer',borderRadius:'8px',display:'inline-flex',alignItems:'center',gap:'7px',background:subVista==='canceladas'?'#1a3a5c':'var(--bg-card)',color:subVista==='canceladas'?'white':'var(--text-secondary)'}}
+                onClick={() => setSubVista('canceladas')}
+              >
+                <Trash2 size={15} strokeWidth={2} />
+                Programaciones Canceladas
+              </button>
+            </>
+          )}
+        </div>
+        {!isDocente && (
+          <div style={{display:'flex',borderRadius:'8px',overflow:'hidden',border:'1px solid var(--border-color)'}}>
+            <button
+              style={{padding:'8px 16px',fontSize:'13px',fontWeight:'600',border:'none',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:'7px',background:vista==='programaciones'?(darkMode ? 'rgba(59,130,246,0.18)' : '#1a3a5c'):'var(--bg-card)',color:vista==='programaciones'?(darkMode ? '#bfdbfe' : 'white'):'var(--text-secondary)'}}
+              onClick={() => setVista('programaciones')}
+            ><CalendarRange size={15} strokeWidth={2} /> Programaciones</button>
+            <button
+              style={{padding:'8px 16px',fontSize:'13px',fontWeight:'600',border:'none',cursor:'pointer',borderLeft:'1px solid var(--border-color)',display:'inline-flex',alignItems:'center',gap:'7px',background:vista==='horario'?(darkMode ? 'rgba(59,130,246,0.18)' : '#1a3a5c'):'var(--bg-card)',color:vista==='horario'?(darkMode ? '#bfdbfe' : 'white'):'var(--text-secondary)'}}
+              onClick={() => setVista('horario')}
+            ><LayoutGrid size={15} strokeWidth={2} /> Horario General</button>
+          </div>
+        )}
+        {isDocente && (
+          <div style={{display:'flex',borderRadius:'8px',overflow:'hidden',border:'1px solid var(--border-color)'}}>
+            <button
+              style={{padding:'8px 16px',fontSize:'13px',fontWeight:'600',border:'none',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:'7px',background:vista==='programaciones'?(darkMode ? 'rgba(59,130,246,0.18)' : '#1a3a5c'):'var(--bg-card)',color:vista==='programaciones'?(darkMode ? '#bfdbfe' : 'white'):'var(--text-secondary)'}}
+              onClick={() => setVista('programaciones')}
+            ><CalendarRange size={15} strokeWidth={2} /> Mis Programaciones</button>
+            <button
+              style={{padding:'8px 16px',fontSize:'13px',fontWeight:'600',border:'none',cursor:'pointer',borderLeft:'1px solid var(--border-color)',display:'inline-flex',alignItems:'center',gap:'7px',background:vista==='mi-horario'?(darkMode ? 'rgba(59,130,246,0.18)' : '#1a3a5c'):'var(--bg-card)',color:vista==='mi-horario'?(darkMode ? '#bfdbfe' : 'white'):'var(--text-secondary)'}}
+              onClick={() => setVista('mi-horario')}
+            ><User size={15} strokeWidth={2} /> Mi Horario</button>
+            <button
+              style={{padding:'8px 16px',fontSize:'13px',fontWeight:'600',border:'none',cursor:'pointer',borderLeft:'1px solid var(--border-color)',display:'inline-flex',alignItems:'center',gap:'7px',background:vista==='horario'?(darkMode ? 'rgba(59,130,246,0.18)' : '#1a3a5c'):'var(--bg-card)',color:vista==='horario'?(darkMode ? '#bfdbfe' : 'white'):'var(--text-secondary)'}}
+              onClick={() => setVista('horario')}
+            ><LayoutGrid size={15} strokeWidth={2} /> Horario General</button>
+          </div>
+        )}
+      </div>
+
       {/* ===== VISTA: PROGRAMACIONES ===== */}
       {vista === 'programaciones' && (
         <div>
-          {/* Subvista selector (Activas / Canceladas) */}
-          {canEdit && (
-            <div style={{display:'flex',gap:'8px',marginBottom:'24px'}}>
-              <button
-                style={{padding:'8px 16px',fontSize:'13px',fontWeight:'600',border:'none',cursor:'pointer',borderRadius:'8px',background:subVista==='activas'?'#1a3a5c':'var(--bg-card)',color:subVista==='activas'?'white':'var(--text-secondary)'}}
-                onClick={() => setSubVista('activas')}
-              >
-                📋 Programaciones Activas
-              </button>
-              <button
-                style={{padding:'8px 16px',fontSize:'13px',fontWeight:'600',border:'none',cursor:'pointer',borderRadius:'8px',background:subVista==='canceladas'?'#1a3a5c':'var(--bg-card)',color:subVista==='canceladas'?'white':'var(--text-secondary)'}}
-                onClick={() => setSubVista('canceladas')}
-              >
-                🗑️ Programaciones Canceladas
-              </button>
-            </div>
-          )}
-
           {subVista === 'activas' && (
             <div>
               {programaciones.filter(p => p.estado !== 'cancelado').length === 0 ? (
                 <div className="card" style={{textAlign:'center',padding:'60px 24px'}}>
-                  <div style={{fontSize:'48px',marginBottom:'12px',opacity:0.4}}>📋</div>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'center',width:'64px',height:'64px',borderRadius:'16px',margin:'0 auto 12px',background:'var(--bg-card-hover)'}}>
+                    <CalendarRange size={30} strokeWidth={1.6} style={{color:'var(--text-tertiary)'}} />
+                  </div>
                   <h3 style={{fontSize:'18px',fontWeight:'600',color:'var(--text-primary)',margin:'0 0 8px'}}>No hay programaciones activas para este ciclo</h3>
                   <p style={{color:'var(--text-secondary)',fontSize:'14px',margin:'0 0 20px'}}>Crea una nueva programación para comenzar el proceso de asignación de horarios.</p>
                   {canEdit && (
@@ -790,7 +789,9 @@ export default function HorariosPage() {
                         <div style={{padding:'20px 24px'}}>
                           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
                             <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
-                              <div style={{fontSize:'24px'}}>{faseInfo.icon}</div>
+                              <div style={{display:'flex',alignItems:'center',justifyContent:'center',width:'42px',height:'42px',borderRadius:'12px',flexShrink:0,background: faseInfo.bg,color: faseInfo.color}}>
+                                <faseInfo.icon size={20} strokeWidth={2} />
+                              </div>
                               <div>
                                 <h3 style={{fontSize:'18px',fontWeight:'700',color:'var(--text-primary)',margin:'0 0 2px'}}>{prog.nombre}</h3>
                                 <p style={{fontSize:'13px',color:'var(--text-secondary)',margin:0}}>
@@ -811,77 +812,97 @@ export default function HorariosPage() {
                           </div>
 
                           {/* Stats */}
-                          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'12px',marginBottom:'16px'}}>
+                          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'14px'}}>
                             {[
                               { label: 'Cursos', value: prog.total_cursos || 0 },
                               { label: 'Docentes', value: prog.total_docentes || 0 },
                               { label: 'Ciclo', value: prog.ciclo_nombre },
                             ].map((s, i) => (
-                              <div key={i} style={{background:'var(--bg-card-hover)',borderRadius:'8px',padding:'12px',textAlign:'center',border:'1px solid var(--border-color)'}}>
-                                <p style={{fontSize:'18px',fontWeight:'700',color:'var(--text-primary)',margin:'0 0 2px'}}>{s.value}</p>
+                              <div key={i} style={{
+                                background:'var(--bg-card-hover)',
+                                borderRadius:'12px',
+                                padding:'16px 18px',
+                                border:'1px solid var(--border-color)',
+                              }}>
+                                <p style={{fontSize:'26px',fontWeight:'700',color:'var(--text-primary)',margin:'0 0 2px'}}>{s.value}</p>
                                 <p style={{fontSize:'11px',color:'var(--text-secondary)',margin:0}}>{s.label}</p>
                               </div>
                             ))}
                           </div>
 
-                          {/* Fases timeline — stepper con líneas conectoras */}
-                          <div style={{display:'flex',alignItems:'center',marginBottom:'16px',padding:'8px 0'}}>
-                            {[1,2,3,4].map((f, idx) => {
-                              const fi = getFaseInfo(f, darkMode);
-                              const activa = f === prog.fase;
-                              const completada = f < prog.fase;
-                              return (
-                                <Fragment key={f}>
-                                  <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'6px',flex:1,minWidth:0}}>
+                          {/* Riel de progreso de fases */}
+                          <div style={{position:'relative',paddingTop:'30px',marginBottom:'16px'}}>
+                            <div style={{
+                              position:'absolute',top:'45px',left:'5%',right:'5%',height:'4px',
+                              background:'var(--border-color)',borderRadius:'99px',
+                            }} />
+                            <div style={{
+                              position:'absolute',top:'45px',left:'5%',width:`${Math.min(100, ((prog.fase || 1) - 0.5) * 22.5)}%`,height:'4px',
+                              background:'linear-gradient(90deg, var(--color-success), var(--color-warning))',
+                              borderRadius:'99px',transition:'width 0.4s ease',
+                            }} />
+                            <div style={{position:'relative',display:'flex',justifyContent:'space-between',margin:'0 5%'}}>
+                              {[1,2,3,4].map(f => {
+                                const fi = getFaseInfo(f, darkMode);
+                                const activa = f === prog.fase;
+                                const completada = f < prog.fase;
+                                return (
+                                  <div key={f} style={{display:'flex',flexDirection:'column',alignItems:'center',width:'25%'}}>
                                     <div style={{
-                                      width:'36px',height:'36px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'14px',fontWeight:'700',
-                                      background: completada ? '#059669' : activa ? fi.bg : 'var(--bg-card-hover)',
-                                      color: completada ? 'white' : activa ? fi.color : 'var(--text-secondary)',
-                                      border: completada ? 'none' : `2px solid ${activa ? fi.color : 'var(--border-color)'}`,
-                                      transition:'all 0.3s',boxShadow: activa ? '0 0 0 3px rgba(59,130,246,0.2)' : 'none'
+                                      width:'34px',height:'34px',borderRadius:'50%',position:'relative',zIndex:1,
+                                      display:'flex',alignItems:'center',justifyContent:'center',fontSize:'13px',fontWeight:'700',
+                                      background: completada ? 'var(--color-success)' : activa ? 'var(--bg-card)' : 'var(--bg-card-hover)',
+                                      color: completada ? '#fff' : activa ? 'var(--color-warning)' : 'var(--text-muted)',
+                                      border: `2px solid ${completada ? 'var(--color-success)' : activa ? 'var(--color-warning)' : 'var(--border-color)'}`,
+                                      boxShadow: activa ? '0 0 0 4px rgba(245,158,11,0.16), 0 2px 8px rgba(0,0,0,0.12)' : completada ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
                                     }}>
-                                      {completada ? '✓' : activa ? fi.icon : f}
+                                      {completada ? '✓' : f}
                                     </div>
-                                    <span style={{fontSize:'11px',fontWeight:activa?'600':'400',color:activa?fi.color:'var(--text-secondary)',textAlign:'center',whiteSpace:'nowrap'}}>
+                                    <span style={{
+                                      marginTop:'10px',fontSize:'12px',textAlign:'center',whiteSpace:'nowrap',
+                                      fontWeight:activa ? '600' : '400',
+                                      color:activa ? 'var(--text-primary)' : 'var(--text-secondary)',
+                                    }}>
                                       {fi.label}
                                     </span>
+                                    {activa && (
+                                      <span style={{marginTop:'3px',fontSize:'12px',color:'var(--text-muted)'}}>En curso</span>
+                                    )}
                                   </div>
-                                  {idx < 3 && (
-                                    <div style={{
-                                      flex:'0 0 24px',height:'2px',alignSelf:'center',marginBottom:'20px',
-                                      background: f < prog.fase ? '#059669' : 'var(--border-color)',transition:'background 0.3s'
-                                    }} />
-                                  )}
-                                </Fragment>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
 
                           {/* Acciones */}
-                          <div style={{display:'flex',gap:'10px',alignItems:'center',justifyContent:'flex-end'}}>
-                            {prog.estado !== 'publicado' && prog.estado !== 'cancelado' && canEdit && (
-                              <button style={{padding:'6px 14px',fontSize:'13px',borderRadius:'6px',cursor:'pointer',background:'transparent',color:'#ef4444',border:'1px solid #ef4444',fontWeight:'500'}} onClick={() => setShowDeleteModal(prog.id)}>
-                                Cancelar
-                              </button>
-                            )}
+                          <div style={{display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between'}}>
+                            <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
+                              {prog.estado !== 'publicado' && prog.estado !== 'cancelado' && canEdit && (
+                                <button style={{padding:'6px 14px',fontSize:'13px',borderRadius:'6px',cursor:'pointer',background:'transparent',color:'#ef4444',border:'1px solid #ef4444',fontWeight:'500'}} onClick={() => setShowDeleteModal(prog.id)}>
+                                  Cancelar
+                                </button>
+                              )}
+                            </div>
+                            <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
+                              {(prog.fase === 4 || prog.estado === 'publicado') && (
+                                <BotonExportarFormatoUNT programacionId={prog.id} />
+                              )}
 
-                            {(prog.fase === 4 || prog.estado === 'publicado') && (
-                              <BotonExportarFormatoUNT programacionId={prog.id} />
-                            )}
+                              {prog.estado !== 'publicado' && prog.estado !== 'cancelado' && canEdit && (
+                                <button style={{display:'inline-flex',alignItems:'center',gap:'6px',padding:'4px 10px',fontSize:'12px',background:'transparent',border:'none',cursor:importingCards.has(prog.id)?'wait':'pointer',color:'var(--text-secondary)',textDecoration:'underline',textUnderlineOffset:'2px'}}
+                                  disabled={importingCards.has(prog.id)}
+                                  onClick={() => importarCargaDirecta(prog)}>
+                                  <Download size={13} strokeWidth={2} />
+                                  {importingCards.has(prog.id) ? 'Importando...' : 'Carga Horaria'}
+                                </button>
+                              )}
 
-                            {prog.estado !== 'publicado' && prog.estado !== 'cancelado' && canEdit && (
-                              <button style={{padding:'4px 10px',fontSize:'12px',background:'transparent',border:'none',cursor:importingCards.has(prog.id)?'wait':'pointer',color:'var(--text-secondary)',textDecoration:'underline',textUnderlineOffset:'2px'}}
-                                disabled={importingCards.has(prog.id)}
-                                onClick={() => importarCargaDirecta(prog)}>
-                                {importingCards.has(prog.id) ? 'Importando...' : '📥 Carga Horaria'}
-                              </button>
-                            )}
-
-                            <a href={isDocente ? `/horarios/${prog.id}/disponibilidad` : getFaseUrl(prog)} style={{textDecoration:'none'}}>
-                              <button className="btn-primary" style={{padding:'6px 14px',fontSize:'13px'}}>
-                                {isDocente ? 'Marcar Disponibilidad' : (prog.estado === 'publicado' ? 'Ver horario' : `Continuar Fase ${prog.fase}`)} →
-                              </button>
-                            </a>
+                              <a href={isDocente ? `/horarios/${prog.id}/disponibilidad` : getFaseUrl(prog)} style={{textDecoration:'none'}}>
+                                <button className="btn-primary" style={{padding:'6px 14px',fontSize:'13px'}}>
+                                  {isDocente ? 'Marcar Disponibilidad' : (prog.estado === 'publicado' ? 'Ver horario' : `Continuar Fase ${prog.fase}`)} →
+                                </button>
+                              </a>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -897,7 +918,9 @@ export default function HorariosPage() {
             <div>
               {programaciones.filter(p => p.estado === 'cancelado').length === 0 ? (
                 <div className="card" style={{textAlign:'center',padding:'60px 24px'}}>
-                  <div style={{fontSize:'48px',marginBottom:'12px',opacity:0.4}}>🗑️</div>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'center',width:'64px',height:'64px',borderRadius:'16px',margin:'0 auto 12px',background:'var(--bg-card-hover)'}}>
+                    <Trash2 size={30} strokeWidth={1.6} style={{color:'var(--text-tertiary)'}} />
+                  </div>
                   <h3 style={{fontSize:'18px',fontWeight:'600',color:'var(--text-primary)',margin:'0 0 8px'}}>No hay programaciones canceladas</h3>
                   <p style={{color:'var(--text-secondary)',fontSize:'14px',margin:0}}>Todas las programaciones están activas.</p>
                 </div>
@@ -911,8 +934,10 @@ export default function HorariosPage() {
                         <div style={{display:'flex',height:'4px',background:'#fca5a5'}} />
                         <div style={{padding:'20px 24px'}}>
                           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
-                            <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
-                              <div style={{fontSize:'24px'}}>🗑️</div>
+                              <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
+                              <div style={{display:'flex',alignItems:'center',justifyContent:'center',width:'42px',height:'42px',borderRadius:'12px',flexShrink:0,background:'rgba(239,68,68,0.1)',color:'#ef4444'}}>
+                                <Trash2 size={20} strokeWidth={2} />
+                              </div>
                               <div>
                                 <h3 style={{fontSize:'18px',fontWeight:'700',color:'var(--text-primary)',margin:'0 0 2px'}}>{prog.nombre}</h3>
                                 <p style={{fontSize:'13px',color:'var(--text-secondary)',margin:0}}>
@@ -933,14 +958,19 @@ export default function HorariosPage() {
                           </div>
 
                           {/* Stats */}
-                          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'12px',marginBottom:'16px'}}>
+                          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'14px'}}>
                             {[
                               { label: 'Cursos', value: prog.total_cursos || 0 },
                               { label: 'Docentes', value: prog.total_docentes || 0 },
                               { label: 'Ciclo', value: prog.ciclo_nombre },
                             ].map((s, i) => (
-                              <div key={i} style={{background:'var(--bg-card-hover)',borderRadius:'8px',padding:'12px',textAlign:'center',border:'1px solid var(--border-color)'}}>
-                                <p style={{fontSize:'18px',fontWeight:'700',color:'var(--text-primary)',margin:'0 0 2px'}}>{s.value}</p>
+                              <div key={i} style={{
+                                background:'var(--bg-card-hover)',
+                                borderRadius:'12px',
+                                padding:'16px 18px',
+                                border:'1px solid var(--border-color)',
+                              }}>
+                                <p style={{fontSize:'26px',fontWeight:'700',color:'var(--text-primary)',margin:'0 0 2px'}}>{s.value}</p>
                                 <p style={{fontSize:'11px',color:'var(--text-secondary)',margin:0}}>{s.label}</p>
                               </div>
                             ))}
@@ -949,8 +979,9 @@ export default function HorariosPage() {
                           {/* Acciones (solo Restaurar) */}
                           <div style={{display:'flex',gap:'10px',alignItems:'center',justifyContent:'flex-end'}}>
                             {canEdit && (
-                              <button className="btn-primary" style={{padding:'6px 14px',fontSize:'13px'}} onClick={() => setRestaurandoId(prog.id)}>
-                                🔄 Restaurar
+                              <button className="btn-primary" style={{display:'inline-flex',alignItems:'center',gap:'7px',padding:'6px 14px',fontSize:'13px'}} onClick={() => setRestaurandoId(prog.id)}>
+                                <RotateCcw size={14} strokeWidth={2.2} />
+                                Restaurar
                               </button>
                             )}
                           </div>
@@ -1287,7 +1318,7 @@ export default function HorariosPage() {
                   const fi = getFaseInfo(f, darkMode);
                   return (
                     <div key={f} style={{display:'flex',alignItems:'center',gap:'8px',padding:'4px 0'}}>
-                      <span style={{fontSize:'14px'}}>{fi.icon}</span>
+                      <span style={{display:'inline-flex',alignItems:'center',color:fi.color}}><fi.icon size={16} strokeWidth={2} /></span>
                       <span style={{fontSize:'13px',color:'var(--text-secondary)'}}>Fase {f}: {fi.label}</span>
                     </div>
                   );
@@ -1296,8 +1327,8 @@ export default function HorariosPage() {
             </div>
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setShowCrear(false)}>Cancelar</button>
-              <button className="btn-primary" onClick={crearProgramacion} disabled={creando}>
-                {creando ? 'Creando...' : '📋 Crear programación'}
+              <button className="btn-primary" style={{display:'inline-flex',alignItems:'center',gap:'7px'}} onClick={crearProgramacion} disabled={creando}>
+                {creando ? 'Creando...' : (<><Plus size={15} strokeWidth={2.2} /> Crear programación</>)}
               </button>
             </div>
           </div>

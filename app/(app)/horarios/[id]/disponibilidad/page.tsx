@@ -3,16 +3,17 @@ import { fetchProgramacionCursos } from '@/lib/fetch-programacion-cursos';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { useUser } from '@/app/(app)/layout';
+import { ComboboxOpciones } from '@/components/horarios/ComboboxOpciones';
 
 const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 const DIAS_LABEL: Record<string, string> = { lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado' };
 
-/** 0 = no disponible, 1 = alta prioridad, 2 = baja prioridad */
+/** 0 = no disponible, 1 = disponible */
 type PrioridadSlot = 0 | 1 | 2;
 
 const PRIORIDAD_STYLE: Record<PrioridadSlot, { bg: string; border?: string }> = {
   0: { bg: '#fef2f2', border: '1px solid #fecaca' },
-  1: { bg: '#059669' },
+  1: { bg: '#22c55e', border: '1px solid #16a34a' },
   2: { bg: '#fde047', border: '1px solid #eab308' },
 };
 
@@ -37,6 +38,7 @@ export default function DisponibilidadPage() {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaCierre, setFechaCierre] = useState('');
   const [enviarNotificacion, setEnviarNotificacion] = useState(false);
+  const [notifDestino, setNotifDestino] = useState<string>('todos');
 
   const [accesoError, setAccesoError] = useState<string | null>(null);
   const [soloLectura, setSoloLectura] = useState(false);
@@ -98,7 +100,8 @@ export default function DisponibilidadPage() {
         body: JSON.stringify({
           fecha_inicio: fechaInicio,
           fecha_cierre: fechaCierre,
-          enviar_notificacion: enviarNotificacion
+          enviar_notificacion: enviarNotificacion,
+          docente_id: notifDestino === 'todos' ? null : notifDestino,
         }),
       });
       const data = await res.json();
@@ -107,7 +110,15 @@ export default function DisponibilidadPage() {
       setDisponibilidadPeriodo(data.data);
       // Don't reset checkbox - allow user to send multiple notifications
       await cargarDisponibilidadPeriodo(); // Reload to get updated state
-      setMsg({ type: 'success', text: 'Período de disponibilidad configurado correctamente' });
+      const destino = notifDestino === 'todos'
+        ? 'todos los docentes asignados'
+        : (docentes.find(d => d.id === notifDestino)?.nombre || 'docente');
+      setMsg({
+        type: 'success',
+        text: enviarNotificacion
+          ? `Período configurado correctamente. Notificación enviada a ${destino}.`
+          : 'Período de disponibilidad configurado correctamente',
+      });
     } catch (e: any) {
       setMsg({ type: 'error', text: e.message });
     } finally {
@@ -240,23 +251,18 @@ export default function DisponibilidadPage() {
   useEffect(() => { cargarResumenPendientes(); }, [cargarResumenPendientes]);
 
   // ── Lógica de pintado de una celda individual ─────────────────────────────
-  // modo 'click'   -> ciclo: vacío(0) → preferida(1) → aceptable(2) → se queda en aceptable
-  // modo 'drag'    -> cada celda reacciona según SU PROPIO estado actual:
-  //                   vacío(0) -> preferida(1)
-  //                   preferida(1) o aceptable(2) -> no disponible(0)
+  // modo 'click'   -> alterna: no disponible(0) <-> disponible(1)
+  // modo 'drag'    -> vacío(0) -> disponible(1); disponible(1) -> no disponible(0)
   const aplicarCambioCelda = useCallback((key: string, modo: 'click' | 'drag') => {
     setDisponibilidad(prev => {
       const current = prev[key] ?? 0;
       let next: PrioridadSlot;
 
       if (modo === 'click') {
-        if (current === 0) next = 1;
-        else if (current === 1) next = 2;
-        else next = 2; // ya está en "aceptable", el click simple no la cambia
+        next = current === 0 ? 1 : 0;
       } else {
         // drag
-        if (current === 0) next = 1;
-        else next = 0; // preferida o aceptable -> no disponible
+        next = current === 0 ? 1 : 0;
       }
 
       if (next === current) return prev; // evita re-render innecesario
@@ -271,8 +277,9 @@ export default function DisponibilidadPage() {
     isDraggingRef.current = true;
     movedDuringDragRef.current = false;
     visitedDuringDragRef.current = new Set([key]);
-    // No aplicamos el cambio aún: esperamos a ver si fue click o arrastre (mouseup decide).
-  }, [puedeEditar]);
+    // Pintar la celda inicial de inmediato para que el primer cuadrito sea tomado en cuenta.
+    aplicarCambioCelda(key, 'click');
+  }, [puedeEditar, aplicarCambioCelda]);
 
   const handleCellMouseEnter = useCallback((key: string) => {
     if (!puedeEditar || !isDraggingRef.current) return;
@@ -284,17 +291,13 @@ export default function DisponibilidadPage() {
 
   const handleCellMouseUp = useCallback((key: string) => {
     if (!puedeEditar) return;
-    if (isDraggingRef.current && !movedDuringDragRef.current) {
-      // El mouse bajó y subió en la misma celda sin moverse entre celdas -> es un click simple.
-      aplicarCambioCelda(key, 'click');
-    } else if (isDraggingRef.current && movedDuringDragRef.current) {
-      // Hubo arrastre: la celda donde se soltó el mouse también debe reaccionar
-      // si no fue "visitada" todavía (por ejemplo, un drag de una sola celda de distancia
-      // ya quedó cubierta por mouseEnter, pero por seguridad la aplicamos solo si falta).
+    if (isDraggingRef.current && movedDuringDragRef.current) {
+      // Hubo arrastre: pintar también la celda donde se soltó el mouse si no fue visitada.
       if (!visitedDuringDragRef.current.has(key)) {
         aplicarCambioCelda(key, 'drag');
       }
     }
+    // Si fue un click simple, la celda ya se pintó en mousedown: no se repite.
     isDraggingRef.current = false;
     movedDuringDragRef.current = false;
     visitedDuringDragRef.current = new Set();
@@ -406,22 +409,6 @@ export default function DisponibilidadPage() {
       setMsg({ type: 'error', text: 'Error cargando disponibilidad 2026-I: ' + err.message });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const notificarDocentes = async () => {
-    setMsg(null);
-    try {
-      const res = await fetch('/api/horarios/disponibilidad/notificar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programacion_id: progId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setMsg({ type: 'success', text: data.message });
-    } catch (e: any) {
-      setMsg({ type: 'error', text: e.message });
     }
   };
 
@@ -545,7 +532,7 @@ export default function DisponibilidadPage() {
           >
             {prog.nombre}
           </h1>
-          <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Fase 2: Disponibilidad Docente (doble prioridad)</p>
+          <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>Fase 2: Disponibilidad Docente</p>
         </div>
         {isAdminOrSec && (
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -556,7 +543,6 @@ export default function DisponibilidadPage() {
             <button className="btn-secondary" onClick={cargarDisponibilidad2026I} disabled={saving || loading}>
               📋 Cargar Disponibilidad 2026-I
             </button>
-            <button className="btn-secondary" onClick={notificarDocentes}>Notificar Docentes</button>
             <button className="btn-secondary" onClick={retrocederFase}>← Volver a Fase 1</button>
             <button
               className="btn-primary"
@@ -705,7 +691,9 @@ export default function DisponibilidadPage() {
                     </span>
                   </div>
                   <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
-                    Se enviará un correo automático al actualizar el período
+                    {notifDestino === 'todos'
+                      ? 'Se enviará un correo automático a todos los docentes asignados al actualizar el período'
+                      : `Se enviará un correo automático a ${docentes.find(d => d.id === notifDestino)?.nombre || 'un docente'} al actualizar el período`}
                   </p>
                 </div>
               </div>
@@ -730,6 +718,23 @@ export default function DisponibilidadPage() {
                 }}></div>
               </div>
             </div>
+            {/* Selector de destinatarios de la notificación */}
+            <div style={{ marginTop: '12px' }}>
+              <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 600 }}>Enviar notificación a:</label>
+              <ComboboxOpciones
+                value={notifDestino}
+                onChange={setNotifDestino}
+                opciones={[
+                  { id: 'todos', nombre: 'Todos los docentes asignados', grupo: true },
+                  ...docentes.map(d => ({ id: d.id, nombre: d.nombre })),
+                ]}
+                ariaLabel="Enviar notificación a"
+                searchPlaceholder="Buscar docente..."
+                placeholder="Todos los docentes asignados"
+                badgeGrupo="TODOS"
+                disabled={!enviarNotificacion}
+              />
+            </div>
           </div>
           {disponibilidadPeriodo && (
             <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '6px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
@@ -752,15 +757,18 @@ export default function DisponibilidadPage() {
       )}
 
       <div className="card" style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           {isAdminOrSec ? (
             <div className="form-group" style={{ margin: 0, flex: 1 }}>
               <label className="form-label">Seleccionar Docente</label>
-              <select className="form-input" value={docenteId} onChange={e => { setDocenteId(e.target.value); cargarDisponibilidad(e.target.value); }}>
-                {docentes.map(d => (
-                  <option key={d.id} value={d.id}>{d.nombre}</option>
-                ))}
-              </select>
+              <ComboboxOpciones
+                value={docenteId}
+                onChange={id => { setDocenteId(id); cargarDisponibilidad(id); }}
+                opciones={docentes.map(d => ({ id: d.id, nombre: d.nombre }))}
+                ariaLabel="Seleccionar Docente"
+                searchPlaceholder="Buscar docente..."
+                placeholder="Seleccionar docente..."
+              />
             </div>
           ) : (
             <div style={{ flex: 1 }}>
@@ -768,7 +776,7 @@ export default function DisponibilidadPage() {
               <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
                 {soloLectura
                   ? 'Tu disponibilidad registrada (solo lectura).'
-                  : 'Clic: preferida → aceptable. Arrastra para pintar varias celdas a la vez (estilo Excel).'}
+                  : 'Clic: disponible / no disponible. Arrastra para pintar varias celdas a la vez (estilo Excel).'}
               </p>
             </div>
           )}
@@ -788,12 +796,8 @@ export default function DisponibilidadPage() {
       <div className="card" style={{ overflowX: 'auto' }}>
         <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap', fontSize: '13px' }}>
           <span className="availability-legend__item availability-legend__preferred">
-            <span style={{ display: 'inline-block', width: 14, height: 14, background: '#059669', marginRight: 6 }} />
-            Preferida ({contarPrioridad(1)})
-          </span>
-          <span className="availability-legend__item availability-legend__acceptable">
-            <span style={{ display: 'inline-block', width: 14, height: 14, background: '#fde047', marginRight: 6 }} />
-            Aceptable ({contarPrioridad(2)})
+            <span style={{ display: 'inline-block', width: 14, height: 14, background: '#22c55e', border: '1px solid #16a34a', marginRight: 6 }} />
+            Disponible ({contarPrioridad(1)})
           </span>
           <span className="availability-legend__item availability-legend__none">
             <span style={{ display: 'inline-block', width: 14, height: 14, background: '#fef2f2', border: '1px solid #fecaca', marginRight: 6 }} />
