@@ -7,7 +7,11 @@ import GrillaHorarios from '@/components/horarios/GrillaHorarios';
 import BloqueHorario from '@/components/horarios/BloqueHorario';
 import { fetchProgramacionCursos } from '@/lib/fetch-programacion-cursos';
 import { useHorarioHistory } from '@/lib/hooks/useHorarioHistory';
-import { Undo2, Redo2 } from 'lucide-react';
+import {
+  Undo2, Redo2, ClipboardList, Cog, RotateCcw, ArrowLeft, ArrowRight,
+  ChartBar, TriangleAlert, CircleX, User, Landmark, Users, Zap,
+  Lightbulb, GraduationCap, OctagonAlert, type LucideIcon,
+} from 'lucide-react';
 
 function translateTipo(tipo: string): string {
   const map: Record<string, string> = {
@@ -64,6 +68,14 @@ function matchDocenteEnDiag(confNombre: string, docentes: any[]): any | null {
   }
   return bestScore >= 2 ? best : null;
 }
+
+const TIPO_ICON: Record<string, LucideIcon> = {
+  UNASSIGNED: CircleX,
+  CRUCE_DOCENTE: User,
+  CRUCE_AMBIENTE: Landmark,
+  CRUCE_GRUPO: Users,
+  SOBRECARGA: Zap,
+};
 
 export default function ProgramarPage() {
   const pathname = usePathname();
@@ -477,7 +489,10 @@ export default function ProgramarPage() {
   return (
     <div className="horarios-programar-page" style={{ padding: '32px' }}>
       <div style={{ marginBottom: '8px' }}>
-        <a href="/horarios" style={{ fontSize: '13px', color: '#64748b', textDecoration: 'none' }}>← Volver a Horarios</a>
+        <a href="/horarios" style={{ fontSize: '13px', color: '#64748b', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+          <ArrowLeft size={13} strokeWidth={2.2} />
+          Volver a Horarios
+        </a>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
@@ -526,16 +541,23 @@ export default function ProgramarPage() {
             </button>
           </div>
           <button className="btn-secondary" onClick={importarCursos2026I} disabled={resolving || prog.fase !== 3}>
-            📋 Importar Horario 2026-I
+            <ClipboardList size={15} strokeWidth={2.2} />
+            Importar Horario 2026-I
           </button>
           <button className="btn-secondary" onClick={() => ejecutarMotor(false)} disabled={resolving || prog.fase !== 3}>
-            {resolving ? '⚙️ Resolviendo...' : asignacionesVisibles.length > 0 ? '🔄 Reejecutar CSP' : '⚙️ Ejecutar Auto-Asignación'}
+            {resolving
+              ? <><Cog size={15} strokeWidth={2.2} /> Resolviendo...</>
+              : asignacionesVisibles.length > 0
+                ? <><RotateCcw size={15} strokeWidth={2.2} /> Reejecutar CSP</>
+                : <><Cog size={15} strokeWidth={2.2} /> Ejecutar Auto-Asignación</>}
           </button>
           <button className="btn-secondary" onClick={retrocederFase} disabled={prog.fase !== 3}>
-            ← Volver a Fase 2
+            <ArrowLeft size={15} strokeWidth={2.2} />
+            Volver a Fase 2
           </button>
           <button className="btn-primary" onClick={avanzarFase} disabled={prog.fase !== 3}>
-            Avanzar a Fase 4 →
+            Avanzar a Fase 4
+            <ArrowRight size={15} strokeWidth={2.2} />
           </button>
           <button className="btn-danger" onClick={cancelarProgramacion} disabled={prog.fase !== 3}>
             Cancelar
@@ -597,12 +619,14 @@ export default function ProgramarPage() {
           {/* Header */}
           <div
             className="diagnostico-header"
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', cursor: 'pointer', background: diagAbierto ? 'var(--bg-card-hover)' : 'var(--bg-card)', borderBottom: diagAbierto ? '1px solid var(--border-color)' : 'none' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px 20px', padding: '16px 20px', cursor: 'pointer', background: diagAbierto ? 'var(--bg-card-hover)' : 'var(--bg-card)', borderBottom: diagAbierto ? '1px solid var(--border-color)' : 'none' }}
             onClick={() => setDiagAbierto(!diagAbierto)}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '18px' }}>📊</span>
-              <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: '1 1 auto' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(99,102,241,0.12)', color: '#818cf8', flexShrink: 0 }}>
+                <ChartBar size={19} strokeWidth={2.2} />
+              </span>
+              <div style={{ minWidth: 0 }}>
                 <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
                   Diagnóstico de Disponibilidad Docente
                 </h3>
@@ -611,7 +635,7 @@ export default function ProgramarPage() {
                 </p>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '12px', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
                 <span>
                   <b style={{ color: 'var(--color-success)', fontWeight: '700' }}>{diagnostico.resumen.ok}</b> con disponibilidad OK
@@ -699,7 +723,7 @@ export default function ProgramarPage() {
                       const ec = estadoConfig[doc.estado] || estadoConfig.ok;
                       const cobertura = doc.horas_requeridas > 0 ? Math.min(100, Math.round((doc.horas_disponibles / doc.horas_requeridas) * 100)) : 0;
                       const suficiente = doc.horas_disponibles >= doc.horas_requeridas;
-                      const cargaTotal = (Number(doc.horas_cursos) || 0) + 1;
+                      const cargaTotal = (Number(doc.horas_cursos) || 0);
 
                       return (
                         <Fragment key={doc.docente_id}>
@@ -718,7 +742,7 @@ export default function ProgramarPage() {
                             <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                               <div style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{cargaTotal}h</div>
                               <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                                {doc.horas_cursos}h + 1h asesoría
+                                {doc.horas_cursos}h en cursos
                               </div>
                             </td>
                             {/* Disponible */}
@@ -818,15 +842,15 @@ export default function ProgramarPage() {
                                     ))}
                                     {doc.horas_faltantes > 0 && (
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(239,68,68,0.06)', borderRadius: '8px', padding: '11px 14px', border: '1px solid rgba(239,68,68,0.2)', marginTop: '4px' }}>
-                                        <span style={{ fontSize: '15px' }}>⚠</span>
+                                        <TriangleAlert size={16} strokeWidth={2.2} style={{ flexShrink: 0, color: '#ef4444' }} />
                                         <div style={{ fontSize: '12px', color: 'var(--text-primary)', flex: 1 }}>
                                           <b>Se deben agregar {doc.horas_faltantes} hora{doc.horas_faltantes > 1 ? 's' : ''} de disponibilidad.</b>{' '}
                                           <span style={{ color: 'var(--text-muted)' }}>
                                             Disponibles {doc.horas_disponibles}h · Requeridas {doc.horas_requeridas}h
                                           </span>
                                         </div>
-                                        <a href={`/horarios/${progId}/disponibilidad`} style={{ marginLeft: 'auto', color: '#fff', background: 'var(--color-danger)', borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: '600', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                          Ajustar disponibilidad →
+                                        <a href={`/horarios/${progId}/disponibilidad`} style={{ marginLeft: 'auto', color: '#fff', background: 'var(--color-danger)', borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: '600', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                          Ajustar disponibilidad <ArrowRight size={12} strokeWidth={2.4} />
                                         </a>
                                       </div>
                                     )}
@@ -851,7 +875,7 @@ export default function ProgramarPage() {
         <div className="card conflictos-panel" style={{ marginBottom: '20px', borderLeft: '4px solid #ef4444', background: 'var(--bg-card)', padding: '20px', borderRadius: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => setConflictosAbiertos(!conflictosAbiertos)}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '20px' }}>⚠️</span>
+              <TriangleAlert size={20} strokeWidth={2.2} style={{ color: '#ef4444', flexShrink: 0 }} />
               <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
                 Conflictos y Cursos sin Asignar ({conflictos.length})
               </h3>
@@ -868,9 +892,6 @@ export default function ProgramarPage() {
             }
             const criticos = conflictos.filter(c => c.severidad === 'error' || c.tipo === 'UNASSIGNED');
             const advertencias = conflictos.filter(c => !(c.severidad === 'error' || c.tipo === 'UNASSIGNED'));
-            const TIPO_ICON: Record<string, string> = {
-              UNASSIGNED: '❌', CRUCE_DOCENTE: '👤', CRUCE_AMBIENTE: '🏛️', CRUCE_GRUPO: '👥', SOBRECARGA: '⚡',
-            };
             const filtrados = filtroTipoConflictos === 'todos' ? conflictos
               : filtroTipoConflictos === 'criticos' ? criticos
               : filtroTipoConflictos === 'advertencias' ? advertencias
@@ -879,20 +900,25 @@ export default function ProgramarPage() {
             return (
               <div style={{ marginTop: '16px' }}>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
-                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)', fontWeight: '700' }}>
-                    ❌ Sin asignar: {tipos['UNASSIGNED'] || 0}
+                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <CircleX size={13} strokeWidth={2.4} />
+                    Sin asignar: {tipos['UNASSIGNED'] || 0}
                   </span>
-                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(245,158,11,0.12)', color: '#fde68a', border: '1px solid rgba(245,158,11,0.3)', fontWeight: '700' }}>
-                    👤 Cruce docente: {tipos['CRUCE_DOCENTE'] || 0}
+                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(245,158,11,0.12)', color: '#fde68a', border: '1px solid rgba(245,158,11,0.3)', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <User size={13} strokeWidth={2.4} />
+                    Cruce docente: {tipos['CRUCE_DOCENTE'] || 0}
                   </span>
-                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(139,92,246,0.12)', color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.3)', fontWeight: '700' }}>
-                    🏛️ Cruce ambiente: {tipos['CRUCE_AMBIENTE'] || 0}
+                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(139,92,246,0.12)', color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.3)', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <Landmark size={13} strokeWidth={2.4} />
+                    Cruce ambiente: {tipos['CRUCE_AMBIENTE'] || 0}
                   </span>
-                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(6,182,212,0.12)', color: '#a5f3fc', border: '1px solid rgba(6,182,212,0.3)', fontWeight: '700' }}>
-                    👥 Cruce grupo: {tipos['CRUCE_GRUPO'] || 0}
+                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(6,182,212,0.12)', color: '#a5f3fc', border: '1px solid rgba(6,182,212,0.3)', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <Users size={13} strokeWidth={2.4} />
+                    Cruce grupo: {tipos['CRUCE_GRUPO'] || 0}
                   </span>
-                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(236,72,153,0.12)', color: '#fbcfe8', border: '1px solid rgba(236,72,153,0.3)', fontWeight: '700' }}>
-                    ⚡ Sobrecarga: {tipos['SOBRECARGA'] || 0}
+                  <span style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(236,72,153,0.12)', color: '#fbcfe8', border: '1px solid rgba(236,72,153,0.3)', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <Zap size={13} strokeWidth={2.4} />
+                    Sobrecarga: {tipos['SOBRECARGA'] || 0}
                   </span>
                   <span style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '5px 8px' }}>
                     {criticos.length} críticos · {advertencias.length} advertencias
@@ -901,19 +927,20 @@ export default function ProgramarPage() {
 
                 <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
                   {[
-                    { key: 'todos', label: `Todos (${conflictos.length})` },
-                    { key: 'criticos', label: `⚠ Críticos (${criticos.length})` },
-                    { key: 'UNASSIGNED', label: `❌ Sin asignar (${tipos['UNASSIGNED'] || 0})` },
-                    { key: 'CRUCE_DOCENTE', label: `👤 Cruce docente (${tipos['CRUCE_DOCENTE'] || 0})` },
+                    { key: 'todos', label: `Todos (${conflictos.length})`, icon: null },
+                    { key: 'criticos', label: `Críticos (${criticos.length})`, icon: TriangleAlert },
+                    { key: 'UNASSIGNED', label: `Sin asignar (${tipos['UNASSIGNED'] || 0})`, icon: CircleX },
+                    { key: 'CRUCE_DOCENTE', label: `Cruce docente (${tipos['CRUCE_DOCENTE'] || 0})`, icon: User },
                   ].map(f => (
                     <button key={f.key} onClick={() => setFiltroTipoConflictos(f.key)}
                       style={{
                         fontSize: '11px', fontWeight: '600', padding: '5px 12px', borderRadius: '20px', cursor: 'pointer',
+                        display: 'inline-flex', alignItems: 'center', gap: '5px',
                         border: `1px solid ${filtroTipoConflictos === f.key ? 'var(--primary-color)' : 'var(--border-color)'}`,
                         background: filtroTipoConflictos === f.key ? 'rgba(99,102,241,0.12)' : 'var(--bg-card-hover)',
                         color: filtroTipoConflictos === f.key ? '#a5b4fc' : 'var(--text-secondary)',
                       }}
-                    >{f.label}</button>
+                    >{f.icon && <f.icon size={11} strokeWidth={2.4} />}{f.label}</button>
                   ))}
                 </div>
 
@@ -926,6 +953,7 @@ export default function ProgramarPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '450px', overflowY: 'auto', paddingRight: '8px' }}>
                   {filtrados.map((conf, index) => {
                     const esCritico = conf.severidad === 'error' || conf.tipo === 'UNASSIGNED';
+                    const IconConf = TIPO_ICON[conf.tipo] || TriangleAlert;
                     const cursoStr = conf.datos?.codigo || (conf.descripcion?.match(/[A-Z]{2}-\d{3}/)?.[0]) || '';
                     return (
                       <div key={conf.id || index}
@@ -937,7 +965,9 @@ export default function ProgramarPage() {
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px' }}>
-                          <span style={{ fontSize: '14px' }}>{TIPO_ICON[conf.tipo] || '⚠️'}</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0, color: esCritico ? '#fca5a5' : '#fde68a' }}>
+                            <IconConf size={15} strokeWidth={2.2} />
+                          </span>
                           {cursoStr && <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-primary)', fontFamily: 'monospace' }}>{cursoStr}</span>}
                           <span style={{
                             fontSize: '10px', fontWeight: '700', textTransform: 'uppercase',
@@ -967,7 +997,7 @@ export default function ProgramarPage() {
                               background: 'rgba(59,130,246,0.08)', padding: '7px 10px', borderRadius: '6px',
                               lineHeight: '1.4',
                             }}>
-                              <span style={{ fontWeight: '700', flexShrink: 0 }}>💡</span>
+                              <Lightbulb size={13} strokeWidth={2.2} style={{ flexShrink: 0, color: '#93c5fd', marginTop: '1px' }} />
                               <span>{formatearSugerencia(conf.sugerencia)}</span>
                             </div>
                           )}
@@ -988,8 +1018,9 @@ export default function ProgramarPage() {
                             return (
                               <div style={{ borderRadius: '6px', border: '1px solid rgba(253,230,138,0.3)', background: 'rgba(253,230,138,0.06)', padding: '8px 10px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                                  <span style={{ fontSize: '11px', fontWeight: '600', color: '#fde68a' }}>
-                                    👨‍🏫 {docDiag.docente_nombre}
+                                  <span style={{ fontSize: '11px', fontWeight: '600', color: '#fde68a', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                    <GraduationCap size={13} strokeWidth={2.2} />
+                                    {docDiag.docente_nombre}
                                   </span>
                                   <span style={{ fontSize: '10px', fontWeight: '700', background: '#dc2626', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>
                                     +{horasAAgregar}h
@@ -1004,14 +1035,14 @@ export default function ProgramarPage() {
                                   <div style={{ height: '4px', borderRadius: '2px', width: `${Math.min(pct, 100)}%`, background: hFaltantes > 0 ? '#ef4444' : '#f59e0b' }} />
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
-                                  <span style={{ fontSize: '10px', color: causaCruce ? '#fb923c' : '#fca5a5', lineHeight: '1.3' }}>
+                                  <span style={{ fontSize: '10px', color: causaCruce ? '#fb923c' : '#fca5a5', lineHeight: '1.3', display: 'inline-flex', alignItems: 'flex-start', gap: '5px' }}>
                                     {causaCruce
-                                      ? `⚡ ${slotsBloqueados} franjas probadas ocupadas — necesita +${bloqueSesion}h continuas`
-                                      : `✕ Faltan +${horasAAgregar}h de disponibilidad`}
+                                      ? <><Zap size={11} strokeWidth={2.4} style={{ flexShrink: 0, marginTop: '1px' }} /> {slotsBloqueados} franjas probadas ocupadas — necesita +{bloqueSesion}h continuas</>
+                                      : <><CircleX size={11} strokeWidth={2.4} style={{ flexShrink: 0, marginTop: '1px' }} /> Faltan +{horasAAgregar}h de disponibilidad</>}
                                   </span>
                                   <a href={`/horarios/${progId}/disponibilidad`}
-                                    style={{ flexShrink: 0, fontSize: '10px', color: '#93c5fd', fontWeight: '600', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                                    Ajustar →
+                                    style={{ flexShrink: 0, fontSize: '10px', color: '#93c5fd', fontWeight: '600', textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                    Ajustar <ArrowRight size={11} strokeWidth={2.4} />
                                   </a>
                                 </div>
                               </div>
@@ -1066,7 +1097,7 @@ export default function ProgramarPage() {
         <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(15,23,42,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50}}>
           <div className="card" style={{width:'600px',maxWidth:'90vw',maxHeight:'90vh',display:'flex',flexDirection:'column'}}>
             <h2 style={{fontSize:'18px',color:'#b91c1c',margin:'0 0 16px',display:'flex',alignItems:'center',gap:'8px'}}>
-              <span>⛔</span> Conflicto detectado en la posición destino
+              <OctagonAlert size={20} strokeWidth={2.2} style={{ color: '#b91c1c' }} /> Conflicto detectado en la posición destino
             </h2>
             <div style={{flex:1,overflowY:'auto',marginBottom:'24px',fontSize:'14px',color:'#334155'}}>
               <p style={{marginBottom:'16px'}}>Has intentado mover el bloque a una posición donde ya existe una clase asignada para este grupo, docente o aula. Puedes forzar el movimiento bajo tu responsabilidad, o elegir una de las posiciones sugeridas por el motor inteligente:</p>
@@ -1079,7 +1110,7 @@ export default function ProgramarPage() {
                         <div style={{ fontWeight: '700', color: 'var(--text-primary)', marginBottom: '4px' }}>{sug.calidad}</div>
                         <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{sug.dia} • {sug.hora_inicio} a {sug.hora_fin} • {sug.ambiente_nombre}</div>
                       </div>
-                      <span style={{ fontSize: '20px' }}>→</span>
+                      <ArrowRight size={20} strokeWidth={2.2} style={{ color: 'var(--text-secondary)' }} />
                     </button>
                   ))}
                 </div>
@@ -1101,7 +1132,7 @@ export default function ProgramarPage() {
         <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(15,23,42,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50}}>
           <div className="card" style={{width:'600px',maxWidth:'90vw',maxHeight:'90vh',display:'flex',flexDirection:'column'}}>
             <h2 style={{fontSize:'18px',color:'#b91c1c',margin:'0 0 16px',display:'flex',alignItems:'center',gap:'8px'}}>
-              <span>⚠️</span> Alerta de Disponibilidad Insuficiente
+              <TriangleAlert size={20} strokeWidth={2.2} style={{ color: '#b91c1c' }} /> Alerta de Disponibilidad Insuficiente
             </h2>
             <div style={{flex:1,overflowY:'auto',marginBottom:'24px',fontSize:'14px',color:'#334155'}}>
               <p style={{marginBottom:'16px'}}>Algunos docentes no tienen suficientes horas de disponibilidad marcadas para cubrir los cursos que se les ha asignado. Esto causará que el motor deje bloques sin asignar.</p>
