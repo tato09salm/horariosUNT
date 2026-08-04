@@ -78,22 +78,12 @@ export default function GrillaHorarios({
               restDict = parsed;
             }
           } catch(e) {}
-        } else {
-          const foodSlot = slots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
-          if (foodSlot) {
-            restDict[foodSlot.id] = 'HORA LIBRE (REFRIGERIO)';
-          }
         }
         setRestringidos(restDict);
         setLoadedRestringidos(true);
       })
       .catch(() => {
-        let restDict: Record<string, string> = {};
-        const foodSlot = slots.find((s: any) => s.hora_inicio === '13:00' || s.hora_inicio === '13:00:00');
-        if (foodSlot) {
-          restDict[foodSlot.id] = 'HORA LIBRE (REFRIGERIO)';
-        }
-        setRestringidos(restDict);
+        setRestringidos({});
         setLoadedRestringidos(true);
       });
   }, [slots, restringidosConfig]);
@@ -328,14 +318,14 @@ export default function GrillaHorarios({
               <div key={slot.id} style={{ display: 'contents' }}>
                 <div
                   className={`horario-time${isLunch || !isMobile ? ' horario-time--show' : ''}${isLunch ? ' horario-time--lunch' : ''}`}
-                  style={{ gridColumn: 1 }}
+                  style={{ gridColumn: 1, gridRow: sIdx + 2 }}
                 >
                   {slot.hora_inicio.substring(0, 5)}<br />{slot.hora_fin.substring(0, 5)}
                 </div>
                 {isLunch ? (
                   <div
                     className="horario-cell horario-cell--show horario-cell--lunch"
-                    style={{ gridColumn: isMobile ? '2' : `2 / span ${diasVisibles.length}` }}
+                    style={{ gridColumn: isMobile ? '2' : `2 / span ${diasVisibles.length}`, gridRow: sIdx + 2 }}
                   >
                     {lunchMsg}
                   </div>
@@ -361,8 +351,13 @@ export default function GrillaHorarios({
                       (!contextData.ambiente_id || ultimoMovimiento.destino.ambiente_id === contextData.ambiente_id);
 
                     const cellStyle: React.CSSProperties = {};
+                    // Posicionamiento determinista: cada slot ocupa SIEMPRE su fila fija.
+                    // Evita que el auto-placement desalinee filas y cree filas gigantes o
+                    // celdas vacías cuando conviven celdas normales y bloques de varias horas.
                     if (duration > 1) {
                       cellStyle.gridRow = `${sIdx + 2} / span ${duration}`;
+                    } else {
+                      cellStyle.gridRow = `${sIdx + 2}`;
                     }
                     if (!isMobile) {
                       const dayIndex = diasVisibles.indexOf(dia);

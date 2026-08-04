@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
   const totalRes = await queryOne(countSql, params);
   const total = parseInt(totalRes?.count || '0');
 
-  sql += ` ORDER BY d.activo DESC, d.apellidos ASC, d.nombre ASC`;
+  sql += ` ORDER BY d.activo DESC, condicion_orden ASC, categoria_orden ASC, d.fecha_ingreso ASC NULLS LAST, d.apellidos ASC, d.nombre ASC`;
   
   if (!reporte) {
     sql += ` LIMIT $${idx++} OFFSET $${idx++}`;

@@ -524,18 +524,6 @@ export function aplicarDistribucionesExcepcionionales(
     const meta = bloquesCurso[0]?.units[0]?.meta || {};
     const cursoCodigo = meta.codigo || meta.curso_codigo || '';
     
-    // Audit EG-101 raw blocks
-    if (cursoCodigo === 'EG-101') {
-      console.log('[EG-101 RAW]', bloquesCurso.map(b => ({
-        pc_id: b.units[0]?.meta?.pc_id,
-        docente_id: b.units[0]?.meta?.docente_id,
-        curso_id: b.units[0]?.meta?.curso_id,
-        grupo_id: b.units[0]?.meta?.grupo_id,
-        tipo: b.tipo_sesion,
-        units: b.units.length,
-      })));
-    }
-    
     const teoria = bloquesCurso.filter(b => b.tipo_sesion === 'teoria');
     const practica = bloquesCurso.filter(b => b.tipo_sesion === 'practica');
     const horasTeoria = teoria.reduce((sum, b) => sum + b.units.length, 0);
@@ -543,13 +531,6 @@ export function aplicarDistribucionesExcepcionionales(
     
     // Check for TP_2_MAS_P_3 exceptional distribution (EG-101: 1T + 4P)
     if (cursoCodigo === 'EG-101' && horasTeoria === 1 && horasPractica === 4) {
-      const pcTeoria = teoria[0]?.units[0]?.meta?.pc_id;
-      const pcPractica = practica[0]?.units[0]?.meta?.pc_id;
-      console.log(`[EG-101] pc teoria=${pcTeoria}`);
-      console.log(`[EG-101] pc practica=${pcPractica}`);
-      console.log(`[EG-101] mismos pc_id: ${pcTeoria === pcPractica ? 'SÍ' : 'NO'}`);
-      console.log(`[EG-101] agrupados por docente+curso: SÍ`);
-      
       // Check 4h continuous practice availability against original docente availability (not occupancy)
       const docenteId = meta.docente_id;
       let maxBloqueContiguo = 0;
@@ -566,11 +547,7 @@ export function aplicarDistribucionesExcepcionionales(
           }
         }
       }
-      console.log(`[EG-101] máximo bloque contiguo en disponibilidad: ${maxBloqueContiguo}h`);
-      
       if (maxBloqueContiguo < 4) {
-        console.log(`[EG-101] estrategia activada: TP_2_MAS_P_3`);
-        
         const metaTeoria = teoria[0]?.units[0]?.meta || {};
         const metaPractica = practica[0]?.units[0]?.meta || {};
         const base = { ...meta };
@@ -623,11 +600,7 @@ export function aplicarDistribucionesExcepcionionales(
         
         resultado.push(tpBlock);
         resultado.push(pBlock);
-        console.log(`[EG-101] originales retirados: ${teoria.length + practica.length}`);
-        console.log(`[EG-101] bloques excepcionales agregados: 2`);
         continue;
-      } else {
-        console.log(`[EG-101] disponibilidad 4h suficiente, usando distribución normal`);
       }
     }
     

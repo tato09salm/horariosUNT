@@ -38,15 +38,18 @@ export default function CeldaHorario({
     );
   }
 
+  const totalParalelos = asignaciones.length;
+  const mini = totalParalelos > 3;
+
   return (
     <div className="horario-celda-contenido horario-celda-contenido--paralelo" style={{ height: '100%' }}>
       <span className="horario-badge-paralelo" title="Varios cursos en la misma franja">
-        {asignaciones.length} en paralelo
+        {totalParalelos} en paralelo
       </span>
       <div
         className="horario-grid-paralelo"
         style={{
-          gridTemplateColumns: `repeat(${Math.min(asignaciones.length, 2)}, 1fr)`,
+          gridTemplateColumns: `repeat(${totalParalelos}, 1fr)`,
           height: '100%'
         }}
       >
@@ -57,6 +60,7 @@ export default function CeldaHorario({
               key={a.id || `${a.curso_codigo}-${idx}`}
               asignacion={a}
               compact
+              mini={mini}
               mapaColores={mapaColores}
               movidoManualmente={movido}
               esParteBloqueActivo={activeBlockIds?.has(a.id) ?? false}

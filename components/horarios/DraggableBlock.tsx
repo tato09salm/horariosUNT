@@ -6,6 +6,7 @@ interface DraggableBlockProps extends BloqueHorarioProps {
   todosEnCelda?: BloqueHorarioProps['asignacion'][]; // todos los bloques visibles en la celda actual
   esParteBloqueActivo?: boolean;
   duracion?: number;
+  mini?: boolean;
 }
 
 /**
@@ -19,7 +20,7 @@ function esBloqueado(asignacion: BloqueHorarioProps['asignacion']): boolean {
   return false;
 }
 
-export function DraggableBlock({ asignacion, compact, mapaColores, movidoManualmente, esParteBloqueActivo, duracion }: DraggableBlockProps) {
+export function DraggableBlock({ asignacion, compact, mini, mapaColores, movidoManualmente, esParteBloqueActivo, duracion }: DraggableBlockProps) {
   const bloqueado = esBloqueado(asignacion);
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -30,16 +31,22 @@ export function DraggableBlock({ asignacion, compact, mapaColores, movidoManualm
 
   const isHidden = esParteBloqueActivo || isDragging;
 
+  // width:100% + minWidth:0 impide que la tarjeta se desborde hacia la columna
+  // del día siguiente (permite que el grid paralelo reparta el ancho en N columnas).
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
     opacity: isHidden ? 0.3 : 1, // Usar 0.3 para indicar el rastro origen
     zIndex: isDragging ? 999 : 1,
     cursor: bloqueado ? 'not-allowed' : 'grab',
-    height: '100%'
+    height: '100%',
+    width: '100%',
+    minWidth: 0,
   } : {
     opacity: isHidden ? 0.3 : 1,
     cursor: bloqueado ? 'not-allowed' : 'grab',
-    height: '100%'
+    height: '100%',
+    width: '100%',
+    minWidth: 0,
   };
 
   return (
@@ -53,6 +60,7 @@ export function DraggableBlock({ asignacion, compact, mapaColores, movidoManualm
       <BloqueHorario
         asignacion={asignacion}
         compact={compact}
+        mini={mini}
         mapaColores={mapaColores}
         movidoManualmente={movidoManualmente}
         bloqueado={bloqueado}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { query, queryOne } from '@/lib/db';
+import { query, queryOne, transaction } from '@/lib/db';
 import { registrarAuditoria } from '@/lib/auditoria';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -26,20 +26,36 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const body = await req.json();
     const anterior = await queryOne(`SELECT * FROM docentes WHERE id = $1`, [id]);
-    
+
     const nombreUpper = body.nombre?.toUpperCase() || '';
     const apellidosUpper = body.apellidos?.toUpperCase() || '';
 
-    const docente = await queryOne(
-      `UPDATE docentes SET nombre=$1, apellidos=$2, email=$3, telefono=$4, categoria=$5,
-       condicion=$6, fecha_ingreso=$7, grado_academico=$8, horas_max_semana=$9, activo=$10,
-       facultad=$11, dpto_academico=$12, es_escuela_configurada=$13, modalidad=$14, updated_at=NOW()
-       WHERE id=$15 RETURNING *`,
-      [nombreUpper, apellidosUpper, body.email, body.telefono, body.categoria,
-       body.condicion, body.fecha_ingreso, body.grado_academico, body.horas_max_semana, body.activo,
-       body.facultad?.toUpperCase(), body.dpto_academico?.toUpperCase(), body.es_escuela_configurada === true,
-       body.modalidad || 'TIEMPO COMPLETO 40 H', id]
-    );
+    // Se actualiza el docente y, si tiene cuenta de usuario vinculada, se
+    // sincroniza su correo en la misma transacción (el correo del docente es
+    // también el de acceso al sistema). Si el nuevo correo ya pertenece a otro
+    // usuario, la transacción revierte y se devuelve el error.
+    const docente = await transaction(async (client) => {
+      const docResult = await client.query(
+        `UPDATE docentes SET nombre=$1, apellidos=$2, email=$3, telefono=$4, categoria=$5,
+         condicion=$6, fecha_ingreso=$7, grado_academico=$8, horas_max_semana=$9, activo=$10,
+         facultad=$11, dpto_academico=$12, es_escuela_configurada=$13, modalidad=$14, updated_at=NOW()
+         WHERE id=$15 RETURNING *`,
+        [nombreUpper, apellidosUpper, body.email, body.telefono, body.categoria,
+         body.condicion, body.fecha_ingreso, body.grado_academico, body.horas_max_semana, body.activo,
+         body.facultad?.toUpperCase(), body.dpto_academico?.toUpperCase(), body.es_escuela_configurada === true,
+         body.modalidad || 'TIEMPO COMPLETO 40 H', id]
+      );
+      const actualizado = docResult.rows[0];
+
+      if (actualizado?.usuario_id && body.email) {
+        await client.query(
+          `UPDATE usuarios SET email = $1 WHERE id = $2`,
+          [body.email, actualizado.usuario_id]
+        );
+      }
+
+      return actualizado;
+    });
 
     await registrarAuditoria({
       usuario_id: session.id,

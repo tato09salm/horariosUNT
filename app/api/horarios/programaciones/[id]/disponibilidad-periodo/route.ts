@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
 import { registrarAuditoria } from '@/lib/auditoria';
-import nodemailer from 'nodemailer';
+import { enviarEmail, plantillaCorreo } from '@/lib/email';
+
+// Correo que recibe el resumen/lista de notificaciones de disponibilidad.
+// Se puede sobrescribir con la variable de entorno NOTIFICACION_EMAIL_TO.
+const NOTIFICACION_EMAIL_TO = process.env.NOTIFICACION_EMAIL_TO || 'dalucanoni@unitru.edu.pe';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -94,18 +98,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         // Obtener docentes con asignación en esta programación
         // Si se indica docente_id, notificar solo a ese docente.
+        // Se prioriza el correo de contacto del docente (d.email) antes que el de
+        // su cuenta de usuario (u.email), porque al editar un docente solo se
+        // actualiza docentes.email y ahí se registra el correo al que desea recibir.
         const docentesAsignados = docente_id
           ? await query(`
-              SELECT DISTINCT d.id, d.nombre, d.apellidos, d.email
+              SELECT DISTINCT
+                d.id,
+                d.nombre,
+                d.apellidos,
+                COALESCE(NULLIF(d.email, ''), NULLIF(u.email, '')) AS email
               FROM docentes d
               INNER JOIN programacion_cursos pc ON pc.docente_id = d.id
+              LEFT JOIN usuarios u ON u.id = d.usuario_id
               WHERE pc.programacion_id = $1 AND d.id = $2
               ORDER BY d.apellidos, d.nombre
             `, [programacion_id, docente_id])
           : await query(`
-              SELECT DISTINCT d.id, d.nombre, d.apellidos, d.email
+              SELECT DISTINCT
+                d.id,
+                d.nombre,
+                d.apellidos,
+                COALESCE(NULLIF(d.email, ''), NULLIF(u.email, '')) AS email
               FROM docentes d
               INNER JOIN programacion_cursos pc ON pc.docente_id = d.id
+              LEFT JOIN usuarios u ON u.id = d.usuario_id
               WHERE pc.programacion_id = $1
               ORDER BY d.apellidos, d.nombre
             `, [programacion_id]);
@@ -113,81 +130,104 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         console.log('Docentes asignados encontrados:', docentesAsignados.length);
 
         if (docentesAsignados.length > 0) {
-          // Agregar correo de testeo
-          const emails = docentesAsignados
-            .map((d: any) => d.email)
-            .filter((e: string) => e);
-          emails.push('dalucanoni@unitru.edu.pe'); // Correo de testeo
-
-          console.log('Lista de correos a enviar:', emails);
-
-          // Verificar configuración SMTP
-          console.log('SMTP_HOST:', process.env.SMTP_HOST);
-          console.log('SMTP_USER:', process.env.SMTP_USER);
-          console.log('SMTP_FROM_EMAIL:', process.env.SMTP_FROM_EMAIL);
-          console.log('SMTP_FROM_NAME:', process.env.SMTP_FROM_NAME);
-
-          if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-            console.error('ERROR: SMTP_USER o SMTP_PASS no están configurados en .env');
-            throw new Error('Configuración SMTP incompleta');
-          }
-
-          // Configurar transporter de nodemailer
-          const smtpPort = parseInt(process.env.SMTP_PORT || '587');
-          const isSecure = smtpPort === 465; // 465 usa SSL, 587 usa TLS
-
-          const transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST || 'smtp.gmail.com',
-            port: smtpPort,
-            secure: isSecure,
-            auth: {
-              user: process.env.SMTP_USER,
-              pass: process.env.SMTP_PASS,
-            },
-          });
-
-          // Verificar conexión SMTP
-          try {
-            await transporter.verify();
-            console.log('Conexión SMTP verificada correctamente');
-          } catch (verifyError) {
-            console.error('Error verificando conexión SMTP:', verifyError);
-            throw new Error('No se pudo conectar al servidor SMTP');
-          }
-
-          // Enviar correos
           const fechaInicioStr = new Date(fecha_inicio).toLocaleString('es-PE', { timeZone: 'America/Lima' });
           const fechaCierreStr = new Date(fecha_cierre).toLocaleString('es-PE', { timeZone: 'America/Lima' });
 
-          let successCount = 0;
-          for (const email of emails) {
+          const enviados: { nombre: string; email: string }[] = [];
+          const omitidos: { nombre: string; motivo: string }[] = [];
+          const fallidos: { nombre: string; email: string; motivo: string }[] = [];
+
+          for (const docente of docentesAsignados as Array<{ id: string; nombre: string; apellidos: string; email: string | null }>) {
+            const nombreCompleto = `${docente.nombre} ${docente.apellidos}`.trim();
+            const email = (docente.email || '').trim();
+
+            if (!email) {
+              omitidos.push({ nombre: nombreCompleto, motivo: 'Sin correo registrado' });
+              continue;
+            }
+
             try {
-              await transporter.sendMail({
-                from: `"${process.env.SMTP_FROM_NAME || 'SI Horarios UNT'}" <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER}>`,
+              await enviarEmail({
                 to: email,
                 subject: `Registro de Disponibilidad - ${prog.nombre}`,
-                html: `
-                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #1e40af;">Registro de Disponibilidad Docente</h2>
-                    <p>Estimado docente,</p>
-                    <p>Se ha configurado el período para el registro de disponibilidad docente para la programación <strong>${prog.nombre}</strong>.</p>
+                text: [
+                  `Estimado(a) ${nombreCompleto},`,
+                  '',
+                  `Se ha configurado el período para registrar su disponibilidad docente en la programación ${prog.nombre}.`,
+                  '',
+                  `Fecha de inicio: ${fechaInicioStr}`,
+                  `Fecha de cierre: ${fechaCierreStr}`,
+                  '',
+                  'Por favor, ingrese al sistema y registre su disponibilidad dentro del período indicado.',
+                  '',
+                  'Este es un mensaje automático. Por favor, no responda este correo.',
+                ].join('\n'),
+                html: plantillaCorreo({
+                  titulo: 'Registro de Disponibilidad Docente',
+                  contenido: `
+                    <p>Estimado(a) <strong>${nombreCompleto}</strong>,</p>
+                    <p>Se ha configurado el período para registrar su disponibilidad docente en la programación <strong>${prog.nombre}</strong>.</p>
                     <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
                       <p style="margin: 8px 0;"><strong>Fecha de inicio:</strong> ${fechaInicioStr}</p>
                       <p style="margin: 8px 0;"><strong>Fecha de cierre:</strong> ${fechaCierreStr}</p>
                     </div>
-                    <p>Por favor, ingrese al sistema para registrar su disponibilidad dentro del período indicado.</p>
-                    <p style="color: #6b7280; font-size: 12px; margin-top: 24px;">Este es un mensaje automático, por favor no responda.</p>
-                  </div>
-                `,
+                    <p>Por favor, ingrese al sistema y registre su disponibilidad dentro del período indicado.</p>
+                  `,
+                }),
               });
               console.log(`✓ Correo enviado a ${email}`);
-              successCount++;
-            } catch (err) {
+              enviados.push({ nombre: nombreCompleto, email });
+            } catch (err: unknown) {
+              const motivo = err instanceof Error ? err.message : 'Error desconocido';
               console.error(`✗ Error enviando correo a ${email}:`, err);
+              fallidos.push({ nombre: nombreCompleto, email, motivo });
             }
           }
 
-          console.log(`=== RESUMEN: ${successCount}/${emails.length} correos enviados exitosamente ===`);
+          console.log(`=== RESUMEN: ${enviados.length}/${docentesAsignados.length} correos enviados exitosamente ===`);
+
+          const ccSummary = session.email && session.email !== NOTIFICACION_EMAIL_TO ? session.email : undefined;
+
+          if (session.email || NOTIFICACION_EMAIL_TO) {
+            const destinoTexto = docente_id ? 'al docente seleccionado' : 'a los docentes asignados';
+            const bloqueEnviados = enviados.length > 0
+              ? `<ul>${enviados.map(item => `<li><strong>${item.nombre}</strong> (${item.email})</li>`).join('')}</ul>`
+              : '<p>No se envió ningún correo a docentes.</p>';
+            const bloqueOmitidos = omitidos.length > 0
+              ? `<p><strong>Docentes omitidos por falta de correo:</strong></p><ul>${omitidos.map(item => `<li>${item.nombre}: ${item.motivo}</li>`).join('')}</ul>`
+              : '';
+            const bloqueFallidos = fallidos.length > 0
+              ? `<p><strong>Errores de envío:</strong></p><ul>${fallidos.map(item => `<li>${item.nombre} (${item.email}): ${item.motivo}</li>`).join('')}</ul>`
+              : '';
+
+            await enviarEmail({
+              to: NOTIFICACION_EMAIL_TO,
+              cc: ccSummary,
+              subject: `Resumen de notificación de disponibilidad - ${prog.nombre}`,
+              text: [
+                `Se registró el envío de notificaciones de disponibilidad ${destinoTexto} para ${prog.nombre}.`,
+                '',
+                `Enviados: ${enviados.length}`,
+                ...enviados.map(item => `- ${item.nombre} (${item.email})`),
+                '',
+                `Omitidos: ${omitidos.length}`,
+                ...omitidos.map(item => `- ${item.nombre}: ${item.motivo}`),
+                '',
+                `Fallidos: ${fallidos.length}`,
+                ...fallidos.map(item => `- ${item.nombre} (${item.email}): ${item.motivo}`),
+              ].join('\n'),
+              html: plantillaCorreo({
+                titulo: 'Resumen de notificación de disponibilidad',
+                contenido: `
+                  <p>Se registró el envío de notificaciones de disponibilidad ${destinoTexto} para la programación <strong>${prog.nombre}</strong>.</p>
+                  <p><strong>Total enviados:</strong> ${enviados.length}</p>
+                  ${bloqueEnviados}
+                  ${bloqueOmitidos}
+                  ${bloqueFallidos}
+                `,
+              }),
+            });
+          }
 
           // Marcar como notificación enviada (pero permitir múltiples envíos)
           await queryOne(`
@@ -195,8 +235,47 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             SET notificacion_enviada = true
             WHERE programacion_id = $1
           `, [programacion_id]);
+
+          return NextResponse.json({
+            data: periodo,
+            notificationSummary: {
+              sent: enviados.length,
+              skipped: omitidos.length,
+              failed: fallidos.length,
+              target: docente_id ? 'single' : 'all',
+            },
+          }, { status: 201 });
         } else {
           console.log('No se encontraron docentes asignados para notificar');
+          const ccSummary = session.email && session.email !== NOTIFICACION_EMAIL_TO ? session.email : undefined;
+          if (session.email || NOTIFICACION_EMAIL_TO) {
+            await enviarEmail({
+              to: NOTIFICACION_EMAIL_TO,
+              cc: ccSummary,
+              subject: `Resumen de notificación de disponibilidad - ${prog.nombre}`,
+              text: [
+                `Se intentó enviar notificaciones de disponibilidad para ${prog.nombre}.`,
+                '',
+                'No se encontraron docentes asignados para notificar.',
+              ].join('\n'),
+              html: plantillaCorreo({
+                titulo: 'Resumen de notificación de disponibilidad',
+                contenido: `
+                  <p>Se intentó enviar notificaciones de disponibilidad para la programación <strong>${prog.nombre}</strong>.</p>
+                  <p>No se encontraron docentes asignados para notificar.</p>
+                `,
+              }),
+            });
+          }
+          return NextResponse.json({
+            data: periodo,
+            notificationSummary: {
+              sent: 0,
+              skipped: 0,
+              failed: 0,
+              target: docente_id ? 'single' : 'all',
+            },
+          }, { status: 201 });
         }
       } catch (emailError) {
         console.error('Error enviando notificaciones:', emailError);
