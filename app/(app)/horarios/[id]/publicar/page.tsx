@@ -296,15 +296,11 @@ export default function PublicarPage() {
       return timeA.localeCompare(timeB);
     });
 
-    // 2. Agrupamos los bloques contiguos
+    // 2. Agrupamos los bloques contiguos (función pura: nunca muta objetos previos)
     const result: any[] = [];
     for (const a of sortedForGrouping) {
-      if (result.length === 0) {
-        result.push({ ...a });
-        continue;
-      }
       const last = result[result.length - 1];
-      const sameSession =
+      const sameSession = !!last &&
         last.dia === a.dia &&
         last.curso_codigo === a.curso_codigo &&
         last.grupo === a.grupo &&
@@ -313,7 +309,7 @@ export default function PublicarPage() {
         last.aula === a.aula;
 
       if (sameSession && last.hora_fin === a.hora_inicio) {
-        last.hora_fin = a.hora_fin;
+        result[result.length - 1] = { ...last, hora_fin: a.hora_fin };
       } else {
         result.push({ ...a });
       }
