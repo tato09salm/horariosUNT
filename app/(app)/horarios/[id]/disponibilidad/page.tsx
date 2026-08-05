@@ -890,6 +890,19 @@ export default function DisponibilidadPage() {
             No disponible
           </span>
         </div>
+        {slotsVisibles.length === 0 ? (
+          <div style={{
+            minWidth: '900px',
+            padding: '24px',
+            border: '1px dashed #cbd5e1',
+            borderRadius: '10px',
+            background: '#f8fafc',
+            color: '#475569',
+            textAlign: 'center',
+          }}>
+            No hay franjas horarias disponibles para mostrar en la grilla.
+          </div>
+        ) : (
         <div
           className="horario-grid"
           style={{ minWidth: '900px', userSelect: 'none' }}
@@ -940,6 +953,7 @@ export default function DisponibilidadPage() {
             );
           })}
         </div>
+        )}
       </div>
     </div>
   );
