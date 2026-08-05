@@ -452,9 +452,10 @@ export default function NuevaCargaHorariaPage() {
       const excludeParam = docenteSeleccionado?.id
         ? `&exclude_docente_id=${docenteSeleccionado.id}`
         : '';
-      const [horariosRes, ocupacionRes] = await Promise.all([
+      const [horariosRes, ocupacionRes, porAulaRes] = await Promise.all([
         fetch(`/api/horarios?ciclo_id=${cicloAcademicoSeleccionado}`),
         fetch(`/api/carga-horaria/ocupacion-ambientes?ciclo_academico_id=${cicloAcademicoSeleccionado}${excludeParam}`),
+        fetch(`/api/horarios/por-aula?ciclo_id=${cicloAcademicoSeleccionado}`),
       ]);
       
       // Check response status before parsing JSON
@@ -470,12 +471,20 @@ export default function NuevaCargaHorariaPage() {
         console.error('Ocupacion response:', text.substring(0, 200));
         throw new Error(`Ocupacion API failed: ${ocupacionRes.status}`);
       }
+      if (!porAulaRes.ok) {
+        console.error('Por-aula API error:', porAulaRes.status, porAulaRes.statusText);
+        const text = await porAulaRes.text();
+        console.error('Por-aula response:', text.substring(0, 200));
+        throw new Error(`Por-aula API failed: ${porAulaRes.status}`);
+      }
       
       const horariosData = await horariosRes.json();
       const ocupacionData = await ocupacionRes.json();
+      const porAulaData = await porAulaRes.json();
       setPreviewHorarios([
         ...(Array.isArray(horariosData.data) ? horariosData.data : []),
         ...(Array.isArray(ocupacionData.data) ? ocupacionData.data : []),
+        ...(Array.isArray(porAulaData.data) ? porAulaData.data : []),
       ]);
     } catch (error) {
       console.error('Error cargando disponibilidad del horario:', error);
@@ -4423,7 +4432,7 @@ periodo_academico: prev.periodo_academico || cycle?.nombre || '',
                   }}
                 >
                   <Eye size={16} />
-                  Ver horario
+                  Ver Disponibilidad de aulas
                 </button>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap',justifyContent:'flex-end',marginLeft:'auto',alignSelf:'center'}}>
