@@ -1265,6 +1265,12 @@ tbody tr:hover {
   border-color: #374151 !important;
 }
 
+/* Ícono de calendario de los inputs datetime en modo oscuro */
+.dark .horarios-disponibilidad-page input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
 .dark .horarios-crear-page h1,
 .dark .horarios-crear-page h2,
 .dark .horarios-crear-page h3,

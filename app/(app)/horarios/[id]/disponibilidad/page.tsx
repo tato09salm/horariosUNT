@@ -702,31 +702,31 @@ export default function DisponibilidadPage() {
 
       {/* Sección de configuración de período de disponibilidad (solo admin/secretaria) */}
       {isAdminOrSec && (
-        <div className="card" style={{ marginBottom: '20px', position: 'relative', zIndex: 30 }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 16px' }}>Configuración del Período de Disponibilidad</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+        <div className="card" style={{ marginBottom: '20px', position: 'relative', zIndex: 30, padding: '16px 20px' }}>
+          <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 12px' }}>Configuración del Período de Disponibilidad</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '12px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 600 }}>Fecha y Hora de Inicio:</label>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 600 }}>Fecha y Hora de Inicio:</label>
               <input
                 type="datetime-local"
                 className="form-input"
                 value={fechaInicio}
                 onChange={e => setFechaInicio(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+                style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 600 }}>Fecha y Hora de Cierre:</label>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 600 }}>Fecha y Hora de Cierre:</label>
               <input
                 type="datetime-local"
                 className="form-input"
                 value={fechaCierre}
                 onChange={e => setFechaCierre(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+                style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
               />
             </div>
           </div>
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '12px' }}>
             <div
               className="notif-card"
               role="switch"
@@ -743,7 +743,7 @@ export default function DisponibilidadPage() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '16px',
+                padding: '10px 12px',
                 borderRadius: '8px',
                 border: '1px solid var(--border-color)',
                 background: 'var(--bg-card)',
@@ -755,102 +755,90 @@ export default function DisponibilidadPage() {
                 } : {}),
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '8px',
-                  background: enviarNotificacion ? '#3b82f6' : 'var(--border-color)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s',
-                }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={enviarNotificacion ? '#fff' : 'var(--text-secondary)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                    <polyline points="22,6 12,13 2,6"></polyline>
-                  </svg>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                  <h3 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
+                    Notificar a docentes asignados
+                  </h3>
+                  <span style={{
+                    fontSize: '10px',
+                    padding: '1px 8px',
+                    borderRadius: '12px',
+                    background: enviarNotificacion ? '#3b82f6' : 'var(--border-color)',
+                    color: enviarNotificacion ? '#fff' : 'var(--text-secondary)',
+                    fontWeight: '500',
+                  }}>
+                    {enviarNotificacion ? 'Activo' : 'Desactivado'}
+                  </span>
                 </div>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                    <h3 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
-                      Notificar a docentes asignados
-                    </h3>
-                    <span style={{
-                      fontSize: '11px',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      background: enviarNotificacion ? '#3b82f6' : 'var(--border-color)',
-                      color: enviarNotificacion ? '#fff' : 'var(--text-secondary)',
-                      fontWeight: '500',
-                    }}>
-                      {enviarNotificacion ? 'Activo' : 'Desactivado'}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
-                    {notifDestino === 'todos'
-                      ? 'Se enviará un correo automático a todos los docentes asignados y un resumen a tu correo'
-                      : `Se enviará un correo automático a ${docentes.find(d => d.id === notifDestino)?.nombre || 'un docente'} y un resumen a tu correo`}
-                  </p>
-                </div>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>
+                  {enviarNotificacion
+                    ? 'Se enviará un correo automático a los docentes y un resumen a tu correo'
+                    : 'Activa el interruptor para configurar el envío'}
+                </p>
               </div>
               <div style={{
-                width: '44px',
-                height: '24px',
+                width: '40px',
+                height: '22px',
                 borderRadius: '12px',
                 background: enviarNotificacion ? '#3b82f6' : 'var(--border-color)',
                 position: 'relative',
                 transition: 'all 0.2s',
+                flexShrink: 0,
               }}>
                 <div style={{
-                  width: '20px',
-                  height: '20px',
+                  width: '18px',
+                  height: '18px',
                   borderRadius: '50%',
                   background: '#fff',
                   position: 'absolute',
                   top: '2px',
-                  left: enviarNotificacion ? '22px' : '2px',
+                  left: enviarNotificacion ? '20px' : '2px',
                   transition: 'all 0.2s',
                   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                 }}></div>
               </div>
             </div>
-            {/* Selector de destinatarios de la notificación */}
-            <div style={{ marginTop: '12px', position: 'relative', zIndex: 4 }}>
-              <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 600 }}>Enviar notificación a:</label>
-              <ComboboxOpciones
-                value={notifDestino}
-                onChange={setNotifDestino}
-                opciones={opcionesNotifDestino}
-                ariaLabel="Enviar notificación a"
-                searchPlaceholder="Buscar docente..."
-                placeholder="Todos los docentes asignados"
-                badgeGrupo="TODOS"
-                disabled={!enviarNotificacion}
-              />
-            </div>
+            {/* Selector de destinatarios: solo se muestra con el toggle activo */}
+            {enviarNotificacion && (
+              <div style={{ marginTop: '10px', position: 'relative', zIndex: 4 }}>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 600 }}>Enviar notificación a:</label>
+                <ComboboxOpciones
+                  value={notifDestino}
+                  onChange={setNotifDestino}
+                  opciones={opcionesNotifDestino}
+                  ariaLabel="Enviar notificación a"
+                  searchPlaceholder="Buscar docente..."
+                  placeholder="Todos los docentes asignados"
+                  badgeGrupo="TODOS"
+                />
+              </div>
+            )}
           </div>
           {disponibilidadPeriodo && (
-            <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '6px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
-                <strong>Período actual:</strong><br />
-                Inicio: {new Date(disponibilidadPeriodo.fecha_inicio).toLocaleString('es-PE', { timeZone: 'America/Lima' })}<br />
-                Cierre: {new Date(disponibilidadPeriodo.fecha_cierre).toLocaleString('es-PE', { timeZone: 'America/Lima' })}<br />
-                Notificación enviada: {disponibilidadPeriodo.notificacion_enviada ? 'Sí' : 'No'}
+            <div style={{ marginBottom: '12px', padding: '10px 12px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '6px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>
+                <strong>Período actual:</strong>{' '}
+                Inicio: {new Date(disponibilidadPeriodo.fecha_inicio).toLocaleString('es-PE', { timeZone: 'America/Lima' })} ·{' '}
+                Cierre: {new Date(disponibilidadPeriodo.fecha_cierre).toLocaleString('es-PE', { timeZone: 'America/Lima' })} ·{' '}
+                Notificación: {disponibilidadPeriodo.notificacion_enviada ? 'Sí' : 'No'}
               </p>
             </div>
           )}
-          <button
-            className="btn-primary"
-            onClick={guardarDisponibilidadPeriodo}
-            disabled={saving || !fechaInicio || !fechaCierre}
-          >
-            {saving
-              ? 'GUARDANDO...'
-              : enviarNotificacion
-                ? (notifDestino === 'todos' ? 'GUARDAR Y NOTIFICAR DOCENTES' : 'GUARDAR Y NOTIFICAR DOCENTE')
-                : 'GUARDAR PERÍODO'}
-          </button>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              className="btn-primary"
+              onClick={guardarDisponibilidadPeriodo}
+              disabled={saving || !fechaInicio || !fechaCierre}
+              style={{ padding: '7px 16px', fontSize: '13px' }}
+            >
+              {saving
+                ? 'Guardando...'
+                : enviarNotificacion
+                  ? (notifDestino === 'todos' ? 'Guardar y Notificar Docentes' : 'Guardar y Notificar Docente')
+                  : 'Guardar Período'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -902,19 +890,6 @@ export default function DisponibilidadPage() {
             No disponible
           </span>
         </div>
-        {slotsVisibles.length === 0 ? (
-          <div style={{
-            minWidth: '900px',
-            padding: '24px',
-            border: '1px dashed #cbd5e1',
-            borderRadius: '10px',
-            background: '#f8fafc',
-            color: '#475569',
-            textAlign: 'center',
-          }}>
-            No hay franjas horarias disponibles para mostrar en la grilla.
-          </div>
-        ) : (
         <div
           className="horario-grid"
           style={{ minWidth: '900px', userSelect: 'none' }}
@@ -923,7 +898,19 @@ export default function DisponibilidadPage() {
         >
           <div className="horario-header">Hora</div>
           {DIAS.map(d => <div key={d} className="horario-header">{DIAS_LABEL[d]}</div>)}
-          {slotsVisibles.map((slot) => {
+          {slotsVisibles.length === 0 ? (
+            <div style={{
+              gridColumn: '1 / -1',
+              padding: '24px',
+              border: '1px dashed #cbd5e1',
+              borderRadius: '10px',
+              background: '#f8fafc',
+              color: '#475569',
+              textAlign: 'center',
+            }}>
+              No hay franjas horarias disponibles para mostrar en la grilla.
+            </div>
+          ) : slotsVisibles.map((slot) => {
             return (
               <div key={slot.id} style={{ display: 'contents' }}>
                 <div className="horario-time">{slot.hora_inicio}<br />{slot.hora_fin}</div>
@@ -953,7 +940,6 @@ export default function DisponibilidadPage() {
             );
           })}
         </div>
-        )}
       </div>
     </div>
   );
