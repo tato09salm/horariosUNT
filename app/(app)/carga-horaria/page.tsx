@@ -1476,6 +1476,15 @@ export default function CargaHorariaPage() {
           } else {
             const key = a.curso_codigo || a.curso_nombre || '';
             if (!horarioLookup.has(key)) horarioLookup.set(key, []);
+            // Dedupe: el endpoint puede devolver el mismo bloque desde config.asignaciones
+            // y desde cargaHorariaBlocks (tipo 'carga_lectiva'). Evita traslapes en el F03.
+            const exists = horarioLookup.get(key)!.some(
+              (e: any) =>
+                e.dia === a.dia &&
+                (e.hora_inicio || '').slice(0, 5) === (a.hora_inicio || '').slice(0, 5) &&
+                (e.hora_fin || '').slice(0, 5) === (a.hora_fin || '').slice(0, 5)
+            );
+            if (exists) continue;
             horarioLookup.get(key)!.push({
               tipo: a.tipo || 'teoria',
               dia: a.dia,
@@ -1551,7 +1560,7 @@ export default function CargaHorariaPage() {
     let y = 10;
 
     // 1. TITLE
-    doc.setFontSize(12);
+    doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text('HORARIO SEMANAL DE LA CARGA ACADÉMICA DOCENTE (F03-CAD)', pw / 2, y, { align: 'center' });
     y += 7;
@@ -1574,16 +1583,24 @@ export default function CargaHorariaPage() {
       ],
       startY: y,
       theme: 'grid',
-      styles: { cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.5 },
+      styles: { cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.25, textColor: 0 },
       margin: { left: ml, right: ml },
       columnStyles: { 0: { cellWidth: 48 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 40 } },
-      tableLineWidth: 0.5,
+      tableLineWidth: 0.25,
       tableLineColor: [0, 0, 0]
     });
     y = (doc as any).lastAutoTable.finalY + 5;
 
-    const headStyle = { fillColor: [220, 230, 241] as [number, number, number], textColor: 0 as number, fontSize: 7.5, fontStyle: 'bold' as const, halign: 'center' as const };
-    const cellStyle = { fontSize: 7.5, fontStyle: 'bold' as const };
+    // Encabezados de columna: gris claro uniforme (#D9D9D9), texto negro, negrita, centrado
+    const headStyle = { fillColor: [217, 217, 217] as [number, number, number], textColor: 0 as number, fontSize: 7.5, fontStyle: 'bold' as const, halign: 'center' as const };
+    // Datos: texto regular (sin negrita), alineado según tipo de dato
+    const cellStyle = { fontSize: 7.5, fontStyle: 'normal' as const };
+
+    // Accent-less section header (F01 style): bold, black, no fill, left-aligned
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('I. CARGA HORARIA LECTIVA (CHL)', ml, y);
+    y += 4;
 
     // 3. CHL TABLE
     const chlRows: any[] = [];
@@ -1637,13 +1654,19 @@ export default function CargaHorariaPage() {
       body: chlRows,
       startY: y,
       theme: 'grid',
-      styles: { cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.5 },
+      styles: { cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.25, textColor: 0 },
       margin: { left: ml, right: ml },
       columnStyles: { 0: { cellWidth: 28 }, 2: { cellWidth: 22 }, 3: { cellWidth: 18 }, 4: { cellWidth: 12 } },
-      tableLineWidth: 0.5,
+      tableLineWidth: 0.25,
       tableLineColor: [0, 0, 0]
     });
     y = (doc as any).lastAutoTable.finalY + 5;
+
+    // Accent-less section header (F01 style): bold, black, no fill, left-aligned
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('II. CARGA HORARIA NO LECTIVA (CHNL)', ml, y);
+    y += 4;
 
     // 4. CHNL TABLE
     const secMapping: { key: string; label: string; field: string | null }[] = [
@@ -1683,9 +1706,9 @@ export default function CargaHorariaPage() {
       let hr = 0;
       if (s.field && secciones[s.field]) {
         if (Array.isArray(secciones[s.field])) {
-          hr = secciones[s.field].reduce((sum: number, item: any) => sum + (item.horas || 0), 0);
+          hr = secciones[s.field].reduce((sum: number, item: any) => sum + (parseInt(item.horas, 10) || 0), 0);
         } else {
-          hr = secciones[s.field]?.horas || 0;
+          hr = parseInt(secciones[s.field]?.horas, 10) || 0;
         }
       }
       totalNoLectiva += hr;
@@ -1709,6 +1732,17 @@ export default function CargaHorariaPage() {
               hora_inicio: (item.hora_inicio || '').slice(0, 5),
               hora_fin: (item.hora_fin || '').slice(0, 5),
             }));
+        }
+        // If the items don't carry dia/hora, fall back to the horario_slots JSONB
+        if (horarioEntradas.length === 0 && Array.isArray(secData._horarioSlots) && secData._horarioSlots.length > 0) {
+          horarioEntradas = secData._horarioSlots.map((item: any) => {
+            const horaNum = typeof item.hora === 'number' ? item.hora : parseInt(String(item.hora || item.hora_inicio || '').split(':')[0], 10);
+            return {
+              dia: item.dia,
+              hora_inicio: `${String(horaNum).padStart(2, '0')}:00`,
+              hora_fin: `${String(horaNum + 1).padStart(2, '0')}:00`,
+            };
+          });
         }
       }
       const horarioStr = formatHorarioNoLectiva(horarioEntradas);
@@ -1734,26 +1768,26 @@ export default function CargaHorariaPage() {
       body: chnlRows,
       startY: y,
       theme: 'grid',
-      styles: { cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.5 },
+      styles: { cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.25, textColor: 0 },
       margin: { left: ml, right: ml },
       columnStyles: { 0: { cellWidth: 28 }, 2: { cellWidth: 22 }, 3: { cellWidth: 18 }, 4: { cellWidth: 12 } },
-      tableLineWidth: 0.5,
+      tableLineWidth: 0.25,
       tableLineColor: [0, 0, 0]
     });
     y = (doc as any).lastAutoTable.finalY;
 
-    // 5. TOTAL ROW
+    // 5. TOTAL ROW (solo negrita, sin color de fondo nuevo)
     const totalGeneral = totalLectiva + totalNoLectiva;
     autoTable(doc, {
       body: [[
-        { content: 'TOTAL HORAS CARGA ACADÉMICA', styles: { fillColor: [220, 230, 241], fontSize: 8.5, fontStyle: 'bold', halign: 'center' }, colSpan: 4 },
-        { content: String(totalGeneral), styles: { fillColor: [220, 230, 241], fontSize: 8.5, fontStyle: 'bold', halign: 'center' } }
+        { content: 'TOTAL HORAS CARGA ACADÉMICA', styles: { fontSize: 8.5, fontStyle: 'bold', halign: 'center' }, colSpan: 4 },
+        { content: String(totalGeneral), styles: { fontSize: 8.5, fontStyle: 'bold', halign: 'center' } }
       ]],
       startY: y,
       theme: 'grid',
-      styles: { cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.5 },
+      styles: { cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.25, textColor: 0 },
       margin: { left: ml, right: ml },
-      tableLineWidth: 0.5,
+      tableLineWidth: 0.25,
       tableLineColor: [0, 0, 0]
     });
     y = (doc as any).lastAutoTable.finalY + 5;
@@ -2042,6 +2076,7 @@ export default function CargaHorariaPage() {
               Carga por Docentes
             </button>
           )}
+          {/* Comentado: "Carga Observaciones" no se usa en esta versión.
           <button
             onClick={() => setActiveTab('carga-observaciones')}
             style={{
@@ -2058,6 +2093,7 @@ export default function CargaHorariaPage() {
           >
             💬 Carga Observaciones
           </button>
+          */}
           <button
             onClick={() => setActiveTab('reportes')}
             style={{
@@ -2720,7 +2756,7 @@ export default function CargaHorariaPage() {
                         <th>Tipo</th>
                         <th>Curso</th>
                         <th>Grupo</th>
-                        <th>Docente</th>
+                        {!isDocente && <th>Docente</th>}
                         <th>Día</th>
                         <th>Horario</th>
                       </tr>
@@ -2763,7 +2799,7 @@ export default function CargaHorariaPage() {
                                 <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{tipo === 'laboratorio' ? 'Lab' : tipo === 'aula' ? 'Aula' : tipo}</td>
                                 <td>{e.curso_codigo} - {e.curso_nombre}</td>
                                 <td style={{ textAlign: 'center' }}>{e.numero_grupo}</td>
-                                <td>{e.docente_nombre}</td>
+                                {!isDocente && <td>{e.docente_nombre}</td>}
                                 <td style={{ textAlign: 'center' }}>{diaLabels[e.dia] || e.dia}</td>
                                 <td style={{ textAlign: 'center' }}>{e.hora_inicio} - {e.hora_fin}</td>
                               </tr>
@@ -3069,7 +3105,14 @@ export default function CargaHorariaPage() {
           </div>
         </>
       ) : activeTab === 'carga-observaciones' ? (
-        // Pestaña Carga Observaciones (per-course observations from carga_horaria_cursos)
+        // Comentado: la pestaña "Carga Observaciones" no se usa en esta versión.
+        // Se deja un panel informativo para que la ruta no rompa si se activa por URL.
+        <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+            La sección de observaciones no está disponible en esta versión.
+          </p>
+        </div>
+        /* Comentado (bloque original de la pestaña Carga Observaciones):
         <div className="card" style={{ padding: '20px', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
           {!cicloAcademicoSeleccionado ? (
             <div style={{
@@ -3192,6 +3235,7 @@ export default function CargaHorariaPage() {
             </>
           )}
         </div>
+        */
       ) : activeTab === 'reportes' ? (
         // Pestaña Reportes
         <>
