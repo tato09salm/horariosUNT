@@ -141,7 +141,8 @@ export default function DashboardPage() {
           fetch('/api/docentes').then(r => r.json()).catch(() => ({ data: [] })),
         ]);
         const progs = progsRes.data || [];
-        const selectedProg = progs.find((p) => p.estado === 'publicado') || progs[0];
+        const progsActivas = progs.filter((p: any) => p.estado !== 'cancelado');
+        const selectedProg = progsActivas.find((p: any) => p.estado === 'publicado') || progsActivas[0];
         if (selectedProg) {
           const exportRes = await fetch(`/api/horarios/programaciones/${selectedProg.id}/exportar`);
           if (exportRes.ok) {

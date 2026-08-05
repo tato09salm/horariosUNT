@@ -176,6 +176,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     [estadoMap[anterior.fase], id]
   );
 
+  // Reactivar las asignaciones del ciclo que fueron inactivadas al cancelar
+  await query(
+    `UPDATE asignaciones SET estado = 'activo', updated_at = NOW()
+     WHERE ciclo_id = $1 AND estado = 'cancelado'`,
+    [anterior.ciclo_id]
+  );
+
   await registrarAuditoria({
     usuario_id: session.id,
     usuario_nombre: `${session.nombre} ${session.apellidos}`,
@@ -208,6 +215,14 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   await queryOne(
     `UPDATE programaciones SET estado = 'cancelado', updated_at = NOW() WHERE id = $1`,
     [id]
+  );
+
+  // Inactivar las asignaciones del ciclo asociadas a esta programación para que
+  // no sigan apareciendo en dashboard, grid, por-aula, horario de docente, etc.
+  await query(
+    `UPDATE asignaciones SET estado = 'cancelado', updated_at = NOW()
+     WHERE ciclo_id = $1 AND estado = 'activo'`,
+    [anterior.ciclo_id]
   );
 
   await registrarAuditoria({
