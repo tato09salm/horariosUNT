@@ -107,9 +107,25 @@ export default function GrillaHorarios({
     return () => mq.removeEventListener('change', fn);
   }, []);
 
+  const docenteNombreMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const d of todosDocentes) {
+      if (d.id) {
+        map.set(d.id, `${d.apellidos ? d.apellidos + ', ' : ''}${d.nombre || ''}`.trim());
+      }
+    }
+    return map;
+  }, [todosDocentes]);
+
   const asignacionesNormalizadas = useMemo(
-    () => asignaciones.map(normalizarAsignacion),
-    [asignaciones]
+    () => asignaciones.map(a => {
+      const norm = normalizarAsignacion(a);
+      if (!norm.docente_nombre && norm.docente_id && docenteNombreMap.has(norm.docente_id)) {
+        norm.docente_nombre = docenteNombreMap.get(norm.docente_id);
+      }
+      return norm;
+    }),
+    [asignaciones, docenteNombreMap]
   );
 
   const asignacionesVisibles = useMemo(() => {

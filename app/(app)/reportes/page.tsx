@@ -125,7 +125,7 @@ export default function ReportesPage() {
       .then(d => {
         if (!active) return;
         const progs = d.data || [];
-        const published = progs.find((p: any) => p.estado === 'publicado' || p.fase === 4) || null;
+        const published = progs.find((p: any) => (p.estado === 'publicado' || p.fase === 4) && p.estado !== 'cancelado') || null;
         setExportableProgId(published ? published.id : null);
       })
       .catch(() => { if (active) setExportableProgId(null); });
@@ -150,7 +150,8 @@ export default function ReportesPage() {
     try {
       const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`).then(r => r.json());
       const progs = progsRes.data || [];
-      const selectedProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
+      const progsActivas = progs.filter((p: any) => p.estado !== 'cancelado');
+      const selectedProg = progsActivas.find((p: any) => p.estado === 'publicado') || progsActivas[0];
       if (selectedProg && selectedProg.config && selectedProg.config.horarios_restringidos) {
         setRestringidos(selectedProg.config.horarios_restringidos);
       }

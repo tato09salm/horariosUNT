@@ -106,7 +106,7 @@ export async function GET(req: NextRequest) {
       if (cargaHoraria[i].cursos.length > 0 && !cargaHoraria[i].cursos.some((c: any) => c.horario_slots)) {
         try {
           const progResult = await query(
-            `SELECT config FROM programaciones WHERE ciclo_id = $1 AND config IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
+            `SELECT config FROM programaciones WHERE ciclo_id = $1 AND config IS NOT NULL AND estado != 'cancelado' ORDER BY created_at DESC LIMIT 1`,
             [ch.ciclo_academico_id]
           );
           if (progResult.length > 0 && progResult[0].config?.asignaciones) {

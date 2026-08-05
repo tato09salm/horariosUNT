@@ -27,6 +27,24 @@ export async function GET(
       return NextResponse.json({ error: 'Programación no encontrada' }, { status: 404 });
     }
 
+    // No exponer asignaciones de programaciones canceladas
+    if (prog.estado === 'cancelado') {
+      return NextResponse.json({
+        programacion: {
+          id: prog.id,
+          codigo: prog.nombre || prog.codigo,
+          periodo: prog.ciclo_nombre,
+          estado: prog.estado
+        },
+        asignaciones: [],
+        docentes: [],
+        aulas: [],
+        ciclos: [],
+        metricas: {},
+        slots: []
+      });
+    }
+
     // 2. Cargar asignaciones crudas (borrador en config, o activas en tabla real)
     let rawAsignaciones = prog.config?.asignaciones || [];
     if (rawAsignaciones.length === 0) {

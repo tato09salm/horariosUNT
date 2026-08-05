@@ -285,7 +285,8 @@ export default function HorariosPage() {
       const progsJson = await progsRes.json();
       console.log('programaciones response:', progsJson);
       const progs = progsJson.data || [];
-      const selectedProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
+      const progsActivas = progs.filter((p: any) => p.estado !== 'cancelado');
+      const selectedProg = progsActivas.find((p: any) => p.estado === 'publicado') || progsActivas[0];
       console.log('selectedProg:', selectedProg);
       
       if (selectedProg && selectedProg.config && selectedProg.config.horarios_restringidos) {
@@ -374,7 +375,8 @@ export default function HorariosPage() {
       const progsRes = await fetch(`/api/horarios/programaciones?ciclo_id=${cicloId}`);
       const progsJson = await progsRes.json();
       const progs = progsJson.data || [];
-      const selectedProg = progs.find((p: any) => p.estado === 'publicado') || progs[0];
+      const progsActivas = progs.filter((p: any) => p.estado !== 'cancelado');
+      const selectedProg = progsActivas.find((p: any) => p.estado === 'publicado') || progsActivas[0];
       
       const noLectivaData: any[] = [];
       

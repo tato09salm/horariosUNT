@@ -25,6 +25,10 @@ export async function GET(req: NextRequest) {
 
   if (!prog) return NextResponse.json({ error: 'Programación no encontrada' }, { status: 404 });
 
+  if (prog.estado === 'cancelado') {
+    return NextResponse.json({ error: 'La programación está cancelada' }, { status: 404 });
+  }
+
   const asignaciones = prog.config?.asignaciones || [];
 
   if (asignaciones.length === 0) {
